@@ -82,6 +82,38 @@ test.describe("site header", () => {
   });
 });
 
+test.describe("route error state", () => {
+  // Requested twice in review and previously unaddressed. An error boundary is
+  // the one surface you cannot check by browsing, so without fault injection it
+  // is only ever exercised during a real incident.
+  test("a failing live offer renders the error UI, not a blank page", async ({
+    page,
+  }) => {
+    // The product resolves; its offer returns 500. That is the degraded-backend
+    // shape: cached shell fine, request-time pricing unavailable.
+    await page.goto("/products/force-error");
+
+    await expect(
+      page.getByRole("heading", { level: 1, name: /something went wrong/i }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+
+    // Must never surface backend prose to a customer.
+    await expect(page.locator("body")).not.toContainText("injected fault");
+    await expect(page.locator("body")).not.toContainText("500");
+  });
+
+  test("the error state offers a way out of the dead end", async ({ page }) => {
+    await page.goto("/products/force-error");
+    await expect(
+      page.getByRole("heading", { level: 1, name: /something went wrong/i }),
+    ).toBeVisible();
+
+    await page.getByRole("link", { name: /browse all products/i }).click();
+    await expect(page).toHaveURL(/\/products$/);
+  });
+});
+
 test.describe("global not-found", () => {
   test("an unknown URL renders the 404 page, not a crash", async ({ page }) => {
     const response = await page.goto("/no-such-page");

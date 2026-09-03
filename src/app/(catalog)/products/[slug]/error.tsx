@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 
 /**
  * Route error boundary. Must be a Client Component — this is one of the few
@@ -44,6 +45,20 @@ export default function ProductError({
           Try again
         </button>
       </div>
+
+      {/*
+        An escape route, not decoration. With only "Try again", a persistently
+        failing product is a dead end: the shopper can either keep retrying or
+        leave the site. This matches the global error boundary's behaviour.
+      */}
+      <p className="mt-8">
+        <Link
+          href="/products"
+          className="focus-visible:ring-ring rounded underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none"
+        >
+          Browse all products
+        </Link>
+      </p>
       {error.digest && (
         <p className="text-muted-foreground mt-6 text-xs">
           Reference: {error.digest}

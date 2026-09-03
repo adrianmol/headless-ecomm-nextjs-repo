@@ -28,6 +28,16 @@ test.describe("accessibility", () => {
     expect((await scan(page)).violations).toEqual([]);
   });
 
+  test("route error state", async ({ page }) => {
+    // Error pages are routinely the least accessible surface in an app, because
+    // nobody looks at them.
+    await page.goto("/products/force-error");
+    await expect(
+      page.getByRole("heading", { level: 1, name: /something went wrong/i }),
+    ).toBeVisible();
+    expect((await scan(page)).violations).toEqual([]);
+  });
+
   test("product listing", async ({ page }) => {
     await page.goto("/products");
     await expect(page.getByRole("heading", { name: "All products" })).toBeVisible();

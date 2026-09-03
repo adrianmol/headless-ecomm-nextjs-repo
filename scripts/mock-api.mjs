@@ -145,6 +145,33 @@ const json = (res, status, body) => {
 const notFound = (res) =>
   json(res, 404, { code: "not_found", message: "not found" });
 
+/**
+ * Test-only fault injection. Not part of the commerce API.
+ *
+ * The product resolves normally but its live offer returns 500, which is a real
+ * degraded-backend shape: the cached shell is fine while request-time pricing is
+ * unavailable. It exists so E2E can prove the route error boundary renders
+ * something useful instead of a blank page — the one thing that is otherwise
+ * only verifiable by breaking production.
+ */
+const FAULT_SLUG = "force-error";
+
+const faultProduct = {
+  id: "prod_fault",
+  slug: FAULT_SLUG,
+  title: "Fault Injection",
+  description: "Test fixture whose live offer always fails.",
+  images: [
+    {
+      url: "/img/merino-crew.png",
+      alt: "Fault Injection",
+      width: 800,
+      height: 1000,
+    },
+  ],
+  variants: [{ id: "var_fault", title: "One size" }],
+};
+
 const conflict = (res, code, message, details) =>
   json(res, 409, { code, message, ...(details ? { details } : {}) });
 
@@ -175,12 +202,16 @@ const server = createServer(async (req, res) => {
 
   let match = path.match(/^\/products\/([^/]+)\/offer$/);
   if (req.method === "GET" && match) {
+    if (match[1] === FAULT_SLUG) {
+      return json(res, 500, { code: "unavailable", message: "injected fault" });
+    }
     const offer = offers[match[1]];
     return offer ? json(res, 200, offer) : notFound(res);
   }
 
   match = path.match(/^\/products\/([^/]+)$/);
   if (req.method === "GET" && match) {
+    if (match[1] === FAULT_SLUG) return json(res, 200, faultProduct);
     const product = products.find((p) => p.slug === match[1]);
     return product ? json(res, 200, product) : notFound(res);
   }
