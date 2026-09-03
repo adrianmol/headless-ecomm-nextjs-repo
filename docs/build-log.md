@@ -7,9 +7,9 @@ load-bearing decisions). This file is the narrative: the order things happened i
 mistakes made along the way, and the state of play.
 
 **Status at time of writing:** Phases 0–4 complete. Phase 5 (hardening) in progress —
-E2E and accessibility done; observability and load testing outstanding.
-11 commits · 68 unit tests + 15 E2E · lint, contract drift, typecheck, test, build and
-E2E all green.
+E2E, accessibility and observability done; **load testing outstanding**.
+78 unit tests + 15 E2E · lint, contract drift, typecheck, test, build, E2E and Lighthouse
+budgets all green.
 
 ---
 
@@ -45,7 +45,7 @@ Three were written up as ADRs because they are the ones that would be argued abo
 | 2 | Catalog: PLP + PDP, caching, streamed price/stock | Done |
 | 3 | Cart: Server Actions, optimistic UI | Done |
 | 4 | Checkout: forms, idempotent session creation, redirect, return verification | Done |
-| 5 | Hardening: a11y, observability, error flows, load test, E2E | **Partial** — E2E + axe done; observability and load testing outstanding |
+| 5 | Hardening: a11y, observability, error flows, load test, E2E | **Partial** — E2E, axe and observability done; **load testing outstanding** |
 
 Phase 1 deliberately preceded Phase 2 so that catalog and cart work could proceed against
 mocks in parallel with backend development, and so contract gaps would surface in week one
@@ -203,6 +203,13 @@ failed with `EADDRINUSE` and I was silently measuring a `next dev` server, which
 devtools and HMR. Also: `<script noModule>` (~39 kB legacy polyfill) must be excluded, or
 every route is overstated by a third.
 
+This recurred twice more — a stale server on the port, a failed `EADDRINUSE` start, and
+measurements taken against the wrong process, once producing an impossible 54 bytes and once
+appearing to verify an OpenTelemetry code path that had never actually loaded. **Before
+trusting any local measurement, confirm the port was free and read the server's own boot log
+to prove the process under test is the one that started.** A silent bind failure looks
+exactly like a healthy server, because the old one keeps answering.
+
 **`revalidateTag('cart:...')` was specified but meaningless.** The cart is never cached, so
 there is no tag to expire. Invoking a Server Action already re-renders the route. Removed
 from the doc rather than implemented.
@@ -293,6 +300,53 @@ E2E runs the **standalone** server (`node .next/standalone/server.js`), not `nex
 That is what the container executes; `next start` is additionally unsupported alongside
 `output: 'standalone'`. Testing it would mean exercising a server that never ships.
 
+### Measured results
+
+Lighthouse CI, 3 runs per URL, median, desktop preset, against the standalone production
+server (`pnpm dlx @lhci/cli autorun`):
+
+| Route | LCP | CLS | Script transfer | Performance |
+| --- | --- | --- | --- | --- |
+| `/products` | 511 ms | 0.000 | 150.4 kB | 100 |
+| `/products/[slug]` | 552 ms | 0.000 | 167.8 kB | 100 |
+
+Budgets are LCP < 2000 ms, CLS < 0.05, script < 170 kB. All pass, but **the PDP has only
+2.2 kB of headroom** — the next client component added to it breaches the gate.
+
+Diagnosed, and measured rather than estimated: `AddToCart` is the PDP's only client leaf, and
+it imports `Button`, which imports `Slot` from the umbrella `radix-ui` package plus
+`class-variance-authority`. Removing that import drops the PDP from 156.0 kB to 145.6 kB
+on the wire — 10.4 kB back. The better fix is for `src/components/ui/button.tsx` to import
+`@radix-ui/react-slot` directly rather than the umbrella, which helps every client usage
+without duplicating design tokens; it edits a shadcn-managed file, so it needs an owner call
+and a note in `AGENTS.md` so a future `shadcn add` does not revert it.
+
+**CLS of exactly 0.000 is the number worth noticing.** It is the payoff for making every
+`<Suspense>` fallback reserve the exact height of the content that replaces it. The PDP
+streams its price into a skeleton and still shifts nothing.
+
+Initial client JS measured directly off the wire (`noModule` excluded), for comparison —
+Lighthouse counts more because it includes chunks fetched after hydration:
+
+| Route | Total | Above the 134 kB framework floor |
+| --- | --- | --- |
+| `/cart` | 139.7 kB | +5.4 kB |
+| `/` | 143.9 kB | +9.6 kB |
+| `/products` | 143.9 kB | +9.6 kB |
+| `/checkout` | 150.2 kB | +15.9 kB |
+| `/products/[slug]` | 156.0 kB | +21.7 kB |
+
+An error boundary is worth calling out here, because it is not obvious: `error.tsx` ships with
+**every** route whether or not it renders. The first version of the global one imported
+`Button` and `PageMessage`, which pulled Radix `Slot` and `cva` client-side across the whole
+site and cost **+20.3 kB gzipped on `/`** — for markup almost no visitor sees. Rewriting both
+error boundaries with plain elements and Tailwind classes recovered 10.8 kB. Keep error
+boundaries import-free.
+
+The floor rose from 131 kB to 134 kB when `WebVitals` was added to the root layout: ~3.2 kB
+for field Core Web Vitals reporting on every route. That is the one client component
+deliberately placed in a layout, because it renders `null` and so drags no subtree with it.
+
 ---
 
 ## 8. Still open
@@ -303,11 +357,18 @@ That is what the container executes; `next start` is additionally unsupported al
    contract the frontend invented. The §9 asks in the architecture doc — idempotency keys,
    the cache-invalidation webhook, structured error codes, cart merge semantics — remain
    unconfirmed by anyone on the backend side.
-2. **Phase 5 is partial.** E2E and axe are in place; **OpenTelemetry with trace propagation,
-   frontend RUM, and load testing are not**. There is still no way to answer "why is the PDP
-   slow in production".
-3. **Node 20 is EOL locally** (2026-04-30). CI and the Docker image run Node 22.
-4. **Jenkins placeholders** — `registry.example.com`, `your-server.hetzner.example`.
+2. **Load testing has not been done, and cannot usefully be done yet.** Driving load at the
+   mock measures the mock: it is an in-memory single-cart stub on one Node process, so any
+   number it produces describes the fixture, not the system. This needs the real API and a
+   representative dataset.
+3. **Tracing is wired but exports nowhere.** `src/instrumentation.ts` registers OpenTelemetry
+   and the commerce client injects `traceparent`, but there is no collector — the exporter is
+   deliberately inert until `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Verified that enabling it
+   against a non-listening endpoint does not break request handling.
+4. **Field Core Web Vitals log to stdout.** `POST /api/vitals` writes structured JSON because
+   container logs are the only sink that exists. Wiring a RUM vendor is a one-file change.
+5. **Node 20 is EOL locally** (2026-04-30). CI and the Docker image run Node 22.
+6. **Jenkins placeholders** — `registry.example.com`, `your-server.hetzner.example`.
 
 **Known limitations, deliberate:**
 

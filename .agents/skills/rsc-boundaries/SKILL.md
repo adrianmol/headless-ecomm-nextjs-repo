@@ -66,6 +66,32 @@ normal; a jump of tens or hundreds of kB means a `'use client'` landed too high 
 When measuring by hand, exclude `<script noModule>` — that is the legacy polyfill bundle (~39 kB)
 that no modern browser fetches, and counting it overstates every route by about a third.
 
+## Never await `params` or `searchParams` in a page body
+
+This has broken the build twice — once on the PDP, once on `/checkout`. Both are runtime
+data, so awaiting them in the page component puts a runtime access outside every Suspense
+boundary and stops the whole route prerendering:
+
+> Route "/x": Next.js encountered uncached or runtime data during prerendering.
+
+Pass the promise down and resolve it inside the boundary that needs it:
+
+```tsx
+// wrong — blocks prerendering of the entire route
+export default async function Page({ params }: PageProps<"/products/[slug]">) {
+  const { slug } = await params;
+  return <Suspense fallback={<Skeleton />}><Detail slug={slug} /></Suspense>;
+}
+
+// right — the shell prerenders, each boundary resolves its own data
+export default function Page({ params }: PageProps<"/products/[slug]">) {
+  return <Suspense fallback={<Skeleton />}><Detail params={params} /></Suspense>;
+}
+```
+
+Same rule for `cookies()` and `headers()`: read them inside a Suspense boundary, never in
+the page body.
+
 ## Common regressions
 
 1. `'use client'` added to a shared wrapper, dragging dozens of components client-side.
