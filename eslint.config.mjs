@@ -43,6 +43,15 @@ const eslintConfig = defineConfig([
     },
   },
 
+  // Playwright fixtures take a callback conventionally named `use`, which the
+  // React hooks rule reads as the `use` hook. These files contain no React.
+  {
+    files: ["e2e/**/*.ts", "playwright.config.ts"],
+    rules: {
+      "react-hooks/rules-of-hooks": "off",
+    },
+  },
+
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

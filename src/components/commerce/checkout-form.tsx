@@ -74,7 +74,11 @@ export function CheckoutForm({
   const errors = state.status === "invalid" ? state.fieldErrors : {};
 
   return (
-    <form action={formAction} className="space-y-4">
+    // noValidate is deliberate: with native validation on, the browser blocks
+    // submission before the Server Action runs, so our Zod messages never
+    // appear and the two validators drift apart. The server is the source of
+    // truth for validity; the browser must not pre-empt it.
+    <form action={formAction} noValidate className="space-y-4">
       {state.status !== "idle" && state.status !== "invalid" && (
         <p role="alert" className="text-destructive text-sm">
           {state.status === "empty" &&

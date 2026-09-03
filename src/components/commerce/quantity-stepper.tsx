@@ -47,7 +47,11 @@ export function QuantityStepper({
   const latest = useRef(0);
 
   function step(delta: number) {
-    const next = Math.max(0, max === undefined ? Infinity : Math.min(max, target.current + delta));
+    // Clamp the *stepped* value. An earlier version returned Infinity when no
+    // max was supplied, which JSON-serialises to null, which the backend read
+    // as quantity 0 — so pressing "+" deleted the line.
+    const stepped = target.current + delta;
+    const next = Math.max(0, max === undefined ? stepped : Math.min(max, stepped));
     if (next === target.current) return;
 
     target.current = next;

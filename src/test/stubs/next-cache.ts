@@ -21,8 +21,16 @@ export function revalidateTag(tag: string): void {
   revalidatedTags.push(tag);
 }
 
+export let refreshCount = 0;
+
+/** Server-Action-only in Next, so it throws outside a request here too. */
+export function refresh(): void {
+  refreshCount += 1;
+}
+
 export function resetCacheStub(): void {
   appliedTags.length = 0;
   appliedLifetimes.length = 0;
   revalidatedTags.length = 0;
+  refreshCount = 0;
 }

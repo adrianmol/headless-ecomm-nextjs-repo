@@ -152,6 +152,23 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
   const path = url.pathname.replace(/^\/v1/, "");
 
+  // Test-only. Not part of the commerce API and not something the real backend
+  // will ever expose. E2E needs it because the cart here is a single global
+  // object and the idempotency caches are keyed on values the client derives
+  // from useId, which can legitimately repeat between tests — without a reset,
+  // one test's basket leaks into the next.
+  if (req.method === "POST" && url.pathname === "/__reset") {
+    cart.lines = [];
+    cart.version = 1;
+    lineSeq = 0;
+    recalcTotals();
+    cartsByKey.clear();
+    cartMutationsByKey.clear();
+    sessionsByKey.clear();
+    orders.clear();
+    return json(res, 200, { reset: true });
+  }
+
   if (req.method === "GET" && path === "/products") {
     return json(res, 200, { items: products, nextCursor: null });
   }

@@ -158,3 +158,18 @@ describe("setLineQuantityAction", () => {
     expect(idempotencyLog[0]).toContain("3");
   });
 });
+
+describe("setLineQuantityAction input guard", () => {
+  it("rejects a non-integer quantity instead of forwarding it", async () => {
+    // Regression: the stepper once computed Infinity, which JSON-serialises to
+    // null and was read downstream as 0, silently deleting the line.
+    __setCookie(CART_COOKIE, "cart_1");
+
+    for (const quantity of [Number.POSITIVE_INFINITY, Number.NaN, 1.5, -1]) {
+      expect(await setLineQuantityAction({ lineId: "line_1", quantity })).toEqual({
+        status: "error",
+        retryable: false,
+      });
+    }
+  });
+});

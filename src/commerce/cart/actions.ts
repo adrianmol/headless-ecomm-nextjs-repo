@@ -1,5 +1,6 @@
 "use server";
 
+import { refresh } from "next/cache";
 import type { CartFeedback } from "@/lib/cart-feedback";
 import { CommerceErrorException, type CommerceError } from "../errors";
 import { clearCartId, getCartId, setCartId } from "../session";
@@ -15,10 +16,14 @@ import { getCart, type Cart } from "./queries";
  * The write path for the cart. These are the only functions permitted to mutate
  * it, and the only place that touches the cart cookie.
  *
- * No cache invalidation happens here on purpose. The cart is never cached, so
- * there is no tag to expire — invoking a Server Action already re-renders the
- * current route's Server Components, which is what refreshes the cart UI.
- * (`updateTag` would be the tool if any of this were cached; it is not.)
+ * There is no cache to invalidate — the cart is never cached, so no tag exists
+ * to expire and `revalidateTag`/`updateTag` have nothing to act on.
+ *
+ * A successful mutation still has to call `refresh()`. Mutating server state
+ * does not by itself re-render the Server Components already on screen, so
+ * without it the backend and the page silently disagree: the line is gone from
+ * the cart but still rendered, with no error to explain it. Caught by E2E, not
+ * by unit tests, because the data layer was behaving perfectly.
  */
 
 function toFeedback(error: CommerceError): CartFeedback {
@@ -96,13 +101,26 @@ export async function addToCartAction(input: {
     quantity: input.quantity,
   });
 
-  return result.ok ? { status: "ok" } : toFeedback(result.error);
+  if (!result.ok) return toFeedback(result.error);
+
+  // Re-render the Server Components showing the cart. Without this the write
+  // lands but the page keeps rendering the pre-mutation state.
+  refresh();
+  return { status: "ok" };
 }
 
 export async function setLineQuantityAction(input: {
   lineId: string;
   quantity: number;
 }): Promise<CartFeedback> {
+  // Defence in depth. A client bug once sent Infinity here, which serialises to
+  // null and was read downstream as 0 — silently deleting the line. Server
+  // Actions are a public HTTP surface regardless, so the argument is validated
+  // rather than trusted.
+  if (!Number.isInteger(input.quantity) || input.quantity < 0) {
+    return { status: "error", retryable: false };
+  }
+
   const cartId = await getCartId();
   if (!cartId) return { status: "cart_expired" };
 
@@ -118,7 +136,12 @@ export async function setLineQuantityAction(input: {
     quantity: input.quantity,
   });
 
-  return result.ok ? { status: "ok" } : toFeedback(result.error);
+  if (!result.ok) return toFeedback(result.error);
+
+  // Re-render the Server Components showing the cart. Without this the write
+  // lands but the page keeps rendering the pre-mutation state.
+  refresh();
+  return { status: "ok" };
 }
 
 export async function removeLineAction(input: {
@@ -136,5 +159,10 @@ export async function removeLineAction(input: {
     lineId: input.lineId,
   });
 
-  return result.ok ? { status: "ok" } : toFeedback(result.error);
+  if (!result.ok) return toFeedback(result.error);
+
+  // Re-render the Server Components showing the cart. Without this the write
+  // lands but the page keeps rendering the pre-mutation state.
+  refresh();
+  return { status: "ok" };
 }
