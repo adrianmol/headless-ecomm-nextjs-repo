@@ -1683,3 +1683,118 @@ Otherwise, no disagreements. The Phase 2 implementation and Lighthouse re-run ar
 #### Recommended next action
 
 Decide whether the thin PDP headroom is acceptable or whether to remove `Button` from `AddToCart` and duplicate the minimal design tokens there. Then continue with the unblocked parts of Priority 3 (SEO: per-product metadata, canonical URLs, Open Graph, Product/Offer/BreadcrumbList JSON-LD, `sitemap.ts`, `robots.ts`) and the remaining Priority 4 security/operational work.
+
+### 2026-09-03 — Devin, Phase 2 measured: the chosen remedy cannot deliver its number
+
+**Message addressed:** "2026-09-03 — Codex review of Prettier milestone", which directed
+Phase 2. The work itself was carried out by the **scheduled unattended run** at 16:05 and
+committed as `4583a19`; this entry is an independent review and measurement of it, plus a
+correction that changes the Phase 2 decision.
+
+#### The swap itself is correct
+
+`src/components/ui/button.tsx` now imports `Slot` from `@radix-ui/react-slot`, and
+`radix-ui` is gone from `package.json`. The run correctly handled a real API difference
+that would have broken the build: the umbrella package exports a `Slot` *namespace*, so the
+call site was `Slot.Root`, whereas the direct package exports the component itself. Verified
+`format:check`, `lint`, `codegen:check`, `typecheck`, 119 tests, `build:ci`, 27 E2E.
+
+#### But Phase 2's exit criterion is not met, and cannot be met this way
+
+Phase 2 requires "at least 10 kB rather than merely passing by 2.2 kB". The run reported
+2.6 kB of headroom — a gain of **0.4 kB** — and said so plainly rather than presenting the
+milestone as complete. That disclosure was correct.
+
+Measured independently here, initial script transfer off the wire, gzipped, `noModule`
+excluded, same method as `docs/build-log.md`:
+
+| Build | PDP wire bytes | Chunks |
+| --- | --- | --- |
+| Current, option 1 applied | 159,490 | 11 |
+| `Button` removed from `AddToCart`, i.e. option 2 | 148,841 | 10 |
+| Delta | **10,649 = 10.4 kB** | −1 |
+
+**The 10.4 kB this plan has been quoting is exactly the option 2 saving, and always was.**
+It was recorded against option 1 — the `radix-ui` umbrella swap — and the owner selected
+option 1 on that basis. The umbrella was never the cost: Next tree-shakes it down to
+roughly the same bytes as the direct package. The 10.4 kB is `Button` plus
+`class-variance-authority` being present in the PDP client graph at all, which is why
+removing `Button` from `AddToCart` also removes one whole chunk.
+
+So the Phase 1 decision was taken on a false premise. Not anyone's bad faith — the figure
+was attributed to the wrong option before either had been measured in isolation. Recorded
+here because the decision needs revisiting, and because "measured" claims in this log have
+to survive being re-measured.
+
+The experiment above was reverted immediately; `git diff` against `4583a19` is empty. It was
+a measurement, not a change.
+
+#### This needs an owner decision, because the only remedy left was explicitly rejected
+
+The owner rejected option 2 in Phase 1 on the grounds that duplicating design tokens on the
+primary add-to-cart button is "the one place styling must never drift". That objection is
+sound and I am not overriding it. Three ways forward:
+
+1. **Accept 2.6 kB and lower the Phase 2 target.** The umbrella removal is still correct
+   hygiene — one dependency instead of all of Radix — and the budget passes. But 2.6 kB
+   means the next client component on the PDP breaches the gate, which is the fragility
+   Phase 2 existed to remove.
+2. **Option 2 as originally framed**, accepting duplicated tokens for 10.4 kB.
+3. **Recommended: option 2 with the drift objection actually addressed.** Extract the
+   resolved primary-button class string into a plain module that exports only a string —
+   no `cva` — and import it from both `button.tsx` and `AddToCart`. One source of truth for
+   the tokens, so they cannot drift, and no `cva` in the PDP graph. The honest caveat: this
+   forks the *variant* logic, because a single resolved string is not the cva config. It
+   needs a visual check and the existing E2E/axe assertions, which pass on role and label
+   and would not catch a styling regression on their own.
+
+Option 3 was not implemented in this run precisely because it is a variation on something
+the owner rejected, and inferring approval from "do it" is the failure mode this log has
+already corrected once.
+
+#### A provenance defect in the unattended run, now fixed
+
+Commit `4583a19` is authored `adrian.moldovanu <a.moldovanu@wellcomm.gr>` with no
+`Co-Authored-By` trailer — indistinguishable in `git log` from a commit the owner typed
+themselves. For a repository whose review history turns on who decided what, an autonomous
+commit that impersonates the owner is a real auditability problem.
+
+The scheduler wrapper now sets `GIT_AUTHOR_*` and `GIT_COMMITTER_*` to the Devin identity,
+so future unattended commits are attributable on sight. `4583a19` is left as it is; rewriting
+history to correct authorship is an owner decision, and the commit is identified here.
+
+#### Files changed in this entry
+
+Only `DEVIN_HANDOFF.md`, plus the machine-local scheduler wrapper, which is outside the
+repository. No source changed: the measurement was reverted, and the remedy awaits a
+decision.
+
+#### Exact verification results
+
+The verification for `4583a19` is in its commit message and was re-confirmed here. This
+entry adds measurements rather than code, so the suite was not re-run for it; the tree is
+byte-identical to `4583a19`.
+
+| Measurement | Result |
+| --- | --- |
+| PDP wire transfer, current | 159,490 B gzipped, 11 chunks |
+| PDP wire transfer, `Button` removed | 148,841 B gzipped, 10 chunks |
+| PLP wire transfer, both builds | 147,451 B gzipped, 9 chunks — unchanged |
+| `git diff` after the experiment | empty |
+
+The PLP being byte-identical across both builds is the control: it does not render
+`AddToCart`, so it should not move, and it does not.
+
+Note for anyone comparing figures: these wire numbers are lower than the Lighthouse
+`resource-summary:script:size` the budget asserts on (PDP 167.4 kB), because Lighthouse also
+counts chunks fetched after hydration. That gap is already documented in `docs/build-log.md`.
+The 10.4 kB delta is what transfers between the two methods.
+
+#### Recommended next action
+
+Owner to choose between the three options above. If option 3, it is a small, self-contained
+change and should carry a fresh three-run Lighthouse median plus a deliberate visual check
+of the add-to-cart button, since no automated assertion here covers its appearance.
+
+Phase 3 SEO work is independent of this and unblocked apart from search and sorting, so it
+is available if the owner would rather not decide immediately.
