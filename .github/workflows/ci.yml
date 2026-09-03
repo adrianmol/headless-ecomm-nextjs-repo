@@ -36,10 +36,19 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # Fails if the committed types drift from openapi/commerce.yaml, so a
+      # backend contract change surfaces as a reviewable diff rather than a
+      # silent runtime break.
+      - name: Contract drift
+        run: pnpm codegen:check
+
       # Runs `next typegen` first: route types are generated, so a bare `tsc`
       # fails on a clean checkout.
       - name: Typecheck
         run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
 
       - name: Build
         run: pnpm build

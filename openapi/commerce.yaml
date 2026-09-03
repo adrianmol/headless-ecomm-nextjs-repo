@@ -1,0 +1,441 @@
+openapi: 3.1.0
+info:
+  title: Internal Commerce API
+  version: 0.1.0-provisional
+  description: |
+    PROVISIONAL. Drafted by the frontend so storefront work can proceed against
+    MSW mocks before the real API exists. This is the contract the storefront
+    expects; it is a proposal to the backend team, not a description of a
+    shipped service. Replace wholesale once the real spec lands.
+
+    Three requirements are load-bearing and are the reason this file exists
+    (see docs/architecture.md §9):
+
+    1. Every mutating operation accepts an `Idempotency-Key` header. Server
+       Actions retry and users double-click; without this, duplicate orders are
+       unavoidable and cannot be fixed on the frontend.
+    2. Errors carry a stable machine-readable `code`. The UI must distinguish
+       out-of-stock from a server fault without string-matching prose.
+    3. Money is an integer in minor units plus an explicit currency. No floats.
+
+    Not modelled here: the catalog-publish webhook the backend must call so the
+    storefront can `revalidateTag`. It is an inbound call to the storefront, not
+    an endpoint on this API, but it is a hard dependency for catalog caching.
+
+servers:
+  - url: https://commerce.internal/v1
+    description: Private network only. Never internet-facing (ADR-0001).
+
+tags:
+  - name: catalog
+  - name: cart
+  - name: checkout
+
+paths:
+  /products:
+    get:
+      operationId: listProducts
+      tags: [catalog]
+      parameters:
+        - { name: category, in: query, schema: { type: string } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 24 }
+      responses:
+        "200":
+          description: A page of products.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductPage" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /products/{slug}:
+    get:
+      operationId: getProduct
+      tags: [catalog]
+      description: |
+        Static product content only. Cacheable with a long TTL. Deliberately
+        excludes price and availability so the PDP can cache this shell and
+        stream the volatile parts separately.
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Product content.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Product" }
+        "404": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /products/{slug}/offer:
+    get:
+      operationId: getOffer
+      tags: [catalog]
+      description: |
+        Price and availability. Volatile: short TTL or uncached. Split from
+        product content so a cached PDP shell can never serve a stale price.
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Current offer.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Offer" }
+        "404": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /carts:
+    post:
+      operationId: createCart
+      tags: [cart]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "201":
+          description: Cart created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /carts/{cartId}:
+    get:
+      operationId: getCart
+      tags: [cart]
+      parameters:
+        - { name: cartId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Current cart.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+        "404": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /carts/{cartId}/lines:
+    post:
+      operationId: addCartLine
+      tags: [cart]
+      parameters:
+        - { name: cartId, in: path, required: true, schema: { type: string } }
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [variantId, quantity]
+              properties:
+                variantId: { type: string }
+                quantity: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Updated cart.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+        "409":
+          description: Stock or price conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /carts/{cartId}/lines/{lineId}:
+    patch:
+      operationId: updateCartLine
+      tags: [cart]
+      description: |
+        Sets an absolute quantity, never a delta. The client debounces and
+        coalesces rapid changes, so a delta API would produce racing writes.
+      parameters:
+        - { name: cartId, in: path, required: true, schema: { type: string } }
+        - { name: lineId, in: path, required: true, schema: { type: string } }
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quantity]
+              properties:
+                quantity: { type: integer, minimum: 0 }
+      responses:
+        "200":
+          description: Updated cart.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+        "409":
+          description: Stock or price conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: removeCartLine
+      tags: [cart]
+      parameters:
+        - { name: cartId, in: path, required: true, schema: { type: string } }
+        - { name: lineId, in: path, required: true, schema: { type: string } }
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Updated cart.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /carts/{cartId}/merge:
+    post:
+      operationId: mergeCart
+      tags: [cart]
+      description: |
+        Merges the guest cart into the authenticated user's cart on login.
+        Backend-owned so every client behaves identically: sum quantities per
+        variant, re-validate stock, clamp to available.
+      parameters:
+        - { name: cartId, in: path, required: true, schema: { type: string } }
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Merged cart.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /checkout/sessions:
+    post:
+      operationId: createCheckoutSession
+      tags: [checkout]
+      description: |
+        Creates the payment intent and returns the PSP redirect URL. The
+        idempotency key is derived from cart id + cart version, so a
+        double-clicked Pay button cannot create two orders.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cartId, cartVersion]
+              properties:
+                cartId: { type: string }
+                cartVersion: { type: integer }
+                email: { type: string, format: email }
+      responses:
+        "201":
+          description: Session created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CheckoutSession" }
+        "409":
+          description: Cart changed since the version supplied.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /orders/{orderRef}:
+    get:
+      operationId: getOrder
+      tags: [checkout]
+      description: |
+        Authoritative order state. The storefront calls this on return from the
+        PSP; return-URL query parameters are attacker-controlled and are never
+        trusted.
+      parameters:
+        - { name: orderRef, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Order state.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "404": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        Deterministic per logical intent, not random per call. Replaying a key
+        with an identical payload returns the original result; replaying with a
+        different payload is a 422. Retention: at least 24h.
+      schema: { type: string, minLength: 8, maxLength: 255 }
+
+  responses:
+    Error:
+      description: Structured error.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Money:
+      type: object
+      required: [amountMinor, currency]
+      description: |
+        Integer minor units (e.g. 1099 == EUR 10.99) plus an ISO 4217 code.
+        Never a float: binary floating point cannot represent decimal currency
+        exactly, and the rounding error lands on a customer's invoice.
+      properties:
+        amountMinor: { type: integer }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+
+    Image:
+      type: object
+      required: [url, alt, width, height]
+      description: Dimensions are required so the UI can reserve space and avoid CLS.
+      properties:
+        url: { type: string, format: uri }
+        alt: { type: string }
+        width: { type: integer }
+        height: { type: integer }
+
+    Product:
+      type: object
+      required: [id, slug, title, images, variants]
+      properties:
+        id: { type: string }
+        slug: { type: string }
+        title: { type: string }
+        description: { type: string }
+        images:
+          type: array
+          items: { $ref: "#/components/schemas/Image" }
+        variants:
+          type: array
+          items: { $ref: "#/components/schemas/Variant" }
+
+    Variant:
+      type: object
+      required: [id, title]
+      properties:
+        id: { type: string }
+        title: { type: string }
+
+    ProductPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Product" }
+        nextCursor:
+          type: [string, "null"]
+          description: Cursor pagination; offsets duplicate rows under concurrent writes.
+
+    Availability:
+      type: object
+      required: [inStock, quantity]
+      properties:
+        inStock: { type: boolean }
+        quantity: { type: integer, minimum: 0 }
+
+    Offer:
+      type: object
+      required: [variantId, price, availability]
+      properties:
+        variantId: { type: string }
+        price: { $ref: "#/components/schemas/Money" }
+        compareAtPrice: { $ref: "#/components/schemas/Money" }
+        availability: { $ref: "#/components/schemas/Availability" }
+
+    CartLine:
+      type: object
+      required: [id, variantId, title, quantity, unitPrice, lineTotal]
+      properties:
+        id: { type: string }
+        variantId: { type: string }
+        title: { type: string }
+        image: { $ref: "#/components/schemas/Image" }
+        quantity: { type: integer, minimum: 1 }
+        unitPrice: { $ref: "#/components/schemas/Money" }
+        lineTotal: { $ref: "#/components/schemas/Money" }
+
+    CartTotals:
+      type: object
+      required: [subtotal, total]
+      properties:
+        subtotal: { $ref: "#/components/schemas/Money" }
+        shipping: { $ref: "#/components/schemas/Money" }
+        tax: { $ref: "#/components/schemas/Money" }
+        total: { $ref: "#/components/schemas/Money" }
+
+    Cart:
+      type: object
+      required: [id, version, lines, totals]
+      properties:
+        id: { type: string }
+        version:
+          type: integer
+          description: Increments on every mutation. Used for checkout idempotency.
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/CartLine" }
+        totals: { $ref: "#/components/schemas/CartTotals" }
+
+    CheckoutSession:
+      type: object
+      required: [orderRef, redirectUrl]
+      properties:
+        orderRef: { type: string }
+        redirectUrl: { type: string, format: uri }
+
+    Order:
+      type: object
+      required: [id, status, total]
+      properties:
+        id: { type: string }
+        status:
+          type: string
+          enum: [pending, paid, failed, cancelled]
+          description: |
+            `pending` is a real state, not an error: the PSP webhook may not have
+            landed when the customer returns. The storefront polls rather than
+            guessing an outcome.
+        total: { $ref: "#/components/schemas/Money" }
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - out_of_stock
+            - price_changed
+            - cart_expired
+            - unauthorized
+            - validation_failed
+            - unavailable
+          description: |
+            Stable and machine-readable. `message` is for logs and developers;
+            never branch on it, and never show it to customers.
+        message: { type: string }
+        details:
+          type: object
+          description: |
+            Code-specific, machine-readable payload. Because `message` must never
+            be shown to a customer, anything the UI needs to react to belongs
+            here.
+
+            - `out_of_stock`: `variantId`, `available`
+            - `price_changed`: `oldPrice`, `newPrice`
+            - `validation_failed`: `field` (the field path that failed, so the
+              storefront can mark the right input using its own copy)
+          additionalProperties: true

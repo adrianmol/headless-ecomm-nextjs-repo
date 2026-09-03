@@ -54,10 +54,15 @@ Available review subagents: `commerce-reviewer` (architecture-invariant review),
 Run before declaring work complete:
 
 ```bash
-pnpm lint && pnpm typecheck && pnpm build
+pnpm lint && pnpm codegen:check && pnpm typecheck && pnpm test && pnpm build
 ```
 
 `pnpm typecheck` runs `next typegen` first on purpose: route types such as `LayoutProps`
 are generated, so a bare `tsc --noEmit` fails on a clean checkout.
 
-There is no test runner yet — add one in Phase 1 and update this command.
+`pnpm codegen:check` regenerates `src/commerce/api.ts` from `openapi/commerce.yaml` and
+fails on any diff. Never hand-edit that file; change the spec and regenerate.
+
+Tests are Vitest against MSW handlers seeded from the spec (`src/mocks/handlers.ts`).
+`server-only` and `next/headers` are aliased to stubs in `vitest.config.mts`, so the data
+layer is testable as plain Node code.
