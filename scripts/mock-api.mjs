@@ -48,6 +48,36 @@ const products = [
     ],
     variants: [{ id: "var_2", title: "L" }],
   },
+  {
+    id: "prod_3",
+    slug: "linen-shirt",
+    title: "Linen Shirt",
+    description: "A breezy linen button-down.",
+    images: [
+      {
+        url: "/img/merino-crew.png",
+        alt: "Linen Shirt",
+        width: 800,
+        height: 1000,
+      },
+    ],
+    variants: [{ id: "var_3", title: "M" }],
+  },
+  {
+    id: "prod_4",
+    slug: "cotton-tee",
+    title: "Cotton Tee",
+    description: "A soft jersey t-shirt.",
+    images: [
+      {
+        url: "/img/oxford-shirt.png",
+        alt: "Cotton Tee",
+        width: 800,
+        height: 1000,
+      },
+    ],
+    variants: [{ id: "var_4", title: "L" }],
+  },
 ];
 
 const offers = {
@@ -61,6 +91,16 @@ const offers = {
     variantId: "var_2",
     price: eur(6500),
     availability: { inStock: false, quantity: 0 },
+  },
+  "linen-shirt": {
+    variantId: "var_3",
+    price: eur(7200),
+    availability: { inStock: true, quantity: 3 },
+  },
+  "cotton-tee": {
+    variantId: "var_4",
+    price: eur(4500),
+    availability: { inStock: true, quantity: 6 },
   },
 };
 
@@ -200,7 +240,45 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.method === "GET" && path === "/products") {
-    return json(res, 200, { items: products, nextCursor: null });
+    const limitParam = url.searchParams.get("limit");
+    const cursor = url.searchParams.get("cursor");
+    const limit =
+      limitParam === null
+        ? 24
+        : Number(limitParam);
+
+    if (
+      !Number.isInteger(limit) ||
+      limit < 1 ||
+      limit > 100
+    ) {
+      return json(res, 400, {
+        code: "validation_failed",
+        message: "invalid limit",
+        details: { field: "limit" },
+      });
+    }
+
+    let start = 0;
+    if (cursor !== null) {
+      const idx = products.findIndex((p) => p.id === cursor);
+      if (idx === -1) {
+        return json(res, 400, {
+          code: "validation_failed",
+          message: "invalid cursor",
+          details: { field: "cursor" },
+        });
+      }
+      start = idx + 1;
+    }
+
+    const items = products.slice(start, start + limit);
+    const nextCursor =
+      items.length > 0 && start + items.length < products.length
+        ? items[items.length - 1].id
+        : null;
+
+    return json(res, 200, { items, nextCursor });
   }
 
   let match = path.match(/^\/products\/([^/]+)\/offer$/);

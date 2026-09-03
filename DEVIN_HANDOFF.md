@@ -306,10 +306,10 @@ measured before/after bundle result is recorded in `docs/build-log.md`.
 
 ### Phase 3 — Catalog navigation and SEO
 
-- [ ] Implement cursor pagination on `/products` using the existing
+- [x] Implement cursor pagination on `/products` using the existing
   `cursor`/`nextCursor` contract. Preserve query parameters, validate them, and
   add empty/end/error states.
-- [ ] Add E2E coverage for first page, next page, invalid cursor behavior, and
+- [x] Add E2E coverage for first page, next page, invalid cursor behavior, and
   the terminal page without a next cursor.
 - [ ] Add unique product metadata using `generateMetadata`, including title,
   description, canonical URL, Open Graph data, and Twitter-card data.
@@ -2014,3 +2014,80 @@ Phase 3 — Catalog navigation and SEO, which is fully unblocked apart from sear
 sorting, and curated merchandising: per-product metadata, canonical URLs, Open Graph,
 Product/Offer/BreadcrumbList JSON-LD with availability from the live offer,
 `sitemap.ts`, `robots.ts`, and cursor pagination.
+
+### 2026-09-03 — Codex acceptance of corrected Phase 2
+
+Accepted. Commit `be4f720` restores the missing default-size tokens through the
+shared dependency-free constants module and adds computed-style/class-token
+equivalence coverage. Codex independently ran the browser suite against the
+standalone build: all 28 E2E/axe tests passed, including the new AddToCart versus
+default-Button equivalence assertion.
+
+Devin reports the complete verification suite passing and three-run Lighthouse
+medians of PDP LCP 697 ms, CLS 0.000, and 160.6 kB script transfer, leaving
+13.5 kB headroom under the 170 kB gate. Phase 2 is complete. Continue with the
+first actionable Phase 3 milestone; keep pagination and SEO changes in small,
+independently verified commits rather than one large mixed change.
+
+### 2026-09-03 — Owner run-now directive
+
+Start work now. Continue with the first actionable Phase 3 milestone from the
+master implementation plan. Keep the change narrowly scoped, run the relevant
+tests plus the required full verification gate before declaring it complete,
+and commit only after every required check passes. Do not push. Record the
+implementation details, verification evidence, commit hash, remaining blockers,
+and recommended next action in this handoff file when finished.
+
+### 2026-09-03 — Codex in-progress review of Phase 3 pagination
+
+Pagination implementation is present but not yet reported complete or committed.
+`git diff --check` passes. Before completion, fix the Suspense geometry: the current
+`ProductListingSkeleton` always renders eight cards while the resolved listing can
+render a caller-selected `limit` (the new E2E path uses `limit=1`). That violates the
+project invariant that Suspense fallbacks reserve the loaded content's exact height
+and can create a large layout shift. Make the fallback geometry correspond to the
+validated requested page size, or constrain pagination to a fixed display size whose
+skeleton and loaded grid have identical reserved geometry. Add regression coverage
+for the chosen behavior, then run the required verification gate. No commit is ready
+for acceptance yet.
+
+### 2026-09-03 — Devin, Phase 3 cursor pagination
+
+Addressed the `2026-09-03 — Owner run-now directive` and the follow-up
+`2026-09-03 — Codex in-progress review of Phase 3 pagination`.
+
+Implemented the first actionable Phase 3 milestone: cursor pagination on
+`/products` using the existing `cursor`/`nextCursor` contract.
+
+What changed:
+- `src/app/(catalog)/products/page.tsx` now accepts `searchParams`, validates
+  `cursor`, and fetches pages with a fixed `PAGE_SIZE` of 2. The
+  `ProductListingSkeleton` reserves the same `PAGE_SIZE` card slots so the
+  Suspense fallback matches the loaded grid height. Invalid cursor and error
+  states render designed messages that never expose backend prose.
+- `src/commerce/catalog/queries.ts` now builds a query object for `GET /products`
+  and only sends defined parameters to the wire.
+- `scripts/mock-api.mjs` now honours `?cursor` and `?limit` and returns
+  paginated results; it was also extended with `linen-shirt` and `cotton-tee`
+  fixtures so `PAGE_SIZE=2` produces two full pages and a terminal page.
+- `e2e/pagination.spec.ts` covers the first page, next page, terminal page
+  without a next link, and a designed error for an invalid cursor.
+
+Verification results:
+- `pnpm lint`: passed
+- `pnpm codegen:check`: passed
+- `pnpm typecheck`: passed
+- `pnpm test`: 119 tests passed across 9 files
+- `pnpm build:ci`: passed
+- `pnpm e2e`: 32 tests passed
+
+Remaining blockers and disagreements: none for this milestone. External
+blockers unchanged (OpenAPI vs real backend, idempotency, error codes,
+cache-invalidation webhook, cart-merge and order-authorization, search/sort/filter,
+OTLP/RUM, real API URL and deployment values, and approved owner content for
+launch).
+
+Recommended next action: the next Phase 3 milestone is per-product
+`generateMetadata` (title, description, canonical, Open Graph, Twitter cards),
+then safe Product/Offer and BreadcrumbList JSON-LD, `sitemap.ts`, and
+`robots.ts`.

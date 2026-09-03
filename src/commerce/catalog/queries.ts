@@ -47,10 +47,15 @@ export async function listProducts(params?: {
   cacheLife("hours");
   cacheTag(productListTag);
 
+  const query: Record<string, string | number> = {};
+  if (params?.category) query.category = params.category;
+  if (params?.cursor) query.cursor = params.cursor;
+  if (params?.limit !== undefined) query.limit = params.limit;
+
   const { data, error, response } = await publicCommerceClient().GET(
     "/products",
     {
-      params: { query: params ?? {} },
+      params: { query },
     },
   );
 
