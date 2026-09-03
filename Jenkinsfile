@@ -29,6 +29,11 @@ pipeline {
       defaultValue: '',
       description: 'Redeploy an image tag that already exists in the registry (e.g. a previous git SHA). Leave empty to build and deploy this commit.'
     )
+    booleanParam(
+      name: 'BUILD_WITH_MOCK_API',
+      defaultValue: false,
+      description: 'Build with scripts/mock-api.mjs instead of the real backend. For exercising this pipeline before the commerce API exists. The resulting image has FIXTURE products baked into the prerendered catalogue — never deploy it to customers.'
+    )
   }
 
   environment {
@@ -41,6 +46,9 @@ pipeline {
     APP_PORT    = '3000'
     REMOTE_DIR  = '/opt/headless-ecomm-flow'
     ENV_FILE    = '/opt/headless-ecomm-flow/app.env'
+
+    // Product used by the post-deploy smoke test. Must exist in the catalogue.
+    SMOKE_SLUG  = 'merino-crew'
   }
 
   stages {
@@ -54,9 +62,45 @@ pipeline {
             ?: sh(script: 'git rev-parse --short=12 HEAD', returnStdout: true).trim()
           env.IMAGE_REF = "${env.IMAGE_REPO}:${env.IMAGE_TAG}"
           env.IS_ROLLBACK = params.ROLLBACK_TAG?.trim() ? 'true' : 'false'
+          env.BUILD_SCRIPT = params.BUILD_WITH_MOCK_API ? 'build:ci' : 'build'
+
+          // Mock-API images are tagged distinctly so one can never be mistaken
+          // for a real release in the registry or in `docker ps`.
+          if (params.BUILD_WITH_MOCK_API && env.IS_ROLLBACK == 'false') {
+            env.IMAGE_TAG = "${env.IMAGE_TAG}-mockapi"
+            env.IMAGE_REF = "${env.IMAGE_REPO}:${env.IMAGE_TAG}"
+          }
+
+          // Only main reaches production. Without this, every feature branch
+          // build deploys over the live storefront. Falls back through the
+          // multibranch, freestyle and plain-checkout ways of learning the
+          // branch, so this does not silently evaluate to "not main".
+          def rawBranch = (
+            env.BRANCH_NAME
+              ?: env.GIT_BRANCH
+              ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true)
+          ).trim()
+          env.GIT_BRANCH_NAME = rawBranch.replaceFirst(/^origin\//, '')
+          env.IS_MAIN = env.GIT_BRANCH_NAME == 'main' ? 'true' : 'false'
+
+          // A mock-API image has fixture products baked into its prerendered
+          // catalogue. The parameter description warns about this, but a
+          // warning is not a control: enforce it.
+          env.IS_DEPLOYABLE =
+            (env.IS_MAIN == 'true' && !params.BUILD_WITH_MOCK_API) ? 'true' : 'false'
+
+          def suffix = []
+          if (env.IS_ROLLBACK == 'true') suffix << 'rollback'
+          if (params.BUILD_WITH_MOCK_API) suffix << 'mock-api'
+          if (env.IS_DEPLOYABLE == 'false') suffix << "build-only:${env.GIT_BRANCH_NAME}"
 
           currentBuild.displayName = "#${env.BUILD_NUMBER} ${env.IMAGE_TAG}" +
-            (env.IS_ROLLBACK == 'true' ? ' (rollback)' : '')
+            (suffix ? " (${suffix.join(', ')})" : '')
+
+          if (env.IS_DEPLOYABLE == 'false') {
+            echo "Not deploying: branch=${env.GIT_BRANCH_NAME}, " +
+                 "mockApi=${params.BUILD_WITH_MOCK_API}. Image is built and pushed only."
+          }
         }
       }
     }
@@ -74,6 +118,7 @@ pipeline {
             set -eu
             DOCKER_BUILDKIT=1 docker build \
               --pull \
+              --build-arg "BUILD_SCRIPT=$BUILD_SCRIPT" \
               --build-arg "COMMERCE_API_URL=$COMMERCE_API_URL" \
               --tag "$IMAGE_REF" .
           '''
@@ -100,6 +145,7 @@ pipeline {
     }
 
     stage('Sync runtime config') {
+      when { environment name: 'IS_DEPLOYABLE', value: 'true' }
       steps {
         withCredentials([
           string(credentialsId: 'commerce-api-url', variable: 'COMMERCE_API_URL'),
@@ -126,6 +172,7 @@ EOF
     }
 
     stage('Deploy') {
+      when { environment name: 'IS_DEPLOYABLE', value: 'true' }
       steps {
         withCredentials([usernamePassword(
           credentialsId: 'hetzner-registry',
@@ -154,15 +201,30 @@ EOF
     }
 
     stage('Smoke test') {
+      when { environment name: 'IS_DEPLOYABLE', value: 'true' }
       steps {
         sshagent(credentials: ['hetzner-deploy-key']) {
-          // Through the reverse proxy this time, not just the container port,
-          // so a broken vhost or expired certificate fails the build rather
-          // than the first customer.
+          // Through the reverse proxy, not the container port, so a broken
+          // vhost or an expired certificate fails the build rather than the
+          // first customer.
+          //
+          // Deliberately a PDP and not `/`. The homepage and /products are
+          // prerendered into the image, so both return 200 even when the
+          // commerce API is completely unreachable — a smoke test against them
+          // passes while every real page is broken. The PDP streams
+          // availability at request time, so it is the only cheap check that
+          // proves the running container can actually reach the backend.
           sh '''
             set -eu
-            ssh -o StrictHostKeyChecking=yes "$DEPLOY_USER@$DEPLOY_HOST" \
-              "curl -fsS --max-time 10 -o /dev/null -w 'origin: %{http_code}\\n' https://$DEPLOY_HOST/"
+            body="$(ssh -o StrictHostKeyChecking=yes "$DEPLOY_USER@$DEPLOY_HOST" \
+              "curl -fsS --max-time 15 'https://$DEPLOY_HOST/products/$SMOKE_SLUG'")"
+
+            if ! printf '%s' "$body" | grep -Eq 'In stock|Out of stock'; then
+              echo "SMOKE FAILED: PDP rendered no availability." >&2
+              echo "The container is up but cannot reach COMMERCE_API_URL." >&2
+              exit 1
+            fi
+            echo "smoke ok: PDP streamed live availability"
           '''
         }
       }
