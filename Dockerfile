@@ -29,24 +29,29 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# The build needs a *reachable* commerce API, which is easy to miss.
+# `cacheComponents` prerenders `use cache` scopes, so `next build` makes real
+# catalog requests (see AGENTS.md § Verification). Two consequences:
 #
-# `cacheComponents` prerenders `use cache` scopes at build time, so `/products`
-# and the PDP shells call listProducts/getProduct during `next build`. Suspense
-# does not exempt them — that is the point of the pattern: the cached shell is
-# materialised ahead of time. src/lib/env.ts being lazy avoids a *config* error,
-# not the fetch itself.
+#  1. A production image must be built somewhere that can reach the private
+#     commerce API, so the prerendered /products shell holds real catalogue
+#     data. That is BUILD_SCRIPT=build with COMMERCE_API_URL set.
+#  2. Until that backend exists, BUILD_SCRIPT=build:ci builds against
+#     scripts/mock-api.mjs. Useful for exercising this Dockerfile and the
+#     Jenkins pipeline, but it bakes fixture products into the static shell —
+#     never ship such an image to customers.
 #
-# Consequence: whatever runs this build must sit on the private network. Not a
-# secret (it is a hostname), but it does persist in this stage's image history,
-# which is why it is an ARG and not baked into the runtime stage. The runtime
-# value still comes from --env-file at `docker run`.
+# COMMERCE_API_URL is a hostname, not a credential, but it does persist in this
+# stage's image history, which is why it stays out of the runtime stage. The
+# runtime value always comes from --env-file at `docker run`.
+ARG BUILD_SCRIPT=build
 ARG COMMERCE_API_URL
 ENV COMMERCE_API_URL=${COMMERCE_API_URL}
-RUN test -n "$COMMERCE_API_URL" \
-    || (echo "FATAL: --build-arg COMMERCE_API_URL is required (catalog prerender)" >&2; exit 1)
+RUN if [ "$BUILD_SCRIPT" = "build" ] && [ -z "$COMMERCE_API_URL" ]; then \
+      echo "FATAL: --build-arg COMMERCE_API_URL is required for a production build" >&2; \
+      exit 1; \
+    fi
 
-RUN pnpm build
+RUN pnpm "$BUILD_SCRIPT"
 
 
 # ---- runtime ----------------------------------------------------------------
@@ -65,10 +70,11 @@ RUN apt-get update \
 
 # `output: 'standalone'` traces the runtime dependency graph, so node_modules
 # and pnpm are deliberately absent from this stage.
-# `.next/static` and `public/` are not traced and must be copied by hand.
-# (This repo has no public/ directory yet — add a COPY line when it gains one.)
+# `.next/static` and `public/` are not traced and must be copied by hand —
+# omitting either yields a running container that 404s every asset.
 COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
+COPY --from=build --chown=node:node /app/public ./public
 
 USER node
 EXPOSE 3000

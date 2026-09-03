@@ -5,6 +5,13 @@ export type ProductCardProps = {
   slug: string;
   title: string;
   image?: { url: string; alt: string; width: number; height: number };
+  /**
+   * Set on the cards that are above the fold. The first grid image is usually
+   * the LCP element, and leaving it lazy delays the metric the PLP is judged
+   * on. Only ever a handful of cards: marking them all `priority` removes the
+   * prioritisation entirely and competes for bandwidth.
+   */
+  priority?: boolean;
 };
 
 /**
@@ -12,7 +19,7 @@ export type ProductCardProps = {
  * boundary rule). A Server Component — nothing here is interactive, so shipping
  * it to the browser would be wasted bytes.
  */
-export function ProductCard({ slug, title, image }: ProductCardProps) {
+export function ProductCard({ slug, title, image, priority }: ProductCardProps) {
   return (
     <Link
       href={`/products/${slug}`}
@@ -26,6 +33,7 @@ export function ProductCard({ slug, title, image }: ProductCardProps) {
             width={image.width}
             height={image.height}
             sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+            priority={priority}
             className="h-full w-full object-cover transition-transform group-hover:scale-105"
           />
         )}

@@ -24,12 +24,16 @@ async function ProductGrid() {
 
   return (
     <ul className="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4">
-      {items.map((product) => (
+      {items.map((product, index) => (
         <li key={product.id}>
           <ProductCard
             slug={product.slug}
             title={product.title}
             image={product.images[0]}
+            // One row on the widest breakpoint. The first card is normally the
+            // LCP element, and lazy-loading it delays the metric this page is
+            // measured on.
+            priority={index < 4}
           />
         </li>
       ))}

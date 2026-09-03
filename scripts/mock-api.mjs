@@ -25,7 +25,7 @@ const products = [
     description: "A mid-weight merino crew neck.",
     images: [
       {
-        url: "https://cdn.test/merino-crew.jpg",
+        url: "/img/merino-crew.png",
         alt: "Merino Crew",
         width: 800,
         height: 1000,
@@ -40,7 +40,7 @@ const products = [
     description: "Button-down oxford in brushed cotton.",
     images: [
       {
-        url: "https://cdn.test/oxford-shirt.jpg",
+        url: "/img/oxford-shirt.png",
         alt: "Oxford Shirt",
         width: 800,
         height: 1000,
