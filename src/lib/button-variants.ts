@@ -3,8 +3,9 @@
  *
  * `buttonBaseClasses` holds the layout, focus, disabled, and active states shared
  * by every button variant. `buttonPrimaryClasses` adds the default primary colour
- * treatment. `defaultButtonClasses` is the full class string for a plain native
- * button that must look identical to a `<Button variant="default">`.
+ * treatment. `buttonDefaultSizeClasses` adds the default size and inline-icon
+ * spacing. `defaultButtonClasses` is the full class string for a plain native
+ * button that must look identical to a `<Button variant="default" size="default">`.
  */
 
 export const buttonBaseClasses =
@@ -13,4 +14,7 @@ export const buttonBaseClasses =
 export const buttonPrimaryClasses =
   "bg-primary text-primary-foreground hover:bg-primary/80";
 
-export const defaultButtonClasses = `${buttonBaseClasses} ${buttonPrimaryClasses}`;
+export const buttonDefaultSizeClasses =
+  "h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2";
+
+export const defaultButtonClasses = `${buttonBaseClasses} ${buttonPrimaryClasses} ${buttonDefaultSizeClasses}`;
