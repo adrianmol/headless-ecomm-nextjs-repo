@@ -1,15 +1,19 @@
 import { test, expect } from "./fixtures";
 
 test.describe("landing page", () => {
-  test("shows the hero and featured products from the catalogue", async ({ page }) => {
+  test("shows the hero and a catalogue preview", async ({ page }) => {
     await page.goto("/");
 
     await expect(
       page.getByRole("heading", { level: 1, name: /shop the collection/i }),
     ).toBeVisible();
 
-    // Featured products come from the real catalog query, not hardcoded copy.
-    await expect(page.getByRole("heading", { level: 2, name: "Featured" })).toBeVisible();
+    // The products come from the real catalog query, not hardcoded copy. The
+    // heading must stay neutral: there is no `featured` flag in the contract, so
+    // "Featured" would claim curation the backend does not perform.
+    await expect(
+      page.getByRole("heading", { level: 2, name: "From the catalogue" }),
+    ).toBeVisible();
     await expect(page.getByRole("link", { name: /Merino Crew/ })).toBeVisible();
   });
 
@@ -21,7 +25,7 @@ test.describe("landing page", () => {
     await expect(page.getByRole("heading", { level: 1, name: "All products" })).toBeVisible();
   });
 
-  test("a featured product links through to its detail page", async ({ page }) => {
+  test("a previewed product links through to its detail page", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("link", { name: /Merino Crew/ }).first().click();
 

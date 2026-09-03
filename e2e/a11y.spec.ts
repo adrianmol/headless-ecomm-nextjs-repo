@@ -18,7 +18,10 @@ async function scan(page: import("@playwright/test").Page) {
 test.describe("accessibility", () => {
   test("landing page", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { level: 2, name: "Featured" })).toBeVisible();
+    // Waits for the streamed catalogue preview, so axe scans the settled page.
+    await expect(
+      page.getByRole("heading", { level: 2, name: "From the catalogue" }),
+    ).toBeVisible();
     expect((await scan(page)).violations).toEqual([]);
   });
 

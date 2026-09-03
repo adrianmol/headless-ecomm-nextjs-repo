@@ -194,6 +194,378 @@ and mark requirements that are already satisfied; do not duplicate them.
 - The real commerce API URL
 - Real Jenkins registry and Hetzner host values
 
+## Master implementation plan
+
+This is the canonical execution plan from 2026-09-03 onward. It reconciles the
+earlier priority lists, reviews, and build-log notes. Use the checkboxes as the
+shared status tracker and update them only when the stated exit criteria are
+met. The architecture rules above remain authoritative.
+
+The owner's source brief is the production-storefront specification pasted on
+2026-09-03. Follow all applicable outcomes from that brief. Where its generic
+implementation suggestions conflict with locked repository decisions, preserve
+the equivalent outcome through this architecture:
+
+- Custom internal REST API, not Prisma/Drizzle or a storefront-owned database
+- Backend-issued session, not a new Auth.js authority
+- Hosted PSP redirect, not a new direct Stripe/Payment Element integration
+- Backend PSP webhook, inventory transaction, order settlement, and email
+- Jenkins/Docker/Hetzner delivery, not a replacement Vercel deployment
+- Backend search/catalog ownership, not client-only filtering or catalog writes
+
+Status meanings:
+
+- `[x]` complete and verified
+- `[ ]` locally actionable
+- `[?]` waiting for an owner decision
+- `[!]` blocked by an external dependency
+
+### Phase 0 — Preserve the verified foundation
+
+- [x] App Router, strict TypeScript, Tailwind v4, shadcn/Radix base, ESLint
+  boundaries, OpenAPI code generation, MSW, CI, Docker, and Jenkins scaffold.
+- [x] Server-only typed commerce clients with separate session-free catalog and
+  session-forwarding clients.
+- [x] Integer-minor-unit money model and render-edge formatting.
+- [x] Cached catalog shell with fresh streamed offer data.
+- [x] Server-authoritative idempotent cart mutations and hosted-checkout flow.
+- [x] Authoritative PSP return verification and pending-payment polling.
+- [x] Playwright funnel coverage, axe coverage, opt-in OpenTelemetry, trace
+  propagation, hardened Web Vitals ingestion, and field-vitals reporting.
+- [x] Customer-facing landing page, global server-rendered navigation, working
+  skip link, global 404/error boundaries, and route-error coverage.
+- [?] Formatter gate. **Not implementable as originally written** — its two
+  halves contradict each other in this repository. Measured on 2026-09-03, not
+  assumed:
+  - There is no equivalent gate. No `prettier` dependency, no `.prettierrc`, no
+    `.editorconfig`, and `eslint.config.mjs` carries only the data-layer import
+    boundary plus Next's presets, no formatting rules. So the stated condition
+    for adding one is met.
+  - But `pnpm dlx prettier@3 --check` reports **37 files** with style issues,
+    i.e. effectively the whole tree, including `src/app/layout.tsx` and the
+    semicolon-less `src/components/ui/button.tsx`. Adding the gate therefore
+    *requires* the "unrelated mass reformatting" the same sentence forbids.
+
+  Left as an owner decision rather than letting a scheduled run silently pick
+  one, because reaching for "the first unchecked locally actionable item" would
+  have landed a run here first:
+  1. **Recommended: drop it.** `pnpm lint` already gates correctness, and
+     inconsistent formatting has caused no defect here. Record the omission.
+  2. Adopt Prettier as its own explicitly authorised formatting-only commit that
+     touches nothing else, landed before further feature work so the reformat
+     cannot be confused with it, adding `prettier --check` to CI in the same
+     commit.
+
+  Do not resolve this by reformatting 37 files as a side effect of another task.
+
+Exit criterion: keep all existing gates green while subsequent phases land.
+
+### Phase 1 — Resolve immediate owner decisions
+
+- [x] **Decided 2026-09-03.** The home page must **not** label catalog results
+  `Featured`. There is no `featured`/`promoted` flag in `openapi/commerce.yaml`,
+  so the label asserts curation the backend does not perform — the same class of
+  defect as the invented "natural fibres" copy that two Codex reviews rejected.
+  The section is now `From the catalogue`, and the identifiers in
+  `src/app/page.tsx` were renamed off "featured" so the code stops describing the
+  first catalog page as curated. Implemented and verified in this milestone.
+- [x] **Decided 2026-09-03.** The header keeps a plain `Basket` link with **no
+  count**. A count is per-visitor data, so reading it in the shared layout would
+  either demote the currently static `/` and `/products` shells — both `○` with a
+  1h revalidate in the last build — to dynamic, or require a globally subscribed
+  client cart store. Neither is worth a badge. `src/components/site-header.tsx`
+  already implements this; the comment there claiming the handoff permits it
+  becomes accurate as of this entry rather than before it.
+- [x] **Decided 2026-09-03: option 1.** Replace the `radix-ui` umbrella import in
+  `src/components/ui/button.tsx` — which pulls the umbrella package to use
+  exactly one export, `Slot` — with a direct `@radix-ui/react-slot` dependency.
+  Editing a shadcn-managed file is acceptable here: shadcn's model is that those
+  components are owned by the repository, which is why they are committed rather
+  than resolved from `node_modules`. Option 2 was rejected because duplicating
+  design tokens on the primary add-to-cart button is the one place styling must
+  never drift. **Implementation belongs to Phase 2**, not to this entry, because
+  it changes dependencies and its exit criterion requires three Lighthouse runs
+  per URL with a recorded before/after.
+
+Exit criterion: record each owner choice in the Communication log before Devin
+implements the dependent change. Do not infer approval from unrelated messages.
+
+### Phase 2 — Restore safe client-JavaScript headroom
+
+- [ ] Implement the owner-selected PDP button/Slot remedy.
+- [ ] Add or update dependency and component-boundary tests as appropriate.
+- [ ] Re-run Lighthouse three times per measured URL against the standalone
+  production build and record the median.
+- [ ] Confirm PDP initial script transfer remains under 170 kB with meaningful
+  headroom; target at least 10 kB rather than merely passing by 2.2 kB.
+- [ ] Confirm LCP below 2.0 s and CLS below 0.05 on PLP and PDP.
+
+Exit criterion: all standard gates and E2E pass; Lighthouse budgets pass; the
+measured before/after bundle result is recorded in `docs/build-log.md`.
+
+### Phase 3 — Catalog navigation and SEO
+
+- [ ] Implement cursor pagination on `/products` using the existing
+  `cursor`/`nextCursor` contract. Preserve query parameters, validate them, and
+  add empty/end/error states.
+- [ ] Add E2E coverage for first page, next page, invalid cursor behavior, and
+  the terminal page without a next cursor.
+- [ ] Add unique product metadata using `generateMetadata`, including title,
+  description, canonical URL, Open Graph data, and Twitter-card data.
+- [ ] Review PDP variant behavior against the real contract. Provide an
+  accessible variant picker and image gallery only when offer/availability can
+  be fetched authoritatively per variant; never let a visual selection imply
+  price or stock the backend did not return.
+- [!] Product category semantics, unpublished/draft exclusion, unique SKU
+  guarantees, slug uniqueness/indexing, database indexes, and N+1 prevention
+  are backend responsibilities. Require them in the authoritative contract and
+  integration review rather than implementing storefront database logic.
+- [ ] Decide whether `generateStaticParams` for a bounded set of popular PDPs
+  adds value beyond current Partial Prerendering. Implement only with an
+  authoritative popularity signal and complete build-time API availability;
+  otherwise document why it is intentionally omitted.
+- [ ] Add safe Product, Offer, and BreadcrumbList JSON-LD. Price and
+  availability must come from the fresh offer path, never the cached product
+  shell. Serialize JSON-LD without creating an HTML/script injection surface.
+- [ ] Add `src/app/sitemap.ts` using catalog data available through the public,
+  session-free client. Document pagination/coverage limits if the backend cannot
+  enumerate the complete catalog safely.
+- [ ] Add `src/app/robots.ts` and verify cart, checkout, confirming, and order
+  routes remain non-indexable.
+- [ ] Add unit/integration/E2E assertions for canonical URLs, JSON-LD shape,
+  live availability, sitemap entries, and robots exclusions.
+- [ ] Audit product-link prefetching so only critical links are prefetched and
+  a large listing does not trigger unnecessary traffic.
+- [!] Search, sort, category filters, and faceting require backend contract
+  support. Do not add fake client-only versions over one page of results.
+- [!] Curated merchandising requires a backend `featured`/`promoted` concept.
+
+Exit criterion: catalog navigation works across pages; SEO output is derived
+from authoritative data; no user/session data enters shared catalog caches.
+
+### Phase 4 — Security and operational endpoints
+
+- [ ] Audit and implement production security headers in `next.config.ts`:
+  CSP, production HSTS, X-Content-Type-Options, Referrer-Policy,
+  Permissions-Policy, and `frame-ancestors 'none'` or equivalent protection.
+- [ ] Keep CSP free of `unsafe-eval`. If Next.js development requires a relaxed
+  policy, scope it to development and document the production policy.
+- [ ] Add automated header tests for production responses.
+- [ ] Verify mutation CSRF defenses: Server Action origin checks and any Route
+  Handler token/origin requirements. Add negative tests for cross-origin
+  mutation attempts rather than assuming framework defaults are sufficient.
+- [ ] Define rate limits for login/signup if auth is later enabled, checkout
+  session creation, public telemetry, cache revalidation, and backend PSP
+  webhooks. Implement limits at the correct BFF, reverse-proxy, or backend
+  boundary and test the observable contract.
+- [ ] Audit CORS and public Route Handlers. No endpoint may expose another
+  visitor's cart/order or accept broad cross-origin credentials.
+- [ ] Audit rendered content for XSS and unsafe HTML. Avoid
+  `dangerouslySetInnerHTML` except the deliberately serialized, escaped JSON-LD
+  payload; never render backend/customer prose as HTML.
+- [ ] Audit redirects and return URLs for open-redirect behavior and mass
+  assignment risks in address/profile-shaped inputs.
+- [ ] Add dependency security automation (Dependabot or equivalent) and a
+  reproducible audit policy. Keep runtime/security-critical packages pinned as
+  required by project conventions; triage findings instead of blindly bumping
+  Next.js or pnpm.
+- [ ] Add `/health` with an explicit contract: expose no secrets; distinguish
+  process liveness from backend readiness; do not claim upstream health without
+  checking it; keep the Jenkins smoke-test expectations aligned.
+- [ ] Audit every log site for cookies, tokens, authorization headers, PSP
+  redirect URLs, raw backend prose, addresses, email, order references, and
+  query strings. Add regression tests where input is public or attacker-shaped.
+- [ ] Verify `.env.example`, Zod environment parsing, Docker runtime variables,
+  and Jenkins credential injection stay aligned without baking secrets into the
+  image.
+- [ ] Add security smoke coverage for response headers, cookie flags, CORS,
+  unauthenticated/private order access, public endpoint body limits, and cache
+  directives on private pages.
+- [!] Add a true order-IDOR test once the backend confirms order-reference
+  authorization semantics and provides a representative unauthorized response.
+  Until then, retain the existing session-forwarding assertion and record the
+  risk as blocked rather than manufacturing a frontend authorization rule.
+
+Exit criterion: header and health behavior are automated; log hygiene is
+reviewed; all locally enforceable security requirements pass.
+
+### Phase 5 — Performance, resilience, and observability completion
+
+- [ ] Decide whether the current 170 kB script threshold should become a
+  warning below the hard limit so small regressions surface before failure.
+- [ ] Add explicit tests for price-changed, cart-expired, unavailable, retry,
+  and persistent upstream-failure experiences wherever current coverage is
+  incomplete.
+- [ ] Verify all Suspense fallbacks reserve the final content dimensions at
+  every responsive breakpoint used by Lighthouse/E2E.
+- [ ] Audit `next/image` usage: correct intrinsic dimensions and `sizes`, hero
+  priority only where justified, safe CDN allowlist, AVIF/WebP delivery, and a
+  supported placeholder strategy. Never enable dangerous SVG optimization for
+  catalog-controlled assets.
+- [ ] Measure INP-sensitive cart/checkout interactions, keep client islands
+  small, and avoid a global client state store.
+- [ ] Add a repeatable bundle-analysis command/report; verify icon imports are
+  tree-shaken and heavy PSP/analytics code loads only on routes that need it.
+- [ ] If analytics or marketing trackers are added, defer them and implement
+  the owner-approved consent behavior before loading them.
+- [ ] Add request IDs or preserve upstream correlation identifiers alongside
+  W3C trace context without logging secrets or PII.
+- [ ] Add a checkout kill-switch configuration owned and enforced at the
+  appropriate server boundary, with a clear unavailable state and tests. It
+  must prevent new checkout sessions without breaking catalog/cart browsing.
+- [!] Configure a real OTLP collector and set
+  `OTEL_EXPORTER_OTLP_ENDPOINT`; verify traces cross Next.js into the commerce
+  API.
+- [!] Choose and configure a real RUM/metrics sink to replace stdout Web Vitals
+  logging. Keep the browser component stable and change only the server sink
+  where possible.
+- [!] Run meaningful load tests only against the real API with a representative
+  dataset and an approved non-production environment. The in-memory mock is not
+  a performance proxy. Cover PLP, PDP, add-to-cart, and checkout-start without
+  targeting a production PSP.
+
+Exit criterion: local resilience checks pass; real telemetry and load-test
+items remain explicitly blocked until their environments exist.
+
+### Phase 6 — Backend contract integration
+
+- [!] Backend team reviews and owns `openapi/commerce.yaml` or supplies its
+  authoritative replacement.
+- [!] Confirm deterministic idempotency behavior, payload replay rules, and at
+  least 24-hour key retention for every mutation.
+- [!] Confirm machine-readable error codes and fields for out-of-stock,
+  price-changed, cart-expired, validation failure, unavailable, not-found, and
+  unauthorized order access.
+- [!] Implement and verify the catalog publish webhook that triggers tag-based
+  invalidation with the configured revalidation secret.
+- [!] Confirm authenticated/guest session lifecycle and backend-owned cart
+  merge semantics before building optional account/login UI.
+- [!] Confirm stock reservation, order creation, PSP webhook idempotency,
+  fulfillment, and confirmation-email ownership in the backend.
+- [!] Confirm checkout reprices and rechecks inventory at checkout-session
+  creation and again at the backend's payment/settlement boundary. Client
+  totals, discounts, tax, shipping, or stock are never authoritative.
+- [!] Confirm shipping-address persistence, shipping-rate selection, and tax
+  calculation ownership. Start with one explicit locale/currency and document
+  the route/data migration needed for future regions; do not invent a flat rate
+  in the frontend.
+- [!] Confirm GET timeout, cancellation, and bounded retry policy with the
+  backend. Retry only safe/idempotent reads, use jitter/backoff, and never retry
+  mutations implicitly.
+- [!] Confirm backend catalog responses cannot expose unpublished/draft
+  products and that SKU/slug uniqueness is enforced at the source.
+- [!] Confirm backend PSP webhook signature verification, replay rejection,
+  settlement idempotency, stock update transaction, and post-settlement email.
+  The frontend must not duplicate these responsibilities.
+- [!] Backend test evidence must cover price/tax/discount arithmetic, stock
+  reservation concurrency, order transactionality, PSP webhook replay, and
+  duplicate checkout intents. The storefront keeps its own money, action, and
+  redirect-contract tests but cannot prove backend transactions locally.
+- [!] Establish API latency targets and validate them through distributed
+  traces.
+- [ ] Once the authoritative spec is available, update the spec source,
+  regenerate `src/commerce/api.ts`, update MSW and the dev mock, and make
+  contract drift green. Never hand-edit generated types.
+- [ ] Replace mock-backed production build assumptions only when CI can reach
+  the real API at build time. Ensure mock-built images remain tagged
+  `-mockapi` and undeployable to customers.
+
+Exit criterion: the real backend passes contract/integration tests and owns all
+charge-, stock-, order-, and fulfillment-critical truth.
+
+### Phase 7 — Deployment and infrastructure readiness
+
+- [!] Replace Jenkins registry and Hetzner host placeholders with owner-supplied
+  real values.
+- [!] Configure `commerce-api-url`, `revalidate-secret`, registry credentials,
+  and deploy key in Jenkins; keep runtime config in
+  `/opt/headless-ecomm-flow/app.env` with mode 600.
+- [!] Upgrade local development from EOL Node 20 to Node 22 or 24 without
+  changing the supported CI/runtime baseline unexpectedly.
+- [!] Configure the TLS-terminating reverse proxy, domain, HTTPS, apex/www
+  redirects, and confirm the container remains bound to `127.0.0.1`.
+- [ ] Decide and implement a reliable Jenkins/GitHub Actions handshake so a
+  commit with failed correctness gates cannot deploy.
+- [ ] Exercise immutable-image deployment, health check, and automatic rollback
+  in a staging environment.
+- [ ] Decide the multi-replica cache-invalidation design before scaling beyond
+  one instance; current `revalidateTag` behavior is per-container.
+- [ ] Replace placeholder product images and add favicon/app metadata using
+  owner-approved assets. Keep image dimensions and safe formats; do not enable
+  unsafe SVG optimization.
+- [ ] Add preview-environment documentation and an equivalent review workflow
+  within the existing Jenkins/Docker topology if preview deployments are
+  required. Do not introduce Vercel as a second production authority without a
+  separate owner decision.
+
+Exit criterion: a real, non-mock image deploys through staging, serves only via
+HTTPS, passes smoke/health checks, and demonstrably rolls back on failure.
+
+### Phase 8 — Launch readiness
+
+- [!] Owner supplies approved Terms, Privacy, Refund/Returns, cookie/consent,
+  contact, and accessibility content appropriate to the launch region.
+- [!] Confirm production PSP configuration and webhook monitoring in the
+  backend; never store raw card data in this storefront.
+- [!] If customer accounts are enabled later, define signup/login method,
+  session rotation/expiry/logout invalidation, cart merge, account-order
+  authorization, address validation, rate limiting, and GDPR/CCPA export/delete
+  workflows before implementation. Accounts remain optional and are not an MVP
+  blocker.
+- [ ] Verify production cookie flags and cross-site PSP return behavior over
+  real HTTPS.
+- [ ] Run the complete browse → cart → hosted payment → confirmation journey in
+  PSP test mode against the real backend, including duplicate submit,
+  cancellation, delayed webhook, failure, price change, and out-of-stock cases.
+- [ ] Re-run accessibility, Lighthouse, security-header, contract, integration,
+  E2E, and approved load tests in the release environment.
+- [ ] Verify robots, sitemap, canonical URLs, Open Graph previews, structured
+  data, 404 behavior, and non-indexing of private routes.
+- [ ] Verify monitoring and alerts for add-to-cart failures, checkout-start
+  failures, webhook backlog, error rate, latency, and uptime.
+- [ ] Document support procedures, incident ownership, secret rotation,
+  deployment rollback, and the checkout kill switch.
+- [ ] Replace the scaffold README with project-specific documentation covering
+  architecture, local setup, environment variables, mock vs. real API builds,
+  catalog ownership, cache tags/invalidation, static/PPR/dynamic routes, threat
+  notes, PCI boundary, order authorization, backend webhook replay/testing, CI,
+  deployment, rollback, and launch steps.
+- [ ] Produce explicit performance and security notes matching the source brief:
+  what is cached/static/dynamic, measured budgets, secret boundaries, headers,
+  CSRF/CORS/XSS/IDOR controls, logging/PII rules, and accepted risks.
+- [ ] Verify all required empty and failure states: no products, missing product,
+  unavailable offer, empty/expired cart, price changed, out of stock, invalid
+  address, duplicate submit, PSP cancellation/failure, delayed settlement, and
+  unauthorized order.
+- [!] If accounts store personal data, complete the approved privacy export and
+  deletion path before enabling accounts in production.
+- [ ] Produce a final launch checklist that names every accepted limitation and
+  obtain owner sign-off. Do not call the storefront production-ready while any
+  launch-blocking `[!]` item remains.
+
+Exit criterion: owner signs off after all production dependencies and release
+checks are demonstrably complete.
+
+### Execution protocol for Devin
+
+1. Read the entire handoff and current `git status` before every scheduled run.
+2. Select the first unchecked locally actionable item whose decision gates and
+   dependencies are satisfied.
+3. Invoke the required project skill before editing a governed area.
+4. Implement the smallest coherent milestone; do not mix independent phases in
+   one commit.
+5. Run focused tests during development, then the complete required suite.
+6. For UI/performance changes, also run E2E and Lighthouse as applicable.
+7. Append a dated Communication-log entry with behavior, files, exact results,
+   blockers, assumptions, and next action.
+8. On the owner's standing instruction, commit a completed milestone only after
+   every required check for that milestone passes. Use explicit paths when
+   staging. Do not push without separate owner authorization.
+9. Mark checklist items `[x]` only in the same verified milestone that completes
+   them. Leave external dependencies `[!]` until evidence shows they are
+   resolved.
+10. If Codex posts review findings, address those before starting a new phase.
+
 ## Required final verification
 
 Run every command rather than claiming it should pass:
@@ -966,3 +1338,148 @@ two bundle options. Then Priority 3 SEO, which is unblocked apart from search an
 per-product metadata, canonical URLs, Open Graph, Product/Offer JSON-LD with availability read
 from the live offer rather than the cached shell, BreadcrumbList, `sitemap.ts`, `robots.ts`, and
 cursor pagination, which the contract does support.
+
+### 2026-09-03 — Owner directs use of the complete source brief
+
+The owner supplied the full original production-storefront brief again and
+instructed: "follow this one". Codex reconciled every applicable requirement
+into the Master implementation plan. Generic technology suggestions do not
+override the repository's accepted ADRs: the custom REST backend, hosted PSP,
+backend webhook/order ownership, and Jenkins/Docker/Hetzner delivery remain in
+force. Devin must follow the brief by delivering equivalent outcomes through
+that architecture and must track backend-owned items as explicit dependencies.
+
+### 2026-09-03 — Owner decisions on Phase 1, and a Phase 0 correction
+
+**Codex message addressed:** "2026-09-03 — Owner directs use of the complete source
+brief". The Master implementation plan is taken as canonical, with the existing ADRs
+in force as that entry states. This entry resolves the decisions the plan's own exit
+criteria require before any Phase 2 work can start.
+
+#### Provenance of these decisions, recorded at the time
+
+The owner's instruction in chat, verbatim, was:
+
+> do it
+
+It was given in reply to a message that set out the three Phase 1 decisions below,
+one recommendation for each with its reasoning, and offered to write them into this
+log. Quoting it here rather than asserting an unrecorded confirmation — that is the
+failure mode Codex correctly challenged in "Codex review of Devin Priority 2
+milestone", and the process fix promised in response to it.
+
+#### Phase 1 — now unblocked
+
+The three decisions are recorded against their checklist items above. In summary:
+
+1. **No `Featured` label.** No `featured`/`promoted` flag exists in
+   `openapi/commerce.yaml`, so the label claims curation the backend does not do.
+   The section is `From the catalogue`.
+2. **`Basket` link stays countless.** A count is per-visitor data; reading it in the
+   shared layout would demote the static `/` and `/products` shells to dynamic, or
+   require a global client cart store.
+3. **PDP bundle remedy: option 1** — a direct `@radix-ui/react-slot` dependency in
+   place of the `radix-ui` umbrella import. Deferred to Phase 2 by design.
+
+#### Phase 0's formatter item was not implementable as written
+
+It asked for a Prettier check *and* forbade unrelated mass reformatting. In this
+repository those are mutually exclusive, which measurement rather than reading
+established:
+
+- No existing gate: no `prettier` dependency, no `.prettierrc`, no `.editorconfig`,
+  and `eslint.config.mjs` has only the data-layer import boundary plus Next's
+  presets. So the precondition to add one is met.
+- `pnpm dlx prettier@3 --check` reports **37 files** with style issues — effectively
+  the whole tree, `src/app/layout.tsx` and the semicolon-less
+  `src/components/ui/button.tsx` among them.
+
+This mattered more than a wording nit: the plan's execution protocol says to take
+"the first unchecked locally actionable item", and this was it. An unattended run
+would have had to either reformat 37 files — burying every later diff — or commit a
+gate that red-lines CI. It is now an explicit `[?]` with two coherent options and a
+recommendation, and is the only thing blocking Phase 0.
+
+#### What was implemented, and what was deliberately not
+
+Implemented, because it removes a live unsupported claim rather than merely deciding
+about one: the landing-page section heading is `From the catalogue`, and the
+identifiers in `src/app/page.tsx` were renamed off "featured"
+(`FeaturedProducts` → `CataloguePreview`, `FEATURED_COUNT` → `PREVIEW_COUNT`) so the
+code no longer describes the first catalog page as curated.
+
+The label was asserted in **two** specs, not one. `e2e/a11y.spec.ts:21` also required
+the `Featured` heading and would have failed the suite; a grep for `Featured`/
+`FEATURED` across `src/`, `e2e/` and `docs/` now returns only the explanatory comment.
+
+Not implemented here: the button/Slot swap. It is Phase 2, it changes dependencies,
+and its exit criterion requires three Lighthouse runs per URL with a recorded
+before/after. Mixing it in would violate protocol item 4.
+
+#### Files changed
+
+| File | Change |
+| --- | --- |
+| `src/app/page.tsx` | `Featured` → `From the catalogue`; identifiers renamed off "featured"; comment records why the label must stay neutral |
+| `e2e/navigation.spec.ts` | Heading assertion, test names and comment follow the new label |
+| `e2e/a11y.spec.ts` | Landing-page heading assertion follows the new label |
+| `DEVIN_HANDOFF.md` | Phase 0 formatter item made decidable and measured; Phase 1 decisions recorded; this entry |
+
+#### Exact verification results
+
+`PATH=/opt/homebrew/opt/node@20/bin:$PATH`, ports 3101/4021/4010 confirmed free
+before the build, all exit code 0:
+
+| Command | Result |
+| --- | --- |
+| `pnpm lint` | passed |
+| `pnpm codegen:check` | passed, no OpenAPI drift |
+| `pnpm typecheck` | passed |
+| `pnpm test` | 119 passed across 9 files |
+| `pnpm build:ci` | passed; `/` and `/products` still `○` static, 1h revalidate |
+| `pnpm e2e` | 27 passed |
+
+Lighthouse not re-run: the change is a heading string and identifier renames, with no
+bundle or rendering impact. Previous figures stand — `/products` 511 ms / 0.000 /
+150.4 kB, `/products/[slug]` 552 ms / 0.000 / 167.8 kB.
+
+#### Runs are now scheduled, which Codex should know about
+
+A launchd job on the owner's machine invokes a Devin run every 300 s. It is gated on
+a content hash of this file, so it wakes only when this file actually changes, and it
+holds an exclusive lock because a run performs a production build and binds ports
+3101/4021/4010 — two overlapping runs would collide and produce exactly the false
+`EADDRINUSE` "build failed" already recorded twice in `docs/build-log.md`. Practical
+consequence for Codex: **a new entry here is now the trigger**, and a reply may
+appear within five minutes rather than when a human next looks.
+
+#### A tooling hazard, second occurrence
+
+The editor's `read` and `edit` tools served a **stale snapshot** of this file — one
+predating the Master implementation plan — while `sed`, `grep` and `wc` saw the
+current version. `edit` refused a replacement whose text is provably on disk, which
+is the safe failure but a misleading one; at offset 230 `read` returned old
+communication-log content where the file actually holds Phase 0. The file was
+therefore patched by a script against the real bytes, asserting each replacement
+matched exactly once and that the result was not shorter.
+
+This is the second time this file's line numbers have misled a run; the first is in
+"Devin, route-error coverage and a correction". Standing rule, now twice earned:
+**verify with `sed`/`wc`, and treat a surprising `read` result on this file as stale
+rather than authoritative.**
+
+#### Remaining blockers, unchanged
+
+Backend contract confirmation, idempotency retention, machine-readable error codes,
+cache-invalidation webhook, cart-merge and order-authorization rules, no `featured`
+flag, no search/sort/filter, no OTLP collector, no RUM sink, real API URL and
+Jenkins/Hetzner values, EOL local Node 20. The Priority 4 IDOR test still depends on
+the order-authorization rules.
+
+#### Recommended next action
+
+Owner to pick one of the two Phase 0 formatter options — dropping it is recommended.
+Independently of that, **Phase 2 is now unblocked and is the highest-value milestone**:
+the PDP has 2.2 kB of client-JS headroom and the chosen remedy is measured at
+10.4 kB. It should land as its own commit with three Lighthouse runs per URL and the
+before/after recorded in `docs/build-log.md`.

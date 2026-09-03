@@ -7,18 +7,20 @@ import {
 } from "@/components/commerce/product-card";
 import { Button } from "@/components/ui/button";
 
-const FEATURED_COUNT = 4;
+const PREVIEW_COUNT = 4;
 
 /**
- * Featured products come from the same cached `listProducts` scope the listing
- * page uses, so this adds no new backend surface and no new cache policy — it
- * is the only catalog read the OpenAPI contract offers. There is no
- * "featured"/"promoted" flag in the contract, so "featured" here means simply
- * the first page of the catalog. Curated merchandising is a backend capability
- * this storefront cannot invent.
+ * The first page of the catalog, from the same cached `listProducts` scope the
+ * listing page uses — so this adds no new backend surface and no new cache
+ * policy. It is the only catalog read the OpenAPI contract offers.
+ *
+ * Named a preview, not "featured", and labelled `From the catalogue` in the UI.
+ * There is no `featured`/`promoted` flag in openapi/commerce.yaml, so calling
+ * these products featured would assert curation the backend does not perform.
+ * Curated merchandising is a backend capability this storefront cannot invent.
  */
-async function FeaturedProducts() {
-  const { items } = await listProducts({ limit: FEATURED_COUNT });
+async function CataloguePreview() {
+  const { items } = await listProducts({ limit: PREVIEW_COUNT });
 
   if (items.length === 0) {
     return (
@@ -30,7 +32,7 @@ async function FeaturedProducts() {
 
   return (
     <ul className="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4">
-      {items.slice(0, FEATURED_COUNT).map((product, index) => (
+      {items.slice(0, PREVIEW_COUNT).map((product, index) => (
         <li key={product.id}>
           <ProductCard
             slug={product.slug}
@@ -38,7 +40,7 @@ async function FeaturedProducts() {
             image={product.images[0]}
             // Above the fold on the landing page, so the first row must not
             // lazy-load — it is the LCP candidate.
-            priority={index < FEATURED_COUNT}
+            priority={index < PREVIEW_COUNT}
           />
         </li>
       ))}
@@ -47,10 +49,10 @@ async function FeaturedProducts() {
 }
 
 /** Must match the loaded grid's box exactly, or the swap costs CLS. */
-function FeaturedProductsSkeleton() {
+function CataloguePreviewSkeleton() {
   return (
     <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4">
-      {Array.from({ length: FEATURED_COUNT }, (_, i) => (
+      {Array.from({ length: PREVIEW_COUNT }, (_, i) => (
         <ProductCardSkeleton key={i} />
       ))}
     </div>
@@ -89,7 +91,7 @@ export default function Home() {
 
       <section className="mx-auto max-w-6xl px-4 pb-20">
         <div className="mb-6 flex items-baseline justify-between">
-          <h2 className="text-xl font-semibold">Featured</h2>
+          <h2 className="text-xl font-semibold">From the catalogue</h2>
           <Link
             href="/products"
             className="text-muted-foreground hover:text-foreground focus-visible:ring-ring rounded text-sm underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none"
@@ -98,8 +100,8 @@ export default function Home() {
           </Link>
         </div>
 
-        <Suspense fallback={<FeaturedProductsSkeleton />}>
-          <FeaturedProducts />
+        <Suspense fallback={<CataloguePreviewSkeleton />}>
+          <CataloguePreview />
         </Suspense>
       </section>
     </main>
