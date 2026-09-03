@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  verify:
+    name: Lint, typecheck, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Must precede setup-node: `cache: pnpm` resolves the pnpm binary at that
+      # step. Version comes from the `packageManager` field in package.json.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Node 20 reached end of life on 2026-04-30. CI runs a supported
+          # release even while local machines lag; see .nvmrc.
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      # Runs `next typegen` first: route types are generated, so a bare `tsc`
+      # fails on a clean checkout.
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+
+  budgets:
+    name: Performance budgets
+    runs-on: ubuntu-latest
+    needs: verify
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      # Budgets come from docs/architecture.md §8. They exist because RSC apps
+      # degrade gradually: one misplaced 'use client' ships a whole subtree to
+      # the browser and no single diff looks wrong in review.
+      - name: Assert budgets
+        run: pnpm dlx @lhci/cli@latest autorun

@@ -34,16 +34,30 @@ Available review subagents: `commerce-reviewer` (architecture-invariant review),
 
 ## Conventions
 
-- pnpm. Next.js pinned `>= 16.3.4` (August 2026 critical security release).
+- Next.js `16.3.4` (August 2026 critical security release; do not downgrade).
+- pnpm, pinned to `10.34.5` via `packageManager`. Do **not** bump to pnpm 11 — it
+  requires Node `>=22.13` and will not run on the current local Node.
 - Generated API types are committed. Regenerate via the codegen script; never hand-edit.
-- Tailwind + shadcn/ui. Add primitives via the shadcn CLI rather than writing them by hand.
+- Tailwind v4 + shadcn/ui on the **Radix** base (`components.json` style `radix-nova`).
+  Add primitives with `pnpm dlx shadcn@latest add <name>`, never by hand.
+
+## Toolchain notes
+
+- **Local Node is 20.20.2, which is EOL (2026-04-30) and receives no security patches.**
+  Next 16 still supports it (`>=20.9.0`), so this is not blocking, but upgrade to Node 22
+  or 24 before production. CI already runs Node 22; see `.nvmrc`.
+- Homebrew's `node@20` is keg-only, so `node` is absent from non-interactive shells.
+  Prefix `PATH` with `/opt/homebrew/opt/node@20/bin` when scripting.
 
 ## Verification
 
 Run before declaring work complete:
 
 ```bash
-pnpm lint && pnpm typecheck && pnpm test
+pnpm lint && pnpm typecheck && pnpm build
 ```
 
-Update this file when a verification command changes.
+`pnpm typecheck` runs `next typegen` first on purpose: route types such as `LayoutProps`
+are generated, so a bare `tsc --noEmit` fails on a clean checkout.
+
+There is no test runner yet — add one in Phase 1 and update this command.
