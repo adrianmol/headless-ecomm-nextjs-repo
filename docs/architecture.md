@@ -175,11 +175,31 @@ Confirmation pages are non-cacheable and `noindex`.
 | --- | --- |
 | LCP (PDP) | < 2.0 s |
 | CLS | < 0.05 |
-| Initial client JS | < 120 kB gzipped |
+| Initial client JS | < 170 kB gzipped (transfer, `noModule` excluded) |
 
 Numbers are written down because RSC apps degrade gradually: one misplaced `'use client'` ships the
 whole subtree to the browser. Budgets catch that; code review reliably does not. Client components
 stay leaves — add-to-cart button, quantity stepper, gallery, filter panel — never layouts.
+
+**On the JS number.** It was originally 120 kB, set before anything was built. That turned out to be
+below the floor: measured on the production build, `/` — a route with *no* client components at all —
+already ships 131 kB. React 19 plus the Next 16 App Router runtime costs that before we write a line.
+The budget was unmeetable, and a permanently-red budget is a budget everyone learns to ignore.
+
+170 kB is the measured worst page (PDP, 152 kB) plus modest headroom. What it protects is the thing
+worth protecting: a misplaced `'use client'` on a layout adds hundreds of kB and blows straight
+through it.
+
+Measured app-owned JS, i.e. everything above the 131 kB framework floor:
+
+| Route | Total | App-owned |
+| --- | --- | --- |
+| `/products` | 139 kB | +8 kB |
+| `/cart` | 136 kB | +5 kB |
+| `/products/[slug]` | 152 kB | +21 kB |
+
+When re-measuring, exclude `<script noModule>`: that is the legacy polyfill bundle (~39 kB) and no
+modern browser downloads it. Counting it inflates every figure by a third.
 
 **Errors.** Normalise API failures into a domain union at the data layer: `OutOfStock`,
 `PriceChanged`, `CartExpired`, `Unavailable`. UI switches on the union. `PriceChanged` needs a real

@@ -1,8 +1,10 @@
 import { Suspense } from "react";
 import Image from "next/image";
 import { notFound } from "next/navigation";
+import { addToCartAction } from "@/commerce/cart/actions";
 import { getOffer, getProduct } from "@/commerce/catalog/queries";
 import { CommerceErrorException } from "@/commerce/errors";
+import { AddToCart } from "@/components/commerce/add-to-cart";
 import { Price, PriceSkeleton } from "@/components/commerce/price";
 
 /**
@@ -83,6 +85,17 @@ async function LiveOffer({ params }: { params: ParamsPromise }) {
           ? `In stock (${offer.availability.quantity} available)`
           : "Out of stock"}
       </p>
+
+      {/*
+        Add-to-cart lives inside the streamed offer, not the cached shell: the
+        button must reflect live stock. Putting it in the shell would cache a
+        stale enabled/disabled state and let shoppers add sold-out items.
+      */}
+      <AddToCart
+        variantId={offer.variantId}
+        inStock={offer.availability.inStock}
+        action={addToCartAction}
+      />
     </div>
   );
 }

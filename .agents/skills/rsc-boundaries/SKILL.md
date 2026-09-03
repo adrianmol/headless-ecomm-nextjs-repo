@@ -53,11 +53,18 @@ Enforced in CI (Lighthouse CI on PLP and PDP):
 | --- | --- |
 | LCP (PDP) | < 2.0 s |
 | CLS | < 0.05 |
-| Initial client JS | < 120 kB gzipped |
+| Initial client JS | < 170 kB gzipped (transfer, `noModule` excluded) |
 
 Budgets exist because RSC apps degrade *gradually* — no single change looks wrong, and code review
 does not reliably catch a `'use client'` creeping up the tree. If a change breaks a budget, fix the
 boundary rather than raising the number.
+
+Context for the JS figure: ~131 kB of it is the React 19 + Next 16 App Router floor, measured on a
+route with no client components. Only the remainder is ours. So a few kB of new client code is
+normal; a jump of tens or hundreds of kB means a `'use client'` landed too high in the tree.
+
+When measuring by hand, exclude `<script noModule>` — that is the legacy polyfill bundle (~39 kB)
+that no modern browser fetches, and counting it overstates every route by about a third.
 
 ## Common regressions
 
