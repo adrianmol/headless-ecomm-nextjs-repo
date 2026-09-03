@@ -52,6 +52,25 @@ Available review subagents: `commerce-reviewer` (architecture-invariant review),
 - Homebrew's `node@20` is keg-only, so `node` is absent from non-interactive shells.
   Prefix `PATH` with `/opt/homebrew/opt/node@20/bin` when scripting.
 
+## Deployment
+
+GitHub Actions owns correctness; Jenkins owns delivery only (`Jenkinsfile`). It builds the
+`Dockerfile`, pushes an image tagged with the git SHA, and runs `deploy/deploy.sh` over SSH
+on the Hetzner host, which health-checks the new container and rolls back automatically.
+
+- `output: 'standalone'` in `next.config.ts` exists for the runtime image stage. Do not remove it.
+- **A production image must be built where the commerce API is reachable**, because `use cache`
+  scopes are prerendered. `--build-arg BUILD_SCRIPT=build:ci` builds against the mock instead,
+  which bakes fixture products into the static shell — those images are tagged `-mockapi`
+  and must never be deployed to customers.
+- The container binds to `127.0.0.1` only. A TLS-terminating reverse proxy on the host is
+  mandatory: the session cookie is `Secure`, so the app is broken over plain HTTP.
+- Runtime config lives in `/opt/headless-ecomm-flow/app.env` (mode 600), written by the
+  pipeline from Jenkins credentials. Never bake it into the image.
+
+Jenkins credential IDs: `hetzner-registry`, `hetzner-deploy-key`, `commerce-api-url`,
+`revalidate-secret`. Registry/host placeholders at the top of the `Jenkinsfile` need real values.
+
 ## Verification
 
 Run before declaring work complete:

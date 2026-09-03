@@ -219,6 +219,16 @@ totals independently, so a corrupt `unitPrice` can hide behind a clean total —
 is what the customer reads. `cartLineMoneySchema` existed but was never wired up, which is
 worse than absent: false assurance.
 
+**The dev mock had no cart write endpoints.** `scripts/mock-api.mjs` implemented `POST /carts`
+and `GET /carts/{cartId}` but not the line routes, so every add-to-cart in `pnpm dev:mock` fell
+through to the catch-all `404 {"code":"not_found"}` — which `normalizeError` maps to `NotFound`
+and the cart action maps to `cart_expired`. The storefront told the shopper "Your basket expired"
+for a route that had simply never been written. Invisible to `pnpm test`, because the MSW
+handlers *do* cover those routes: two mock surfaces, only one of them complete. The mock is now
+stateful (derived totals, version incremented per mutation, `Idempotency-Key` replay, `409
+out_of_stock` against the fixture stock), so the conflict paths are reachable in development
+instead of only in unit tests.
+
 **`params`/`searchParams` awaited outside Suspense — twice.** Once on the PDP (Phase 2) and
 again on `/checkout` (Phase 4). Both blocked the route from prerendering. Worth encoding in
 the `rsc-boundaries` skill.

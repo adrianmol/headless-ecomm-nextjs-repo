@@ -71,6 +71,29 @@ const cart = {
   totals: { subtotal: eur(0), total: eur(0) },
 };
 
+/** One cart is enough for a stand-in; the storefront only ever holds one id. */
+let lineSeq = 0;
+
+function offerForVariant(variantId) {
+  const product = products.find((p) =>
+    p.variants.some((v) => v.id === variantId),
+  );
+  if (!product) return null;
+  return { product, offer: offers[product.slug] };
+}
+
+/** Totals are derived, never sent by the client — the backend owns the money. */
+function recalcTotals() {
+  const subtotal = cart.lines.reduce((sum, l) => sum + l.lineTotal.amountMinor, 0);
+  cart.totals = { subtotal: eur(subtotal), total: eur(subtotal) };
+}
+
+function commit() {
+  recalcTotals();
+  cart.version += 1;
+  return structuredClone(cart);
+}
+
 // Where the stand-in payment page sends the shopper back to. Overridable
 // because the storefront port varies between dev and `next start`.
 const STOREFRONT_URL = process.env.STOREFRONT_URL ?? "http://localhost:3000";
@@ -93,6 +116,22 @@ function idempotent(map, key, create) {
   return value;
 }
 const sessionsByKey = new Map();
+const cartsByKey = new Map();
+const cartMutationsByKey = new Map();
+
+const readJsonBody = (req) =>
+  new Promise((resolve) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
+      if (chunks.length === 0) return resolve({});
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+      } catch {
+        resolve({});
+      }
+    });
+  });
 
 const json = (res, status, body) => {
   const payload = JSON.stringify(body);
@@ -106,7 +145,10 @@ const json = (res, status, body) => {
 const notFound = (res) =>
   json(res, 404, { code: "not_found", message: "not found" });
 
-const server = createServer((req, res) => {
+const conflict = (res, code, message, details) =>
+  json(res, 409, { code, message, ...(details ? { details } : {}) });
+
+const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
   const path = url.pathname.replace(/^\/v1/, "");
 
@@ -126,9 +168,103 @@ const server = createServer((req, res) => {
     return product ? json(res, 200, product) : notFound(res);
   }
 
-  if (req.method === "POST" && path === "/carts") return json(res, 201, cart);
-  if (req.method === "GET" && /^\/carts\/[^/]+$/.test(path)) {
-    return json(res, 200, cart);
+  if (req.method === "POST" && path === "/carts") {
+    // A new cart is empty. Keyed on Idempotency-Key so a double-clicked first
+    // add-to-cart yields one cart, which is the behaviour the spec requires.
+    const created = idempotent(cartsByKey, req.headers["idempotency-key"], () => {
+      cart.lines = [];
+      cart.version = 1;
+      lineSeq = 0;
+      recalcTotals();
+      return structuredClone(cart);
+    });
+    return json(res, 201, created);
+  }
+
+  match = path.match(/^\/carts\/([^/]+)$/);
+  if (req.method === "GET" && match) {
+    return match[1] === cart.id ? json(res, 200, cart) : notFound(res);
+  }
+
+  match = path.match(/^\/carts\/([^/]+)\/lines$/);
+  if (req.method === "POST" && match) {
+    if (match[1] !== cart.id) return notFound(res);
+
+    const key = req.headers["idempotency-key"];
+    if (key && cartMutationsByKey.has(key)) {
+      return json(res, 200, cartMutationsByKey.get(key));
+    }
+
+    const body = await readJsonBody(req);
+    const found = offerForVariant(body.variantId);
+    if (!found) return notFound(res);
+
+    const quantity = Number(body.quantity ?? 1);
+    const existing = cart.lines.find((l) => l.variantId === body.variantId);
+    const wanted = (existing?.quantity ?? 0) + quantity;
+    const available = found.offer?.availability.quantity ?? 0;
+    if (wanted > available) {
+      return conflict(res, "out_of_stock", "insufficient stock", {
+        variantId: body.variantId,
+        available,
+      });
+    }
+
+    if (existing) {
+      existing.quantity = wanted;
+      existing.lineTotal = eur(existing.unitPrice.amountMinor * wanted);
+    } else {
+      const unitPrice = found.offer.price;
+      cart.lines.push({
+        id: `line_${++lineSeq}`,
+        variantId: body.variantId,
+        title: found.product.title,
+        image: found.product.images[0],
+        quantity,
+        unitPrice,
+        lineTotal: eur(unitPrice.amountMinor * quantity),
+      });
+    }
+
+    const snapshot = commit();
+    if (key) cartMutationsByKey.set(key, snapshot);
+    return json(res, 200, snapshot);
+  }
+
+  match = path.match(/^\/carts\/([^/]+)\/lines\/([^/]+)$/);
+  if ((req.method === "PATCH" || req.method === "DELETE") && match) {
+    if (match[1] !== cart.id) return notFound(res);
+
+    const key = req.headers["idempotency-key"];
+    if (key && cartMutationsByKey.has(key)) {
+      return json(res, 200, cartMutationsByKey.get(key));
+    }
+
+    const line = cart.lines.find((l) => l.id === match[2]);
+    if (!line) return notFound(res);
+
+    // Absolute quantity, never a delta; 0 removes the line.
+    const quantity =
+      req.method === "DELETE" ? 0 : Number((await readJsonBody(req)).quantity ?? 0);
+
+    if (quantity > 0) {
+      const available =
+        offerForVariant(line.variantId)?.offer?.availability.quantity ?? 0;
+      if (quantity > available) {
+        return conflict(res, "out_of_stock", "insufficient stock", {
+          variantId: line.variantId,
+          available,
+        });
+      }
+      line.quantity = quantity;
+      line.lineTotal = eur(line.unitPrice.amountMinor * quantity);
+    } else {
+      cart.lines = cart.lines.filter((l) => l.id !== line.id);
+    }
+
+    const snapshot = commit();
+    if (key) cartMutationsByKey.set(key, snapshot);
+    return json(res, 200, snapshot);
   }
 
   if (req.method === "POST" && path === "/checkout/sessions") {
