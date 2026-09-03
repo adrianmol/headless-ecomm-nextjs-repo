@@ -78,6 +78,21 @@ const products = [
     ],
     variants: [{ id: "var_4", title: "L" }],
   },
+  {
+    id: "prod_5",
+    slug: "wool-scarf",
+    title: "Wool Scarf",
+    description: "A lightweight woven scarf.",
+    images: [
+      {
+        url: "/img/merino-crew.png",
+        alt: "Wool Scarf",
+        width: 800,
+        height: 1000,
+      },
+    ],
+    variants: [{ id: "var_5", title: "One size" }],
+  },
 ];
 
 const offers = {
@@ -101,6 +116,11 @@ const offers = {
     variantId: "var_4",
     price: eur(4500),
     availability: { inStock: true, quantity: 6 },
+  },
+  "wool-scarf": {
+    variantId: "var_5",
+    price: eur(3900),
+    availability: { inStock: true, quantity: 10 },
   },
 };
 
@@ -242,16 +262,9 @@ const server = createServer(async (req, res) => {
   if (req.method === "GET" && path === "/products") {
     const limitParam = url.searchParams.get("limit");
     const cursor = url.searchParams.get("cursor");
-    const limit =
-      limitParam === null
-        ? 24
-        : Number(limitParam);
+    const limit = limitParam === null ? 24 : Number(limitParam);
 
-    if (
-      !Number.isInteger(limit) ||
-      limit < 1 ||
-      limit > 100
-    ) {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
       return json(res, 400, {
         code: "validation_failed",
         message: "invalid limit",
