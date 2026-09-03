@@ -5,7 +5,7 @@ test.describe("landing page", () => {
     await page.goto("/");
 
     await expect(
-      page.getByRole("heading", { level: 1, name: /considered basics/i }),
+      page.getByRole("heading", { level: 1, name: /shop the collection/i }),
     ).toBeVisible();
 
     // Featured products come from the real catalog query, not hardcoded copy.
@@ -46,7 +46,9 @@ test.describe("site header", () => {
     await expect(page).toHaveURL(/\/$/);
   });
 
-  test("the skip link is the first thing a keyboard reaches", async ({ page }) => {
+  test("the skip link is first and actually moves focus past the nav", async ({
+    page,
+  }) => {
     // Without this, every keyboard user tabs the whole nav on every navigation.
     await page.goto("/products");
     await page.keyboard.press("Tab");
@@ -55,7 +57,18 @@ test.describe("site header", () => {
     await expect(focused).toHaveText("Skip to content");
 
     await focused.press("Enter");
+
+    // The fragment alone proves nothing: a non-focusable target leaves focus in
+    // the header, so the skip link would look right and do nothing. Assert the
+    // focus actually landed on the content container.
     await expect(page).toHaveURL(/#content$/);
+    await expect(page.locator("#content")).toBeFocused();
+
+    // And that tabbing on from there enters the page, not the nav again.
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("navigation", { name: "Main" })).not.toContainText(
+      await page.locator(":focus").innerText(),
+    );
   });
 
   test("is present on every customer-facing route", async ({ page }) => {

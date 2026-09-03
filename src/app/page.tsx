@@ -61,12 +61,24 @@ export default function Home() {
   return (
     <main>
       <section className="mx-auto max-w-6xl px-4 pt-16 pb-12">
+        {/*
+          Copy states only what this storefront can actually support: that the
+          catalogue is browsable and that price and stock are read live per
+          product, which is literally how the PDP works.
+
+          It deliberately makes no claim about materials, provenance,
+          manufacturing, or restocking policy. None of that exists in
+          openapi/commerce.yaml, so asserting it here would be inventing
+          merchandising — and, for a real shop, publishing claims that may be
+          untrue. Marketing copy is owner-supplied content; when a CMS or a
+          content field exists, read it from there.
+        */}
         <h1 className="max-w-2xl text-4xl font-semibold tracking-tight sm:text-5xl">
-          Considered basics, built to last
+          Shop the collection
         </h1>
         <p className="text-muted-foreground mt-4 max-w-xl text-lg">
-          A small range of everyday pieces in natural fibres. Made in limited
-          runs, restocked rather than replaced.
+          Browse the full catalogue. Pricing and availability are shown live on
+          every product page.
         </p>
         <div className="mt-8">
           <Button asChild size="lg">

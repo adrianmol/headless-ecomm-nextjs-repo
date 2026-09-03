@@ -30,10 +30,21 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {/* Server Component: navigation costs no client JavaScript. */}
         <SiteHeader />
 
-        {/* Target for the header's skip link. Each page still renders its own
-            <main>, so this wrapper carries the id rather than duplicating the
-            landmark. */}
-        <div id="content">{children}</div>
+        {/*
+          Target for the header's skip link. Each page renders its own <main>,
+          so this wrapper carries the id rather than duplicating the landmark.
+
+          `tabIndex={-1}` is required, not decorative: a plain <div> cannot
+          receive focus, so activating the skip link would move the URL fragment
+          and the sequential-navigation start point but leave focus where it
+          was — in the header. Screen reader users would hear the nav again.
+          -1 makes it programmatically focusable without adding it to the tab
+          order. `outline-none` suppresses a ring around the whole page body,
+          which is not a useful focus indicator at that size.
+        */}
+        <div id="content" tabIndex={-1} className="outline-none">
+          {children}
+        </div>
       </body>
     </html>
   );
