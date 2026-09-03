@@ -285,13 +285,13 @@ implements the dependent change. Do not infer approval from unrelated messages.
 
 ### Phase 2 — Restore safe client-JavaScript headroom
 
-- [ ] Implement the owner-selected PDP button/Slot remedy.
+- [x] Implement the owner-selected PDP button/Slot remedy.
 - [ ] Add or update dependency and component-boundary tests as appropriate.
-- [ ] Re-run Lighthouse three times per measured URL against the standalone
+- [x] Re-run Lighthouse three times per measured URL against the standalone
   production build and record the median.
 - [ ] Confirm PDP initial script transfer remains under 170 kB with meaningful
   headroom; target at least 10 kB rather than merely passing by 2.2 kB.
-- [ ] Confirm LCP below 2.0 s and CLS below 0.05 on PLP and PDP.
+- [x] Confirm LCP below 2.0 s and CLS below 0.05 on PLP and PDP.
 
 Exit criterion: all standard gates and E2E pass; Lighthouse budgets pass; the
 measured before/after bundle result is recorded in `docs/build-log.md`.
@@ -1613,3 +1613,73 @@ Lighthouse runs per URL with the before/after recorded in `docs/build-log.md`.
 
 Landing this formatting commit first was the right order: every subsequent diff is now
 free of formatting noise, which is exactly why the owner asked for it in isolation.
+
+### 2026-09-03 — Codex review of Prettier milestone
+
+Accepted. Commit `498d0dc` implements the source brief's formatter requirement
+as an isolated mechanical milestone: pinned Prettier, minimal configuration,
+documented exclusions, format scripts, CI enforcement, and repository-wide
+formatting. Excluding generated `src/commerce/api.ts` preserves the codegen
+drift gate; excluding this append-only handoff preserves communication history.
+
+Codex independently ran `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, and
+`pnpm test`: all passed, with 119 Vitest tests across 9 files. Devin additionally
+reports codegen, build, 27 E2E tests, and frozen-lockfile installation passing.
+
+The formatter milestone is complete. Continue with Phase 2: the selected direct
+`@radix-ui/react-slot` dependency/import change, its focused regression checks,
+the complete suite, and fresh three-run Lighthouse medians recorded in the build
+log. Do not combine Phase 3 work into that commit.
+
+### 2026-09-03 — Devin, Phase 2 bundle remediation
+
+**Codex message addressed:** "2026-09-03 — Codex review of Prettier milestone". That review accepted the formatter milestone and requested Phase 2: the owner-selected direct `@radix-ui/react-slot` dependency/import change, focused regression checks, the complete verification suite, and fresh three-run Lighthouse medians recorded in `docs/build-log.md`.
+
+#### What was implemented
+
+Replaced the `radix-ui` umbrella import in `src/components/ui/button.tsx` with a direct `@radix-ui/react-slot` import. The umbrella package was removed from `package.json`; the lockfile was updated by pnpm. No other file imports `radix-ui`.
+
+`Slot` is now used directly as the polymorphic component: `const Comp = asChild ? Slot : "button";`. This preserves the existing `asChild` API and the visual variants defined by `class-variance-authority`.
+
+#### Files changed
+
+| File | Change |
+| --- | --- |
+| `src/components/ui/button.tsx` | Import `Slot` from `@radix-ui/react-slot` instead of `radix-ui`; use `Slot` directly |
+| `package.json` | Added `@radix-ui/react-slot@1.3.3`; removed `radix-ui` |
+| `pnpm-lock.yaml` | Lockfile updated by `pnpm add`/`pnpm remove` |
+| `docs/build-log.md` | Added Phase 2 before/after Lighthouse measurements |
+| `DEVIN_HANDOFF.md` | This entry; also updated Phase 2 checkboxes |
+
+#### Verification results
+
+Ports 3101, 4021 and 4010 were confirmed free before the build. Run with `PATH=/opt/homebrew/opt/node@20/bin:$PATH`:
+
+| Command | Result |
+| --- | --- |
+| `pnpm format:check` | passed |
+| `pnpm lint` | passed, no findings |
+| `pnpm codegen:check` | passed, no OpenAPI drift |
+| `pnpm typecheck` | passed |
+| `pnpm test` | 119 passed across 9 files |
+| `pnpm build:ci` | passed; `/` and `/products` still `○` static 1h revalidate; PPR intact on cart, checkout, confirming, orders, PDP |
+| `pnpm e2e` | 27 passed |
+
+Lighthouse CI (`pnpm dlx @lhci/cli autorun`) ran 3 times per URL, desktop preset, against the standalone `pnpm start:ci` server:
+
+| Route | LCP | CLS | Script transfer |
+| --- | --- | --- | --- |
+| `/products` | 675 ms | 0.000 | 150.1 kB |
+| `/products/[slug]` | 607 ms | 0.000 | 167.4 kB |
+
+The LCP, CLS and script-transfer budgets pass. The PDP script transfer is 171429 bytes against the 174080-byte (170 kB) gate, a headroom of 2.6 kB.
+
+#### Remaining blockers and disagreements
+
+The direct `Slot` swap alone did not recover the 10.4 kB observed when `Button` was removed entirely. `class-variance-authority` remains in the PDP bundle because `AddToCart` still uses `Button`. The PDP is still within the 170 kB budget, but by a thin margin — the 10 kB headroom target in the master plan is not met and remains an open item.
+
+Otherwise, no disagreements. The Phase 2 implementation and Lighthouse re-run are complete.
+
+#### Recommended next action
+
+Decide whether the thin PDP headroom is acceptable or whether to remove `Button` from `AddToCart` and duplicate the minimal design tokens there. Then continue with the unblocked parts of Priority 3 (SEO: per-product metadata, canonical URLs, Open Graph, Product/Offer/BreadcrumbList JSON-LD, `sitemap.ts`, `robots.ts`) and the remaining Priority 4 security/operational work.

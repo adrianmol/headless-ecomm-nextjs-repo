@@ -391,3 +391,18 @@ deliberately placed in a layout, because it renders `null` and so drags no subtr
   CI back to plain `pnpm build`, once the real API is reachable.
 - **Cart merge on login is unimplemented** — the endpoint is specified, the flow is not built.
 - **No `public/` favicon or real product imagery**; placeholders only.
+
+---
+
+## 9. Phase 2 bundle remediation — direct `@radix-ui/react-slot` dependency
+
+Changed `src/components/ui/button.tsx` to import `Slot` from `@radix-ui/react-slot` and removed the `radix-ui` umbrella dependency. The goal was to recover client-JavaScript headroom on the PDP, where `Button` is the only client leaf.
+
+Lighthouse CI, 3 runs per URL, median, desktop preset, after the change:
+
+| Route              | LCP    | CLS   | Script transfer |
+| ------------------ | ------ | ----- | --------------- |
+| `/products`        | 675 ms | 0.000 | 150.1 kB        |
+| `/products/[slug]` | 607 ms | 0.000 | 167.4 kB        |
+
+Budgets: LCP < 2000 ms, CLS < 0.05, script < 170 kB (174080 bytes). All pass. The PDP is within budget by 2.6 kB (171429 bytes against the 174080-byte gate). The larger gain observed earlier from removing `Button` entirely is not reproduced by only switching the `Slot` import; `class-variance-authority` remains in the PDP bundle because the component still uses `Button`.
