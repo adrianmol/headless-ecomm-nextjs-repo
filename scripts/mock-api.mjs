@@ -71,6 +71,29 @@ const cart = {
   totals: { subtotal: eur(0), total: eur(0) },
 };
 
+// Where the stand-in payment page sends the shopper back to. Overridable
+// because the storefront port varies between dev and `next start`.
+const STOREFRONT_URL = process.env.STOREFRONT_URL ?? "http://localhost:3000";
+
+/**
+ * Stand-in for the payment provider, so the full redirect round trip can be
+ * exercised: create session -> leave the site -> come back -> poll -> confirm.
+ *
+ * Orders start `pending` and flip to `paid` after PENDING_MS, which is what
+ * makes the confirming screen's polling path reachable at all. Without it the
+ * webhook race is invisible in development and only shows up in production.
+ */
+const PENDING_MS = Number(process.env.MOCK_PENDING_MS ?? 4000);
+const orders = new Map();
+
+function idempotent(map, key, create) {
+  if (key && map.has(key)) return map.get(key);
+  const value = create();
+  if (key) map.set(key, value);
+  return value;
+}
+const sessionsByKey = new Map();
+
 const json = (res, status, body) => {
   const payload = JSON.stringify(body);
   res.writeHead(status, {
@@ -106,6 +129,65 @@ const server = createServer((req, res) => {
   if (req.method === "POST" && path === "/carts") return json(res, 201, cart);
   if (req.method === "GET" && /^\/carts\/[^/]+$/.test(path)) {
     return json(res, 200, cart);
+  }
+
+  if (req.method === "POST" && path === "/checkout/sessions") {
+    // Honours Idempotency-Key the way the spec requires, so a double-clicked
+    // Pay button demonstrably produces one order rather than two.
+    const key = req.headers["idempotency-key"];
+    const session = idempotent(sessionsByKey, key, () => {
+      const orderRef = `ord_${Math.random().toString(36).slice(2, 10)}`;
+      orders.set(orderRef, { id: orderRef, paidAt: Date.now() + PENDING_MS });
+      return {
+        orderRef,
+        redirectUrl: `http://127.0.0.1:${PORT}/psp/pay?ref=${orderRef}`,
+      };
+    });
+    return json(res, 201, session);
+  }
+
+  const orderMatch = path.match(/^\/orders\/([^/]+)$/);
+  if (req.method === "GET" && orderMatch) {
+    const order = orders.get(orderMatch[1]);
+    if (!order) return notFound(res);
+    return json(res, 200, {
+      id: order.id,
+      status: order.cancelled
+        ? "failed"
+        : Date.now() >= order.paidAt
+          ? "paid"
+          : "pending",
+      total: eur(8900),
+    });
+  }
+
+  // --- stand-in hosted payment page (NOT part of the commerce API) ----------
+  if (req.method === "GET" && url.pathname === "/psp/pay") {
+    const ref = url.searchParams.get("ref") ?? "";
+    const back = `${STOREFRONT_URL}/checkout/return?ref=${encodeURIComponent(ref)}`;
+    const html = `<!doctype html><meta charset="utf-8"><title>Mock payment provider</title>
+<body style="font-family:system-ui;max-width:34rem;margin:4rem auto">
+<h1>Mock payment provider</h1>
+<p>Standing in for the hosted PSP. Order <code>${ref}</code>.</p>
+<p>Payment settles ${PENDING_MS}ms after the session was created, so returning
+immediately exercises the <em>pending</em> path.</p>
+<p><a href="${back}">Pay and return</a></p>
+<p><a href="${back}&status=success&amount=1">Return with forged success params</a>
+&mdash; the storefront must ignore these and ask its own backend.</p>
+<p><a href="/psp/cancel?ref=${encodeURIComponent(ref)}">Cancel payment</a></p>
+</body>`;
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+    return res.end(html);
+  }
+
+  if (req.method === "GET" && url.pathname === "/psp/cancel") {
+    const ref = url.searchParams.get("ref") ?? "";
+    const order = orders.get(ref);
+    if (order) order.cancelled = true;
+    res.writeHead(302, {
+      location: `${STOREFRONT_URL}/checkout/return?ref=${encodeURIComponent(ref)}`,
+    });
+    return res.end();
   }
 
   return notFound(res);
