@@ -406,3 +406,24 @@ Lighthouse CI, 3 runs per URL, median, desktop preset, after the change:
 | `/products/[slug]` | 607 ms | 0.000 | 167.4 kB        |
 
 Budgets: LCP < 2000 ms, CLS < 0.05, script < 170 kB (174080 bytes). All pass. The PDP is within budget by 2.6 kB (171429 bytes against the 174080-byte gate). The larger gain observed earlier from removing `Button` entirely is not reproduced by only switching the `Slot` import; `class-variance-authority` remains in the PDP bundle because the component still uses `Button`.
+
+## 10. Phase 2 bundle remediation — shared default-button style constants
+
+Extracted the resolved default-button style string into `src/lib/button-variants.ts`,
+a dependency-free module that exports only class constants. `src/components/ui/button.tsx`
+still uses `cva` for the full variant set, but it now consumes the shared base and primary
+constants for the `default` variant. `src/components/commerce/add-to-cart.tsx` no longer
+imports `Button`; it renders a plain `<button>` with the same `defaultButtonClasses` string.
+This removes `class-variance-authority` from the PDP client bundle while keeping one source
+of truth for the primary button tokens.
+
+Lighthouse CI, 3 runs per URL, median, desktop preset, after the change:
+
+| Route              | LCP    | CLS   | Script transfer |
+| ------------------ | ------ | ----- | --------------- |
+| `/products`        | 693 ms | 0.000 | 153.7 kB        |
+| `/products/[slug]` | 637 ms | 0.000 | 160.6 kB        |
+
+Budgets: LCP < 2000 ms, CLS < 0.05, script < 170 kB (174080 bytes). All pass. The PDP is now
+within budget by 13.5 kB (160569 bytes against the 174080-byte gate), meeting the 10 kB
+headroom target.

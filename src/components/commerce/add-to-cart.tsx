@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
-import { Button } from "@/components/ui/button";
+import { defaultButtonClasses } from "@/lib/button-variants";
 import type { CartAction, CartFeedback } from "@/lib/cart-feedback";
 import { formatMoney } from "@/lib/money";
 
@@ -40,16 +40,17 @@ export function AddToCart({
 
   return (
     <div className="mt-6">
-      <Button
+      <button
+        type="button"
         onClick={add}
         disabled={!inStock || pending}
-        className="w-full"
+        className={`${defaultButtonClasses} w-full`}
         // Keeps the label from changing width mid-interaction, which would
         // shift the layout underneath the cursor.
         aria-busy={pending}
       >
         {!inStock ? "Out of stock" : pending ? "Adding…" : "Add to basket"}
-      </Button>
+      </button>
 
       {feedback && (
         <p
