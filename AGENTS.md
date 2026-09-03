@@ -71,6 +71,26 @@ on the Hetzner host, which health-checks the new container and rolls back automa
 Jenkins credential IDs: `hetzner-registry`, `hetzner-deploy-key`, `commerce-api-url`,
 `revalidate-secret`. Registry/host placeholders at the top of the `Jenkinsfile` need real values.
 
+## Observability
+
+- `src/instrumentation.ts` registers OpenTelemetry, but **only** when
+  `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Unset means no exporter, not a broken one.
+- `src/commerce/client.ts` injects W3C `traceparent` on every outbound call. Keep it: without
+  a trace spanning the hop, a slow PDP cannot be attributed to rendering vs. the upstream API.
+- `onRequestError` in `src/instrumentation.ts` logs an error digest, never a message.
+- Field Core Web Vitals go from `src/components/web-vitals.tsx` to `POST /api/vitals`, which
+  logs structured JSON. Replace the log with a real sink when one exists — the client need
+  not change.
+- `POST /api/vitals` is public and unauthenticated, so treat every field as hostile:
+  - The body is read through a **streaming** byte cap (`readCappedBody`). Never switch it to
+    `request.text()`: that buffers whatever the caller sends before any check can run, which
+    makes the cap decorative. `Content-Length` is an early-rejection optimisation only — it
+    can be absent or lie.
+  - Every logged field is drawn from a fixed set of our own values. The client-supplied
+    `path` is normalised to a **route template** (`/orders/[id]`, else `other`) rather than
+    sanitised, so no caller text — query strings, control characters, forged newlines,
+    credentials, order references — can reach a log line.
+
 ## Verification
 
 Run before declaring work complete:

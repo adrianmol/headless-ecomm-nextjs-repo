@@ -1,5 +1,6 @@
 import "server-only";
 import createClient, { type Middleware } from "openapi-fetch";
+import { context, propagation } from "@opentelemetry/api";
 import type { paths } from "./api";
 import { serverEnv } from "@/lib/env";
 import { authHeaders } from "./session";
@@ -36,6 +37,30 @@ const forwardSession: Middleware = {
   },
 };
 
+/**
+ * Injects W3C trace context (`traceparent`) into every outbound call.
+ *
+ * This is what makes a slow page diagnosable. Next.js sits in front of the
+ * commerce API, so without a shared trace a slow PDP is just "slow" — with one,
+ * the span tree says whether the time went in rendering or upstream, which is
+ * the difference between a frontend task and a backend conversation
+ * (architecture §8, §9).
+ *
+ * A no-op until `instrumentation.ts` registers a provider: with no active span
+ * the propagator injects nothing, so this costs an empty function call and adds
+ * no headers. Applied to both clients — catalog latency matters as much as cart
+ * latency, and it carries no user data, unlike the session.
+ */
+const propagateTrace: Middleware = {
+  onRequest({ request }) {
+    propagation.inject(context.active(), request.headers, {
+      set: (headers: Headers, key: string, value: unknown) =>
+        headers.set(key, String(value)),
+    });
+    return request;
+  },
+};
+
 let cachedAuthed: ReturnType<typeof createClient<paths>> | null = null;
 let cachedPublic: ReturnType<typeof createClient<paths>> | null = null;
 
@@ -43,6 +68,7 @@ let cachedPublic: ReturnType<typeof createClient<paths>> | null = null;
 export function commerceClient() {
   if (cachedAuthed) return cachedAuthed;
   const client = createClient<paths>({ baseUrl: serverEnv().COMMERCE_API_URL });
+  client.use(propagateTrace);
   client.use(forwardSession);
   cachedAuthed = client;
   return cachedAuthed;
@@ -51,7 +77,9 @@ export function commerceClient() {
 /** Session-free client for cacheable, non-user-specific catalog reads. */
 export function publicCommerceClient() {
   if (cachedPublic) return cachedPublic;
-  cachedPublic = createClient<paths>({ baseUrl: serverEnv().COMMERCE_API_URL });
+  const client = createClient<paths>({ baseUrl: serverEnv().COMMERCE_API_URL });
+  client.use(propagateTrace);
+  cachedPublic = client;
   return cachedPublic;
 }
 
