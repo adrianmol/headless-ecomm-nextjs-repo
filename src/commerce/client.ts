@@ -9,8 +9,22 @@ import { authHeaders } from "./session";
  *
  * `import 'server-only'` above is load-bearing: it turns an accidental import
  * from a Client Component into a build error rather than a runtime credential
- * leak. Do not remove it, and do not re-export this client from a module that
+ * leak. Do not remove it, and do not re-export these clients from a module that
  * client code imports.
+ *
+ * There are deliberately two clients:
+ *
+ *   publicCommerceClient — catalog. Sends no session.
+ *   commerceClient       — cart, checkout, orders. Forwards the session.
+ *
+ * The split is not stylistic. Catalog responses are cached and shared across
+ * every visitor, and two things break if they carry a session:
+ *
+ *   1. Correctness/security — a per-user response could be written into a shared
+ *      cache entry and served to somebody else.
+ *   2. Mechanics — reading cookies is a runtime API, and Next.js forbids it
+ *      inside a `use cache` scope, so a session-forwarding client cannot be
+ *      called from cached catalog reads at all.
  */
 
 const forwardSession: Middleware = {
@@ -22,17 +36,27 @@ const forwardSession: Middleware = {
   },
 };
 
-let cached: ReturnType<typeof createClient<paths>> | null = null;
+let cachedAuthed: ReturnType<typeof createClient<paths>> | null = null;
+let cachedPublic: ReturnType<typeof createClient<paths>> | null = null;
 
+/** Session-forwarding client. Cart, checkout, orders — never catalog. */
 export function commerceClient() {
-  if (cached) return cached;
+  if (cachedAuthed) return cachedAuthed;
   const client = createClient<paths>({ baseUrl: serverEnv().COMMERCE_API_URL });
   client.use(forwardSession);
-  cached = client;
-  return cached;
+  cachedAuthed = client;
+  return cachedAuthed;
 }
 
-/** Test seam: drops the memoised client so a test can vary the base URL. */
+/** Session-free client for cacheable, non-user-specific catalog reads. */
+export function publicCommerceClient() {
+  if (cachedPublic) return cachedPublic;
+  cachedPublic = createClient<paths>({ baseUrl: serverEnv().COMMERCE_API_URL });
+  return cachedPublic;
+}
+
+/** Test seam: drops the memoised clients so a test can vary the base URL. */
 export function resetCommerceClientCache(): void {
-  cached = null;
+  cachedAuthed = null;
+  cachedPublic = null;
 }

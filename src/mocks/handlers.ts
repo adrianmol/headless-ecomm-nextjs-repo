@@ -54,6 +54,10 @@ export function errorBody(
 export const idempotencyLog: string[] = [];
 
 export const handlers = [
+  http.get(`${API_BASE}/products`, () =>
+    HttpResponse.json({ items: [productFixture], nextCursor: null }),
+  ),
+
   http.get(`${API_BASE}/products/:slug`, () => HttpResponse.json(productFixture)),
 
   http.get(`${API_BASE}/products/:slug/offer`, () =>

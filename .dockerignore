@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.github
+.agents
+coverage
+docs
+openapi
+*.tsbuildinfo
+.DS_Store
+
+# Never bake real configuration into an image. All runtime env comes from
+# --env-file on the Hetzner host; see deploy/deploy.sh.
+.env
+.env.*
+!.env.example

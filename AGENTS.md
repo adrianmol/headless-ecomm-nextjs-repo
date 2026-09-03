@@ -13,6 +13,9 @@ delegated to a skill:
 - `src/commerce/**` is server-only. Never import it from a Client Component.
 - `src/components/**` must not import `src/commerce/**`. Components receive plain props.
 - Never cache cart, session, or order data.
+- Catalog reads use `publicCommerceClient` and must never send a session: those responses
+  land in a cache shared by every visitor.
+- `<Suspense>` fallbacks must reserve the exact height of the loaded content (CLS budget).
 - Optimistic UI values are display-only; the server response is the only truth for anything charged.
 - Middleware is for routing only, never authorisation.
 
@@ -54,8 +57,12 @@ Available review subagents: `commerce-reviewer` (architecture-invariant review),
 Run before declaring work complete:
 
 ```bash
-pnpm lint && pnpm codegen:check && pnpm typecheck && pnpm test && pnpm build
+pnpm lint && pnpm codegen:check && pnpm typecheck && pnpm test && pnpm build:ci
 ```
+
+Use `build:ci`, not `build`. `use cache` content is prerendered, so `next build` performs
+real catalog requests. `build:ci` runs against `scripts/mock-api.mjs` because no backend
+exists yet — delete both scripts and use plain `build` once the real API is reachable.
 
 `pnpm typecheck` runs `next typegen` first on purpose: route types such as `LayoutProps`
 are generated, so a bare `tsc --noEmit` fails on a clean checkout.

@@ -284,7 +284,7 @@ export interface components {
              *     never branch on it, and never show it to customers.
              * @enum {string}
              */
-            code: "out_of_stock" | "price_changed" | "cart_expired" | "unauthorized" | "validation_failed" | "unavailable";
+            code: "not_found" | "out_of_stock" | "price_changed" | "cart_expired" | "unauthorized" | "validation_failed" | "unavailable";
             message: string;
             /**
              * @description Code-specific, machine-readable payload. Because `message` must never

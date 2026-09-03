@@ -1,9 +1,12 @@
 {
   "ci": {
     "collect": {
-      "startServerCommand": "pnpm start",
+      "startServerCommand": "pnpm start:ci",
       "startServerReadyPattern": "Ready in",
-      "url": ["http://localhost:3000/"],
+      "url": [
+        "http://localhost:3000/products",
+        "http://localhost:3000/products/merino-crew"
+      ],
       "numberOfRuns": 3,
       "settings": {
         "preset": "desktop"

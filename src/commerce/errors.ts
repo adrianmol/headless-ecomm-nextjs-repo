@@ -8,6 +8,13 @@ import { moneySchema } from "./schemas";
  * payload, an HTTP status, or a Zod error.
  */
 export type CommerceError =
+  /**
+   * The resource does not exist. Distinct from `Unavailable` on purpose: a
+   * missing product is a 404 the customer should see, while `Unavailable` is a
+   * server fault worth alerting on. Collapsing them turns every deleted product
+   * into a page that looks broken, and buries real outages in the same bucket.
+   */
+  | { kind: "NotFound" }
   | { kind: "OutOfStock"; variantId: string | null; available: number }
   | { kind: "PriceChanged"; oldPrice: Money; newPrice: Money }
   | { kind: "CartExpired" }
@@ -38,6 +45,7 @@ export class CommerceErrorException extends Error {
 
 const apiErrorSchema = z.object({
   code: z.enum([
+    "not_found",
     "out_of_stock",
     "price_changed",
     "cart_expired",
@@ -83,6 +91,8 @@ export function normalizeError(payload: unknown, status?: number): CommerceError
   const { code, message, details } = parsed.data;
 
   switch (code) {
+    case "not_found":
+      return { kind: "NotFound" };
     case "out_of_stock": {
       const d = outOfStockDetails.safeParse(details ?? {});
       return {

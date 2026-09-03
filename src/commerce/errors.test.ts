@@ -96,3 +96,18 @@ describe("normalizeError", () => {
     });
   });
 });
+
+describe("NotFound is distinct from Unavailable", () => {
+  it("maps not_found to NotFound", () => {
+    expect(normalizeError({ code: "not_found", message: "no such product" })).toEqual({
+      kind: "NotFound",
+    });
+  });
+
+  it("does not collapse a 404 into a server fault", () => {
+    // Collapsing them makes every deleted product look like an outage, and
+    // buries real outages among deleted products.
+    const notFound = normalizeError({ code: "not_found", message: "x" }, 404);
+    expect(notFound).not.toMatchObject({ kind: "Unavailable" });
+  });
+});

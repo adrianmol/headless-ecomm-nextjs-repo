@@ -4,6 +4,7 @@ import { API_BASE, handlers, idempotencyLog } from "@/mocks/handlers";
 import { resetCommerceClientCache } from "@/commerce/client";
 import { resetServerEnvCache } from "@/lib/env";
 import { __resetCookies } from "./stubs/next-headers";
+import { resetCacheStub } from "./stubs/next-cache";
 
 process.env.COMMERCE_API_URL = API_BASE;
 
@@ -19,6 +20,7 @@ afterEach(() => {
   server.resetHandlers();
   idempotencyLog.length = 0;
   __resetCookies();
+  resetCacheStub();
   resetCommerceClientCache();
   resetServerEnvCache();
 });

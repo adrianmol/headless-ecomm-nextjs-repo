@@ -417,6 +417,7 @@ components:
         code:
           type: string
           enum:
+            - not_found
             - out_of_stock
             - price_changed
             - cart_expired

@@ -50,8 +50,12 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # build:ci runs against scripts/mock-api.mjs. `use cache` content is
+      # prerendered, so the build performs real catalog requests and needs a
+      # reachable API. Switch to plain `pnpm build` with COMMERCE_API_URL
+      # pointing at the real service once CI can reach it.
       - name: Build
-        run: pnpm build
+        run: pnpm build:ci
 
   budgets:
     name: Performance budgets
@@ -71,7 +75,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build
-        run: pnpm build
+        run: pnpm build:ci
 
       # Budgets come from docs/architecture.md §8. They exist because RSC apps
       # degrade gradually: one misplaced 'use client' ships a whole subtree to

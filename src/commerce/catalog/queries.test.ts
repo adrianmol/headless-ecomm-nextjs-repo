@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/setup";
 import { API_BASE, errorBody, offerFixture } from "@/mocks/handlers";
+import { appliedTags } from "@/test/stubs/next-cache";
+import { __setCookie } from "@/test/stubs/next-headers";
 import { CommerceErrorException } from "../errors";
-import { getOffer, getProduct } from "./queries";
+import { SESSION_COOKIE } from "../session";
+import { getOffer, getProduct, listProducts, productTag } from "./queries";
 
 describe("getProduct", () => {
   it("returns product content", async () => {
@@ -30,6 +33,45 @@ describe("getProduct", () => {
     await expect(getProduct("merino-crew")).rejects.toMatchObject({
       error: { kind: "Unavailable", retryable: true },
     });
+  });
+});
+
+describe("catalog caching", () => {
+  it("tags the product with the same string the revalidation path uses", async () => {
+    // A tag that differs between read and write fails silently: the cache just
+    // never invalidates. Both sides go through productTag() for this reason.
+    await getProduct("merino-crew");
+    expect(appliedTags).toContain(productTag("merino-crew"));
+  });
+
+  it("tags the listing so a publish can invalidate it", async () => {
+    await listProducts();
+    expect(appliedTags).toContain("product-list");
+  });
+
+  it("does not tag the offer, which must never be cached", async () => {
+    await getOffer("merino-crew");
+    expect(appliedTags).toHaveLength(0);
+  });
+});
+
+describe("catalog requests carry no session", () => {
+  // Catalog responses land in a cache shared by every visitor. A session
+  // travelling with them risks one shopper's response being served to another,
+  // and cookies cannot be read inside a `use cache` scope anyway.
+  it("sends no authorization header even when a session cookie exists", async () => {
+    __setCookie(SESSION_COOKIE, "tok_abc");
+    let seen: string | null = "unset";
+
+    server.use(
+      http.get(`${API_BASE}/products/:slug/offer`, ({ request }) => {
+        seen = request.headers.get("authorization");
+        return HttpResponse.json(offerFixture);
+      }),
+    );
+
+    await getOffer("merino-crew");
+    expect(seen).toBeNull();
   });
 });
 

@@ -11,6 +11,7 @@ export default defineConfig({
       // as ordinary Node code.
       { find: /^server-only$/, replacement: r("./src/test/stubs/server-only.ts") },
       { find: /^next\/headers$/, replacement: r("./src/test/stubs/next-headers.ts") },
+      { find: /^next\/cache$/, replacement: r("./src/test/stubs/next-cache.ts") },
       { find: /^@\//, replacement: r("./src/") },
     ],
   },
