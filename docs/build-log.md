@@ -6,8 +6,10 @@ Companion to [architecture.md](architecture.md) (the design) and [adr/](adr/) (t
 load-bearing decisions). This file is the narrative: the order things happened in, the
 mistakes made along the way, and the state of play.
 
-**Status at time of writing:** Phases 0–4 complete. Phase 5 (hardening) not started.
-8 commits · 67 tests passing · lint, contract drift, typecheck, test and build all green.
+**Status at time of writing:** Phases 0–4 complete. Phase 5 (hardening) in progress —
+E2E and accessibility done; observability and load testing outstanding.
+11 commits · 68 unit tests + 15 E2E · lint, contract drift, typecheck, test, build and
+E2E all green.
 
 ---
 
@@ -43,7 +45,7 @@ Three were written up as ADRs because they are the ones that would be argued abo
 | 2 | Catalog: PLP + PDP, caching, streamed price/stock | Done |
 | 3 | Cart: Server Actions, optimistic UI | Done |
 | 4 | Checkout: forms, idempotent session creation, redirect, return verification | Done |
-| 5 | Hardening: a11y, observability, error flows, load test, E2E | **Not started** |
+| 5 | Hardening: a11y, observability, error flows, load test, E2E | **Partial** — E2E + axe done; observability and load testing outstanding |
 
 Phase 1 deliberately preceded Phase 2 so that catalog and cart work could proceed against
 mocks in parallel with backend development, and so contract gaps would surface in week one
@@ -229,6 +231,25 @@ stateful (derived totals, version incremented per mutation, `Idempotency-Key` re
 out_of_stock` against the fixture stock), so the conflict paths are reachable in development
 instead of only in unit tests.
 
+**Three defects that shipped green through the entire unit suite.** All found within
+minutes of adding E2E, and all invisible to unit tests because in every case the data layer
+was behaving perfectly — the bug was in the seam between it and the UI.
+
+- *Cart mutations did not re-render.* Server Actions mutated state and returned ok, but the
+  Server Components on screen kept rendering the pre-mutation cart: removing a line left it
+  visible, with no error. This directly contradicted the claim recorded when the cart actions
+  landed, that invoking a Server Action re-renders the current route by itself. It does not —
+  uncached data needs an explicit `refresh()`.
+- *The quantity stepper deleted lines instead of incrementing them.* With no `max` prop the
+  clamp evaluated to `Infinity`, which JSON-serialises to `null` and was read downstream as
+  quantity 0, meaning remove. Pressing "+" emptied the basket.
+- *Native validation pre-empted the server.* `type="email"` blocked submission before the
+  Server Action ran, so the Zod messages never appeared and the two validators were free to
+  drift apart.
+
+The lesson is not "write E2E tests". It is that unit tests verified every layer in isolation
+and all of them passed, while the product was broken — the seams are where the money is.
+
 **`params`/`searchParams` awaited outside Suspense — twice.** Once on the PDP (Phase 2) and
 again on `/checkout` (Phase 4). Both blocked the route from prerendering. Worth encoding in
 the `rsc-boundaries` skill.
@@ -247,7 +268,7 @@ accepts script-bearing SVG. Not a flag worth setting to make placeholders render
 ## 7. Verification
 
 ```bash
-pnpm lint && pnpm codegen:check && pnpm typecheck && pnpm test && pnpm build:ci
+pnpm lint && pnpm codegen:check && pnpm typecheck && pnpm test && pnpm build:ci && pnpm e2e
 ```
 
 - `pnpm dev:mock` — dev server against the mock API (use this, not `pnpm dev`, until the
@@ -258,9 +279,19 @@ pnpm lint && pnpm codegen:check && pnpm typecheck && pnpm test && pnpm build:ci
 - `build:ci` builds against `scripts/mock-api.mjs`, because `use cache` content is
   prerendered and the build performs real catalog requests
 
-67 tests, weighted by risk rather than pyramid orthodoxy: money arithmetic, error
+- `pnpm e2e` — Playwright against a production build, requires `pnpm build:ci` first
+
+68 unit tests, weighted by risk rather than pyramid orthodoxy: money arithmetic, error
 normalisation, idempotency key derivation, cart actions including cookie and cart-creation
 behaviour, catalog caching and tagging, and checkout including order-state validation.
+
+15 E2E tests covering the cart journey, the full payment redirect round trip (including a
+return carrying forged success parameters), and axe WCAG 2 A/AA scans of the listing, product
+page, basket, and checkout form in both its clean and error states.
+
+E2E runs the **standalone** server (`node .next/standalone/server.js`), not `next start`.
+That is what the container executes; `next start` is additionally unsupported alongside
+`output: 'standalone'`. Testing it would mean exercising a server that never ships.
 
 ---
 
@@ -272,8 +303,9 @@ behaviour, catalog caching and tagging, and checkout including order-state valid
    contract the frontend invented. The §9 asks in the architecture doc — idempotency keys,
    the cache-invalidation webhook, structured error codes, cart merge semantics — remain
    unconfirmed by anyone on the backend side.
-2. **Phase 5 has not started**: axe accessibility sweep, OpenTelemetry with trace propagation,
-   frontend RUM, load testing, and the Playwright E2E suite.
+2. **Phase 5 is partial.** E2E and axe are in place; **OpenTelemetry with trace propagation,
+   frontend RUM, and load testing are not**. There is still no way to answer "why is the PDP
+   slow in production".
 3. **Node 20 is EOL locally** (2026-04-30). CI and the Docker image run Node 22.
 4. **Jenkins placeholders** — `registry.example.com`, `your-server.hetzner.example`.
 
