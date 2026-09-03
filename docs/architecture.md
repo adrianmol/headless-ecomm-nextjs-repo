@@ -6,16 +6,16 @@
 
 ## Locked decisions
 
-| Area | Decision | ADR |
-| --- | --- | --- |
-| Framework | Next.js App Router, React Server Components | — |
-| Topology | Next.js acts as a BFF; internal API is not internet-facing | [ADR-0001](adr/0001-nextjs-as-bff.md) |
-| Commerce backend | Custom internal REST API described by an OpenAPI spec | — |
-| Cart ownership | Backend-owned, server-authoritative | [ADR-0002](adr/0002-server-authoritative-cart.md) |
-| Runtime validation | Selective Zod at the API boundary, not blanket | [ADR-0003](adr/0003-selective-runtime-validation.md) |
-| Auth | Session cookie issued by the internal API, forwarded first-party | — |
-| Payments | Hosted redirect (PSP-hosted checkout) | — |
-| Styling | Tailwind + shadcn/ui | — |
+| Area               | Decision                                                         | ADR                                                  |
+| ------------------ | ---------------------------------------------------------------- | ---------------------------------------------------- |
+| Framework          | Next.js App Router, React Server Components                      | —                                                    |
+| Topology           | Next.js acts as a BFF; internal API is not internet-facing       | [ADR-0001](adr/0001-nextjs-as-bff.md)                |
+| Commerce backend   | Custom internal REST API described by an OpenAPI spec            | —                                                    |
+| Cart ownership     | Backend-owned, server-authoritative                              | [ADR-0002](adr/0002-server-authoritative-cart.md)    |
+| Runtime validation | Selective Zod at the API boundary, not blanket                   | [ADR-0003](adr/0003-selective-runtime-validation.md) |
+| Auth               | Session cookie issued by the internal API, forwarded first-party | —                                                    |
+| Payments           | Hosted redirect (PSP-hosted checkout)                            | —                                                    |
+| Styling            | Tailwind + shadcn/ui                                             | —                                                    |
 
 ## 1. Topology
 
@@ -87,7 +87,7 @@ pressure:
 - `openapi-typescript` generates types from the spec; `openapi-fetch` (~6 kB) is the client.
 - Generated output is **committed**, so a backend spec change appears as a reviewable diff instead of
   a silent runtime break. CI regenerates and fails on drift.
-- OpenAPI types are a compile-time *claim* about the backend, not a runtime guarantee. Runtime
+- OpenAPI types are a compile-time _claim_ about the backend, not a runtime guarantee. Runtime
   validation is applied selectively — see [ADR-0003](adr/0003-selective-runtime-validation.md).
 - **Money is never a `number`.** Minor units as integers plus a currency code; formatted at the edge
   with `Intl.NumberFormat`. Float arithmetic on prices is the most common bug class in commerce
@@ -121,12 +121,12 @@ Design constraints that follow from the platform:
 
 Uniform caching is how commerce sites ship stale prices. Split data by ownership:
 
-| Data | Strategy | Invalidation |
-| --- | --- | --- |
-| Product / category content | Cached, long TTL | Tag-based, on backend publish |
-| Price and availability | Short TTL (seconds) or uncached | Time-based |
-| Cart, session, orders | **Never cached** | n/a |
-| Search / facets | Cached by query params | Time-based |
+| Data                       | Strategy                        | Invalidation                  |
+| -------------------------- | ------------------------------- | ----------------------------- |
+| Product / category content | Cached, long TTL                | Tag-based, on backend publish |
+| Price and availability     | Short TTL (seconds) or uncached | Time-based                    |
+| Cart, session, orders      | **Never cached**                | n/a                           |
+| Search / facets            | Cached by query params          | Time-based                    |
 
 Since Next.js 15, `fetch` is no longer cached by default; caching is opt-in, which is the correct
 default here. Prefer the framework's explicit cache primitives (`use cache` with `cacheTag` /
@@ -171,10 +171,10 @@ Confirmation pages are non-cacheable and `noindex`.
 
 **Performance budgets**, enforced in CI via Lighthouse CI on PLP and PDP:
 
-| Metric | Budget |
-| --- | --- |
-| LCP (PDP) | < 2.0 s |
-| CLS | < 0.05 |
+| Metric            | Budget                                           |
+| ----------------- | ------------------------------------------------ |
+| LCP (PDP)         | < 2.0 s                                          |
+| CLS               | < 0.05                                           |
 | Initial client JS | < 170 kB gzipped (transfer, `noModule` excluded) |
 
 Numbers are written down because RSC apps degrade gradually: one misplaced `'use client'` ships the
@@ -182,7 +182,7 @@ whole subtree to the browser. Budgets catch that; code review reliably does not.
 stay leaves — add-to-cart button, quantity stepper, gallery, filter panel — never layouts.
 
 **On the JS number.** It was originally 120 kB, set before anything was built. That turned out to be
-below the floor: measured on the production build, `/` — a route with *no* client components at all —
+below the floor: measured on the production build, `/` — a route with _no_ client components at all —
 already ships 131 kB. React 19 plus the Next 16 App Router runtime costs that before we write a line.
 The budget was unmeetable, and a permanently-red budget is a budget everyone learns to ignore.
 
@@ -192,11 +192,11 @@ through it.
 
 Measured app-owned JS, i.e. everything above the 131 kB framework floor:
 
-| Route | Total | App-owned |
-| --- | --- | --- |
-| `/products` | 139 kB | +8 kB |
-| `/cart` | 136 kB | +5 kB |
-| `/products/[slug]` | 152 kB | +21 kB |
+| Route              | Total  | App-owned |
+| ------------------ | ------ | --------- |
+| `/products`        | 139 kB | +8 kB     |
+| `/cart`            | 136 kB | +5 kB     |
+| `/products/[slug]` | 152 kB | +21 kB    |
 
 When re-measuring, exclude `<script noModule>`: that is the legacy polyfill bundle (~39 kB) and no
 modern browser downloads it. Counting it inflates every figure by a third.
@@ -241,14 +241,14 @@ vulnerabilities.
 
 ## 11. Build plan
 
-| Phase | Deliverable | Exit criteria |
-| --- | --- | --- |
-| 0 | Scaffold, Tailwind + shadcn, ESLint boundary rules, CI | typecheck + lint + budgets green |
-| 1 | Data layer: codegen, typed client, session forwarding, error normalisation, MSW mocks | data layer usable with no real backend |
-| 2 | Catalog: PLP + PDP, caching, streamed price/stock | LCP budget met |
-| 3 | Cart: Server Actions, optimistic UI, merge on login | concurrency + stock-conflict tests pass |
-| 4 | Checkout: forms, idempotent session creation, redirect, return verification | E2E green against PSP test mode |
-| 5 | Hardening: a11y, observability, error flows, load test | budgets + axe clean in CI |
+| Phase | Deliverable                                                                           | Exit criteria                           |
+| ----- | ------------------------------------------------------------------------------------- | --------------------------------------- |
+| 0     | Scaffold, Tailwind + shadcn, ESLint boundary rules, CI                                | typecheck + lint + budgets green        |
+| 1     | Data layer: codegen, typed client, session forwarding, error normalisation, MSW mocks | data layer usable with no real backend  |
+| 2     | Catalog: PLP + PDP, caching, streamed price/stock                                     | LCP budget met                          |
+| 3     | Cart: Server Actions, optimistic UI, merge on login                                   | concurrency + stock-conflict tests pass |
+| 4     | Checkout: forms, idempotent session creation, redirect, return verification           | E2E green against PSP test mode         |
+| 5     | Hardening: a11y, observability, error flows, load test                                | budgets + axe clean in CI               |
 
 Phase 1 precedes phase 2 deliberately: with spec-driven MSW mocks, catalog and cart work proceed in
 parallel with backend development, and the §9 contract gaps surface in week one rather than week six.

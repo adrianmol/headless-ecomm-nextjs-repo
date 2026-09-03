@@ -28,12 +28,15 @@ Frontend responsibility ends at "create the order intent and redirect".
 ```ts
 // app/(checkout)/checkout/return/route.ts
 export async function GET(req: Request) {
-  const ref = new URL(req.url).searchParams.get('ref');   // an identifier ONLY
-  const order = await getOrderStatus(ref);                // our backend is the truth
+  const ref = new URL(req.url).searchParams.get("ref"); // an identifier ONLY
+  const order = await getOrderStatus(ref); // our backend is the truth
   switch (order.status) {
-    case 'paid':     return redirect(`/orders/${order.id}`);
-    case 'pending':  return redirect(`/checkout/confirming?ref=${ref}`);
-    case 'failed':   return redirect('/checkout?error=payment_failed');
+    case "paid":
+      return redirect(`/orders/${order.id}`);
+    case "pending":
+      return redirect(`/checkout/confirming?ref=${ref}`);
+    case "failed":
+      return redirect("/checkout?error=payment_failed");
   }
 }
 ```

@@ -7,7 +7,7 @@
 ## Context
 
 Types are generated from the backend's OpenAPI spec with `openapi-typescript`. Generated types are a
-compile-time *claim* about backend behaviour. They provide no runtime guarantee: if the API returns
+compile-time _claim_ about backend behaviour. They provide no runtime guarantee: if the API returns
 `null` for a field the spec marks required, TypeScript is silent and the failure surfaces as a render
 crash or, worse, a wrong number on screen.
 

@@ -24,9 +24,9 @@ describe("money arithmetic", () => {
   });
 
   it("refuses to combine different currencies", () => {
-    expect(() => addMoney(eur(100), { amountMinor: 100, currency: "USD" })).toThrow(
-      CurrencyMismatchError,
-    );
+    expect(() =>
+      addMoney(eur(100), { amountMinor: 100, currency: "USD" }),
+    ).toThrow(CurrencyMismatchError);
   });
 
   it("multiplies by an integer quantity", () => {
@@ -49,15 +49,18 @@ describe("formatMoney", () => {
 
   it("respects currencies with no minor unit", () => {
     // JPY has 0 decimal places: 8900 minor units is 8,900 yen, not 89.00.
-    const formatted = formatMoney({ amountMinor: 8900, currency: "JPY" }, "en-US");
+    const formatted = formatMoney(
+      { amountMinor: 8900, currency: "JPY" },
+      "en-US",
+    );
     expect(formatted).toContain("8,900");
     expect(formatted).not.toContain("89.00");
   });
 
   it("respects currencies with three minor digits", () => {
     // KWD has 3 decimal places: 8900 minor units is 8.900 dinar.
-    expect(formatMoney({ amountMinor: 8900, currency: "KWD" }, "en-US")).toContain(
-      "8.900",
-    );
+    expect(
+      formatMoney({ amountMinor: 8900, currency: "KWD" }, "en-US"),
+    ).toContain("8.900");
   });
 });

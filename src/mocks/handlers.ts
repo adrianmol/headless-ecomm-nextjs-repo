@@ -14,7 +14,12 @@ export const productFixture: components["schemas"]["Product"] = {
   title: "Merino Crew",
   description: "A jumper.",
   images: [
-    { url: "https://cdn.test/1.jpg", alt: "Merino Crew", width: 800, height: 1000 },
+    {
+      url: "https://cdn.test/1.jpg",
+      alt: "Merino Crew",
+      width: 800,
+      height: 1000,
+    },
   ],
   variants: [{ id: "var_1", title: "M" }],
 };
@@ -58,7 +63,9 @@ export const handlers = [
     HttpResponse.json({ items: [productFixture], nextCursor: null }),
   ),
 
-  http.get(`${API_BASE}/products/:slug`, () => HttpResponse.json(productFixture)),
+  http.get(`${API_BASE}/products/:slug`, () =>
+    HttpResponse.json(productFixture),
+  ),
 
   http.get(`${API_BASE}/products/:slug/offer`, () =>
     HttpResponse.json(offerFixture),
@@ -68,12 +75,18 @@ export const handlers = [
 
   http.post(`${API_BASE}/carts/:cartId/lines`, ({ request }) => {
     idempotencyLog.push(request.headers.get("Idempotency-Key") ?? "<missing>");
-    return HttpResponse.json({ ...cartFixture, version: cartFixture.version + 1 });
+    return HttpResponse.json({
+      ...cartFixture,
+      version: cartFixture.version + 1,
+    });
   }),
 
   http.patch(`${API_BASE}/carts/:cartId/lines/:lineId`, ({ request }) => {
     idempotencyLog.push(request.headers.get("Idempotency-Key") ?? "<missing>");
-    return HttpResponse.json({ ...cartFixture, version: cartFixture.version + 1 });
+    return HttpResponse.json({
+      ...cartFixture,
+      version: cartFixture.version + 1,
+    });
   }),
 
   http.delete(`${API_BASE}/carts/:cartId/lines/:lineId`, ({ request }) => {
@@ -87,6 +100,9 @@ export const handlers = [
 
   http.post(`${API_BASE}/carts`, ({ request }) => {
     idempotencyLog.push(request.headers.get("Idempotency-Key") ?? "<missing>");
-    return HttpResponse.json({ ...cartFixture, lines: [], version: 1 }, { status: 201 });
+    return HttpResponse.json(
+      { ...cartFixture, lines: [], version: 1 },
+      { status: 201 },
+    );
   }),
 ];

@@ -49,7 +49,12 @@ function Field({
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" className="w-full" disabled={pending} aria-busy={pending}>
+    <Button
+      type="submit"
+      className="w-full"
+      disabled={pending}
+      aria-busy={pending}
+    >
       {pending ? "Redirecting to payment…" : "Continue to payment"}
     </Button>
   );
@@ -92,11 +97,37 @@ export function CheckoutForm({
         </p>
       )}
 
-      <Field name="email" label="Email" type="email" autoComplete="email" error={errors.email} />
-      <Field name="name" label="Full name" autoComplete="name" error={errors.name} />
-      <Field name="line1" label="Address" autoComplete="address-line1" error={errors.line1} />
-      <Field name="city" label="City" autoComplete="address-level2" error={errors.city} />
-      <Field name="postcode" label="Postcode" autoComplete="postal-code" error={errors.postcode} />
+      <Field
+        name="email"
+        label="Email"
+        type="email"
+        autoComplete="email"
+        error={errors.email}
+      />
+      <Field
+        name="name"
+        label="Full name"
+        autoComplete="name"
+        error={errors.name}
+      />
+      <Field
+        name="line1"
+        label="Address"
+        autoComplete="address-line1"
+        error={errors.line1}
+      />
+      <Field
+        name="city"
+        label="City"
+        autoComplete="address-level2"
+        error={errors.city}
+      />
+      <Field
+        name="postcode"
+        label="Postcode"
+        autoComplete="postal-code"
+        error={errors.postcode}
+      />
       <Field
         name="country"
         label="Country code"

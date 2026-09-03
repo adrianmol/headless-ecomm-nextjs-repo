@@ -65,7 +65,10 @@ export async function startCheckoutAction(
       return { status: "price_changed" };
     }
     if (session.error.kind === "OutOfStock") return { status: "out_of_stock" };
-    if (session.error.kind === "CartExpired" || session.error.kind === "NotFound") {
+    if (
+      session.error.kind === "CartExpired" ||
+      session.error.kind === "NotFound"
+    ) {
       return { status: "empty" };
     }
     return { status: "error" };

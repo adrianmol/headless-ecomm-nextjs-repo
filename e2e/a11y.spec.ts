@@ -43,7 +43,9 @@ test.describe("accessibility", () => {
 
   test("product listing", async ({ page }) => {
     await page.goto("/products");
-    await expect(page.getByRole("heading", { name: "All products" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "All products" }),
+    ).toBeVisible();
     expect((await scan(page)).violations).toEqual([]);
   });
 
@@ -51,7 +53,9 @@ test.describe("accessibility", () => {
     await page.goto("/products/merino-crew");
     // Scanning before the streamed offer arrives would miss the add-to-cart
     // control entirely, which is the most interactive thing on the page.
-    await expect(page.getByRole("button", { name: "Add to basket" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Add to basket" }),
+    ).toBeVisible();
     expect((await scan(page)).violations).toEqual([]);
   });
 

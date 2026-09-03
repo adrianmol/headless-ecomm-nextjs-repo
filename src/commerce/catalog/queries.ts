@@ -1,7 +1,11 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import { publicCommerceClient } from "../client";
-import { CommerceErrorException, normalizeError, schemaViolation } from "../errors";
+import {
+  CommerceErrorException,
+  normalizeError,
+  schemaViolation,
+} from "../errors";
 import { offerSchema } from "../schemas";
 import type { components } from "../api";
 
@@ -43,9 +47,12 @@ export async function listProducts(params?: {
   cacheLife("hours");
   cacheTag(productListTag);
 
-  const { data, error, response } = await publicCommerceClient().GET("/products", {
-    params: { query: params ?? {} },
-  });
+  const { data, error, response } = await publicCommerceClient().GET(
+    "/products",
+    {
+      params: { query: params ?? {} },
+    },
+  );
 
   if (error || !data) {
     throw new CommerceErrorException(normalizeError(error, response?.status));

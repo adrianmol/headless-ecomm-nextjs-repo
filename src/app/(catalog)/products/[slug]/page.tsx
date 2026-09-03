@@ -35,7 +35,10 @@ async function ProductShell({ params }: { params: ParamsPromise }) {
   try {
     product = await getProduct(slug);
   } catch (error) {
-    if (error instanceof CommerceErrorException && error.error.kind === "NotFound") {
+    if (
+      error instanceof CommerceErrorException &&
+      error.error.kind === "NotFound"
+    ) {
       notFound();
     }
     throw error;

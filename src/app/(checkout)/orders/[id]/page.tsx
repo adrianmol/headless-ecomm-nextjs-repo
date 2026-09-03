@@ -27,7 +27,10 @@ async function OrderDetail({ params }: { params: ParamsPromise }) {
         <p className="text-muted-foreground mt-3">
           This order has not been paid for.
         </p>
-        <Link href="/cart" className="mt-6 inline-block underline underline-offset-4">
+        <Link
+          href="/cart"
+          className="mt-6 inline-block underline underline-offset-4"
+        >
           Back to basket
         </Link>
       </div>
@@ -36,7 +39,9 @@ async function OrderDetail({ params }: { params: ParamsPromise }) {
 
   return (
     <div className="text-center">
-      <h1 className="text-2xl font-semibold">Thank you — your order is confirmed</h1>
+      <h1 className="text-2xl font-semibold">
+        Thank you — your order is confirmed
+      </h1>
       <p className="text-muted-foreground mt-3">
         Order reference <span className="font-mono">{order.id}</span>
       </p>

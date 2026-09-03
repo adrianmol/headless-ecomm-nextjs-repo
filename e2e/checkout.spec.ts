@@ -21,7 +21,9 @@ test.describe("checkout", () => {
     await page.getByRole("button", { name: "Continue to payment" }).click();
 
     // We have genuinely left the storefront for the payment provider.
-    await expect(page.getByRole("heading", { name: "Mock payment provider" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Mock payment provider" }),
+    ).toBeVisible();
 
     await page.getByRole("link", { name: "Pay and return" }).click();
 
@@ -38,7 +40,9 @@ test.describe("checkout", () => {
     await expect(page.getByText("€89.00")).toBeVisible();
   });
 
-  test("ignores forged success parameters on the return URL", async ({ page }) => {
+  test("ignores forged success parameters on the return URL", async ({
+    page,
+  }) => {
     await addToBasket(page);
 
     await page.goto("/checkout");
@@ -50,7 +54,9 @@ test.describe("checkout", () => {
     await page.getByLabel("Country code").fill("IE");
     await page.getByRole("button", { name: "Continue to payment" }).click();
 
-    await expect(page.getByRole("heading", { name: "Mock payment provider" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Mock payment provider" }),
+    ).toBeVisible();
 
     // The shopper edits the URL to claim the payment succeeded. The storefront
     // must ask its own backend instead of believing them; trusting this is how
@@ -79,11 +85,15 @@ test.describe("checkout", () => {
 
     await page.getByRole("link", { name: "Cancel payment" }).click();
 
-    await expect(page.getByText(/Your payment was not completed/)).toBeVisible();
+    await expect(
+      page.getByText(/Your payment was not completed/),
+    ).toBeVisible();
     await expect(page.getByText(/Nothing has been charged/)).toBeVisible();
   });
 
-  test("rejects an invalid email without leaving the site", async ({ page }) => {
+  test("rejects an invalid email without leaving the site", async ({
+    page,
+  }) => {
     await addToBasket(page);
 
     await page.goto("/checkout");

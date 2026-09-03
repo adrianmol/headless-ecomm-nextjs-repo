@@ -19,7 +19,12 @@ export type ProductCardProps = {
  * boundary rule). A Server Component — nothing here is interactive, so shipping
  * it to the browser would be wasted bytes.
  */
-export function ProductCard({ slug, title, image, priority }: ProductCardProps) {
+export function ProductCard({
+  slug,
+  title,
+  image,
+  priority,
+}: ProductCardProps) {
   return (
     <Link
       href={`/products/${slug}`}

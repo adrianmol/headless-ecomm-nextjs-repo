@@ -84,7 +84,10 @@ function offerForVariant(variantId) {
 
 /** Totals are derived, never sent by the client — the backend owns the money. */
 function recalcTotals() {
-  const subtotal = cart.lines.reduce((sum, l) => sum + l.lineTotal.amountMinor, 0);
+  const subtotal = cart.lines.reduce(
+    (sum, l) => sum + l.lineTotal.amountMinor,
+    0,
+  );
   cart.totals = { subtotal: eur(subtotal), total: eur(subtotal) };
 }
 
@@ -219,13 +222,17 @@ const server = createServer(async (req, res) => {
   if (req.method === "POST" && path === "/carts") {
     // A new cart is empty. Keyed on Idempotency-Key so a double-clicked first
     // add-to-cart yields one cart, which is the behaviour the spec requires.
-    const created = idempotent(cartsByKey, req.headers["idempotency-key"], () => {
-      cart.lines = [];
-      cart.version = 1;
-      lineSeq = 0;
-      recalcTotals();
-      return structuredClone(cart);
-    });
+    const created = idempotent(
+      cartsByKey,
+      req.headers["idempotency-key"],
+      () => {
+        cart.lines = [];
+        cart.version = 1;
+        lineSeq = 0;
+        recalcTotals();
+        return structuredClone(cart);
+      },
+    );
     return json(res, 201, created);
   }
 
@@ -293,7 +300,9 @@ const server = createServer(async (req, res) => {
 
     // Absolute quantity, never a delta; 0 removes the line.
     const quantity =
-      req.method === "DELETE" ? 0 : Number((await readJsonBody(req)).quantity ?? 0);
+      req.method === "DELETE"
+        ? 0
+        : Number((await readJsonBody(req)).quantity ?? 0);
 
     if (quantity > 0) {
       const available =

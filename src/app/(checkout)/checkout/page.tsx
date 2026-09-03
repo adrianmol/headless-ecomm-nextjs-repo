@@ -23,7 +23,10 @@ async function CheckoutSummary() {
         <p className="text-muted-foreground">
           Your basket is empty, so there is nothing to check out.
         </p>
-        <Link href="/products" className="mt-4 inline-block underline underline-offset-4">
+        <Link
+          href="/products"
+          className="mt-4 inline-block underline underline-offset-4"
+        >
           Browse products
         </Link>
       </div>
@@ -45,7 +48,9 @@ async function CheckoutSummary() {
               <span className="text-muted-foreground">
                 {line.title} × {line.quantity}
               </span>
-              <span className="tabular-nums">{formatMoney(line.lineTotal)}</span>
+              <span className="tabular-nums">
+                {formatMoney(line.lineTotal)}
+              </span>
             </li>
           ))}
         </ul>

@@ -36,13 +36,13 @@ src/commerce/
 
 ```ts
 // src/commerce/catalog/queries.ts
-import 'server-only';
-import { client } from '../client';
-import { normalizeError } from '../errors';
-import { priceSchema } from './schemas';
+import "server-only";
+import { client } from "../client";
+import { normalizeError } from "../errors";
+import { priceSchema } from "./schemas";
 
 export async function getProduct(slug: string) {
-  const { data, error } = await client.GET('/products/{slug}', {
+  const { data, error } = await client.GET("/products/{slug}", {
     params: { path: { slug } },
   });
   if (error) throw normalizeError(error);
@@ -71,11 +71,11 @@ Normalise every failure into this union in `errors.ts`. UI switches on it exhaus
 
 ```ts
 export type CommerceError =
-  | { kind: 'OutOfStock'; variantId: string; available: number }
-  | { kind: 'PriceChanged'; oldPrice: Money; newPrice: Money }
-  | { kind: 'CartExpired' }
-  | { kind: 'Unauthorized' }
-  | { kind: 'Unavailable'; retryable: boolean };
+  | { kind: "OutOfStock"; variantId: string; available: number }
+  | { kind: "PriceChanged"; oldPrice: Money; newPrice: Money }
+  | { kind: "CartExpired" }
+  | { kind: "Unauthorized" }
+  | { kind: "Unavailable"; retryable: boolean };
 ```
 
 Map from the backend's structured error codes, never by string-matching a human-readable message. If

@@ -17,7 +17,12 @@ import { useReportWebVitals } from "next/web-vitals";
  * only final as the page is being unloaded, and a normal request at that moment
  * is routinely cancelled. Beacons survive it.
  */
-function report(metric: { name: string; value: number; id: string; rating?: string }) {
+function report(metric: {
+  name: string;
+  value: number;
+  id: string;
+  rating?: string;
+}) {
   const body = JSON.stringify({
     name: metric.name,
     value: metric.value,

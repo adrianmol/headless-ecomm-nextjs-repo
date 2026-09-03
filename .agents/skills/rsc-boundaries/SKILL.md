@@ -12,8 +12,8 @@ Default to Server Components. `'use client'` is a deliberate, reviewable decisio
 
 ## The core rule
 
-**Client components are leaves.** A `'use client'` directive ships that component *and its entire
-imported subtree* to the browser. Putting it on a layout or page pulls the whole tree client-side and
+**Client components are leaves.** A `'use client'` directive ships that component _and its entire
+imported subtree_ to the browser. Putting it on a layout or page pulls the whole tree client-side and
 silently forfeits the reason for using RSC.
 
 Legitimate client components here:
@@ -33,7 +33,7 @@ down into the client leaf.
 ```tsx
 // server
 const product = await getProduct(slug);
-return <AddToCartButton variantId={product.defaultVariantId} />;  // client leaf, plain props
+return <AddToCartButton variantId={product.defaultVariantId} />; // client leaf, plain props
 ```
 
 Server Actions are the bridge for writes — a client leaf calls an action, it does not call the API.
@@ -49,13 +49,13 @@ Server Actions are the bridge for writes — a client leaf calls an action, it d
 
 Enforced in CI (Lighthouse CI on PLP and PDP):
 
-| Metric | Budget |
-| --- | --- |
-| LCP (PDP) | < 2.0 s |
-| CLS | < 0.05 |
+| Metric            | Budget                                           |
+| ----------------- | ------------------------------------------------ |
+| LCP (PDP)         | < 2.0 s                                          |
+| CLS               | < 0.05                                           |
 | Initial client JS | < 170 kB gzipped (transfer, `noModule` excluded) |
 
-Budgets exist because RSC apps degrade *gradually* — no single change looks wrong, and code review
+Budgets exist because RSC apps degrade _gradually_ — no single change looks wrong, and code review
 does not reliably catch a `'use client'` creeping up the tree. If a change breaks a budget, fix the
 boundary rather than raising the number.
 
@@ -80,12 +80,20 @@ Pass the promise down and resolve it inside the boundary that needs it:
 // wrong — blocks prerendering of the entire route
 export default async function Page({ params }: PageProps<"/products/[slug]">) {
   const { slug } = await params;
-  return <Suspense fallback={<Skeleton />}><Detail slug={slug} /></Suspense>;
+  return (
+    <Suspense fallback={<Skeleton />}>
+      <Detail slug={slug} />
+    </Suspense>
+  );
 }
 
 // right — the shell prerenders, each boundary resolves its own data
 export default function Page({ params }: PageProps<"/products/[slug]">) {
-  return <Suspense fallback={<Skeleton />}><Detail params={params} /></Suspense>;
+  return (
+    <Suspense fallback={<Skeleton />}>
+      <Detail params={params} />
+    </Suspense>
+  );
 }
 ```
 

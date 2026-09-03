@@ -6,7 +6,10 @@ import { CommerceErrorException } from "../errors";
 import { createCheckoutSession } from "./mutations";
 import { getOrder } from "./queries";
 
-const session = { orderRef: "ord_1", redirectUrl: "https://psp.test/pay/ord_1" };
+const session = {
+  orderRef: "ord_1",
+  redirectUrl: "https://psp.test/pay/ord_1",
+};
 const paidOrder = {
   id: "ord_1",
   status: "paid",
@@ -17,7 +20,9 @@ describe("createCheckoutSession", () => {
   it("returns the PSP redirect URL", async () => {
     server.use(
       http.post(`${API_BASE}/checkout/sessions`, ({ request }) => {
-        idempotencyLog.push(request.headers.get("Idempotency-Key") ?? "<missing>");
+        idempotencyLog.push(
+          request.headers.get("Idempotency-Key") ?? "<missing>",
+        );
         return HttpResponse.json(session, { status: 201 });
       }),
     );
@@ -35,7 +40,9 @@ describe("createCheckoutSession", () => {
   it("sends the same key for a double-clicked Pay, so one order is created", async () => {
     server.use(
       http.post(`${API_BASE}/checkout/sessions`, ({ request }) => {
-        idempotencyLog.push(request.headers.get("Idempotency-Key") ?? "<missing>");
+        idempotencyLog.push(
+          request.headers.get("Idempotency-Key") ?? "<missing>",
+        );
         return HttpResponse.json(session, { status: 201 });
       }),
     );
@@ -53,13 +60,23 @@ describe("createCheckoutSession", () => {
     // into the first one.
     server.use(
       http.post(`${API_BASE}/checkout/sessions`, ({ request }) => {
-        idempotencyLog.push(request.headers.get("Idempotency-Key") ?? "<missing>");
+        idempotencyLog.push(
+          request.headers.get("Idempotency-Key") ?? "<missing>",
+        );
         return HttpResponse.json(session, { status: 201 });
       }),
     );
 
-    await createCheckoutSession({ cartId: "cart_1", cartVersion: 3, email: "a@b.test" });
-    await createCheckoutSession({ cartId: "cart_1", cartVersion: 4, email: "a@b.test" });
+    await createCheckoutSession({
+      cartId: "cart_1",
+      cartVersion: 3,
+      email: "a@b.test",
+    });
+    await createCheckoutSession({
+      cartId: "cart_1",
+      cartVersion: 4,
+      email: "a@b.test",
+    });
 
     expect(idempotencyLog[0]).not.toBe(idempotencyLog[1]);
   });
@@ -121,7 +138,9 @@ describe("getOrder", () => {
         HttpResponse.json({ ...paidOrder, status: "definitely_paid_trust_me" }),
       ),
     );
-    await expect(getOrder("ord_1")).rejects.toBeInstanceOf(CommerceErrorException);
+    await expect(getOrder("ord_1")).rejects.toBeInstanceOf(
+      CommerceErrorException,
+    );
   });
 
   it("rejects a float total", async () => {

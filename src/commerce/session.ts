@@ -29,7 +29,10 @@ export async function getCartId(): Promise<string | null> {
  */
 export async function setCartId(cartId: string): Promise<void> {
   const store = await cookies();
-  store.set(CART_COOKIE, cartId, { ...COOKIE_OPTIONS, maxAge: 60 * 60 * 24 * 30 });
+  store.set(CART_COOKIE, cartId, {
+    ...COOKIE_OPTIONS,
+    maxAge: 60 * 60 * 24 * 30,
+  });
 }
 
 export async function clearCartId(): Promise<void> {

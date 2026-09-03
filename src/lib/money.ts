@@ -61,7 +61,10 @@ export function multiplyMoney(money: Money, quantity: number): Money {
         "Fractional multipliers need a rounding policy and belong on the backend.",
     );
   }
-  return { amountMinor: money.amountMinor * quantity, currency: money.currency };
+  return {
+    amountMinor: money.amountMinor * quantity,
+    currency: money.currency,
+  };
 }
 
 export function sumMoney(items: readonly Money[], currency: string): Money {

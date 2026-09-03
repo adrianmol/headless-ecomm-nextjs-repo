@@ -53,8 +53,15 @@ export default function GlobalError({
             Try again
           </button>
           {error.digest && (
-            <p style={{ color: "#78716c", marginTop: "1.5rem", fontSize: "0.75rem" }}>
-              Reference: <span style={{ fontFamily: "monospace" }}>{error.digest}</span>
+            <p
+              style={{
+                color: "#78716c",
+                marginTop: "1.5rem",
+                fontSize: "0.75rem",
+              }}
+            >
+              Reference:{" "}
+              <span style={{ fontFamily: "monospace" }}>{error.digest}</span>
             </p>
           )}
         </main>

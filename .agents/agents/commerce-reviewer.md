@@ -18,23 +18,27 @@ the changes (`git diff`, or the files named by the parent agent).
 ## Check, in priority order
 
 **1. Correctness of money and charges (critical)**
+
 - Prices as integer minor units + currency, never `number`, never float arithmetic.
 - No optimistic or previously-rendered value used as the amount payable.
 - `PriceChanged` surfaced to the customer, never silently accepted.
 
 **2. Trust boundaries (critical)**
+
 - PSP return handler must not branch on query parameters. Order status re-fetched from our backend.
 - No secret, API base URL, or session token in `NEXT_PUBLIC_*` or client-reachable code.
 - No authorisation decisions in middleware.
 - Order/cart reads authorised against the session.
 
 **3. Server/client boundary**
+
 - `'use client'` only on leaves. Flag it on layouts, pages, or shared wrappers.
 - `src/components/**` must not import `src/commerce/**`.
 - `src/commerce` modules must remain server-only.
 - Heavy libraries pulled into client leaves.
 
 **4. Cart authority**
+
 - Mutations only in Server Actions, never from client code.
 - `Idempotency-Key` present and deterministically derived, not a fresh random per call.
 - No cart creation during Server Component render (cookies cannot be set there).
@@ -42,11 +46,13 @@ the changes (`git diff`, or the files named by the parent agent).
 - `revalidateTag` with a tag matching the read path.
 
 **5. Caching**
+
 - Cart, session, order, payment status never cached.
 - New cached data fits a row of the policy table in `docs/architecture.md` §5.
 - `<Suspense>` skeletons reserve the exact height of loaded content (CLS).
 
 **6. Errors and accessibility**
+
 - API failures normalised to the domain error union; no string-matching on prose messages.
 - Interactive leaves keyboard accessible and labelled; cart updates announced.
 

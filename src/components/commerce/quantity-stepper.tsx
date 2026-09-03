@@ -51,7 +51,10 @@ export function QuantityStepper({
     // max was supplied, which JSON-serialises to null, which the backend read
     // as quantity 0 — so pressing "+" deleted the line.
     const stepped = target.current + delta;
-    const next = Math.max(0, max === undefined ? stepped : Math.min(max, stepped));
+    const next = Math.max(
+      0,
+      max === undefined ? stepped : Math.min(max, stepped),
+    );
     if (next === target.current) return;
 
     target.current = next;

@@ -1,6 +1,10 @@
 import "server-only";
 import { commerceClient } from "../client";
-import { CommerceErrorException, normalizeError, schemaViolation } from "../errors";
+import {
+  CommerceErrorException,
+  normalizeError,
+  schemaViolation,
+} from "../errors";
 import { cartLineMoneySchema, cartTotalsSchema } from "../schemas";
 import type { components } from "../api";
 
@@ -15,9 +19,12 @@ export type Cart = components["schemas"]["Cart"];
  * from tests without a request scope.
  */
 export async function getCart(cartId: string): Promise<Cart> {
-  const { data, error, response } = await commerceClient().GET("/carts/{cartId}", {
-    params: { path: { cartId } },
-  });
+  const { data, error, response } = await commerceClient().GET(
+    "/carts/{cartId}",
+    {
+      params: { path: { cartId } },
+    },
+  );
 
   if (error || !data) {
     throw new CommerceErrorException(normalizeError(error, response?.status));
@@ -32,7 +39,9 @@ export async function getCart(cartId: string): Promise<Cart> {
   // Per-line money too, not just the aggregate. A corrupt `unitPrice` on one
   // line can coexist with a total that validates cleanly, because the backend
   // computes the total independently — and that line is what the customer sees.
-  if (!data.lines.every((line) => cartLineMoneySchema.safeParse(line).success)) {
+  if (
+    !data.lines.every((line) => cartLineMoneySchema.safeParse(line).success)
+  ) {
     throw new CommerceErrorException(schemaViolation());
   }
 

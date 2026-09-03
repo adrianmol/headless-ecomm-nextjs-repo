@@ -13,7 +13,9 @@ export const metadata: Metadata = {
 export default function ProductNotFound() {
   return (
     <main className="mx-auto max-w-2xl px-4 py-20 text-center">
-      <h1 className="text-2xl font-semibold">We couldn&apos;t find that product</h1>
+      <h1 className="text-2xl font-semibold">
+        We couldn&apos;t find that product
+      </h1>
       <p className="text-muted-foreground mt-3">
         It may have been removed, or the link may be wrong.
       </p>

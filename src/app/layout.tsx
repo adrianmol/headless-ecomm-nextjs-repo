@@ -5,7 +5,7 @@ import { SiteHeader } from "@/components/site-header";
 import { WebVitals } from "@/components/web-vitals";
 import { cn } from "@/lib/utils";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   title: {

@@ -22,15 +22,24 @@ test.describe("landing page", () => {
     await page.getByRole("link", { name: "Shop all products" }).click();
 
     await expect(page).toHaveURL(/\/products$/);
-    await expect(page.getByRole("heading", { level: 1, name: "All products" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 1, name: "All products" }),
+    ).toBeVisible();
   });
 
-  test("a previewed product links through to its detail page", async ({ page }) => {
+  test("a previewed product links through to its detail page", async ({
+    page,
+  }) => {
     await page.goto("/");
-    await page.getByRole("link", { name: /Merino Crew/ }).first().click();
+    await page
+      .getByRole("link", { name: /Merino Crew/ })
+      .first()
+      .click();
 
     await expect(page).toHaveURL(/\/products\/merino-crew$/);
-    await expect(page.getByRole("button", { name: "Add to basket" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Add to basket" }),
+    ).toBeVisible();
   });
 });
 
@@ -44,7 +53,9 @@ test.describe("site header", () => {
 
     await nav.getByRole("link", { name: "Basket" }).click();
     await expect(page).toHaveURL(/\/cart$/);
-    await expect(page.getByRole("heading", { level: 1, name: "Basket" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Basket" }),
+    ).toBeVisible();
 
     await nav.getByRole("link", { name: "Home" }).click();
     await expect(page).toHaveURL(/\/$/);
@@ -70,13 +81,19 @@ test.describe("site header", () => {
 
     // And that tabbing on from there enters the page, not the nav again.
     await page.keyboard.press("Tab");
-    await expect(page.getByRole("navigation", { name: "Main" })).not.toContainText(
-      await page.locator(":focus").innerText(),
-    );
+    await expect(
+      page.getByRole("navigation", { name: "Main" }),
+    ).not.toContainText(await page.locator(":focus").innerText());
   });
 
   test("is present on every customer-facing route", async ({ page }) => {
-    for (const path of ["/", "/products", "/products/merino-crew", "/cart", "/checkout"]) {
+    for (const path of [
+      "/",
+      "/products",
+      "/products/merino-crew",
+      "/cart",
+      "/checkout",
+    ]) {
       await page.goto(path);
       await expect(
         page.getByRole("navigation", { name: "Main" }),
@@ -127,6 +144,8 @@ test.describe("global not-found", () => {
       page.getByRole("heading", { level: 1, name: /couldn't find that page/i }),
     ).toBeVisible();
     // Still navigable rather than a dead end.
-    await expect(page.getByRole("link", { name: "Browse all products" })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Browse all products" }),
+    ).toBeVisible();
   });
 });

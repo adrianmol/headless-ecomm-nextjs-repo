@@ -12,12 +12,12 @@ Uniform caching is how storefronts ship stale prices. Always classify the data f
 
 ## Policy table
 
-| Data | Strategy | Invalidation |
-| --- | --- | --- |
-| Product / category content | Cached, long TTL | Tag-based, on backend publish |
-| Price and availability | Short TTL (seconds) or uncached | Time-based |
-| Cart, session, orders | **Never cached** | n/a |
-| Search / facets | Cached per query params | Time-based |
+| Data                       | Strategy                        | Invalidation                  |
+| -------------------------- | ------------------------------- | ----------------------------- |
+| Product / category content | Cached, long TTL                | Tag-based, on backend publish |
+| Price and availability     | Short TTL (seconds) or uncached | Time-based                    |
+| Cart, session, orders      | **Never cached**                | n/a                           |
+| Search / facets            | Cached per query params         | Time-based                    |
 
 If you cannot confidently place new data in a row of this table, it is not cacheable yet. Ask.
 
@@ -49,13 +49,13 @@ The point is a static-fast first paint that can never show a stale price.
 
 ```tsx
 export default async function ProductPage({ params }) {
-  const product = await getProductShell(params.slug);   // cached, long TTL
+  const product = await getProductShell(params.slug); // cached, long TTL
   return (
     <>
       <ProductGallery images={product.images} />
       <h1>{product.title}</h1>
       <Suspense fallback={<PriceSkeleton />}>
-        <LivePrice slug={params.slug} />                  {/* uncached / short TTL */}
+        <LivePrice slug={params.slug} /> {/* uncached / short TTL */}
       </Suspense>
     </>
   );

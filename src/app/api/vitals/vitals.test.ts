@@ -55,7 +55,12 @@ describe("web vitals endpoint", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
     const response = await post(
-      beacon({ name: "LCP", value: 1234.5678, rating: "good", path: "/products" }),
+      beacon({
+        name: "LCP",
+        value: 1234.5678,
+        rating: "good",
+        path: "/products",
+      }),
     );
 
     expect(response.status).toBe(204);
@@ -100,7 +105,10 @@ describe("body size cap", () => {
     // No Content-Length at all, so only the streaming limit can save us.
     // 64 chunks x 512 B = 32 KiB offered against a 1 KiB cap.
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
-    const { request, pulls } = streamingRequest({ chunkBytes: 512, chunkCount: 64 });
+    const { request, pulls } = streamingRequest({
+      chunkBytes: 512,
+      chunkCount: 64,
+    });
 
     const response = await POST(request);
 
@@ -157,22 +165,22 @@ describe("body size cap", () => {
     log.mockRestore();
   });
 
-  it.each([["a non-numeric Content-Length", "abc"], ["a negative Content-Length", "-1"]])(
-    "rejects %s",
-    async (_label, contentLength) => {
-      const log = vi.spyOn(console, "log").mockImplementation(() => {});
-      const { request } = streamingRequest({
-        chunkBytes: 16,
-        chunkCount: 1,
-        contentLength,
-      });
+  it.each([
+    ["a non-numeric Content-Length", "abc"],
+    ["a negative Content-Length", "-1"],
+  ])("rejects %s", async (_label, contentLength) => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const { request } = streamingRequest({
+      chunkBytes: 16,
+      chunkCount: 1,
+      contentLength,
+    });
 
-      expect((await POST(request)).status).toBe(204);
-      expect(log).not.toHaveBeenCalled();
+    expect((await POST(request)).status).toBe(204);
+    expect(log).not.toHaveBeenCalled();
 
-      log.mockRestore();
-    },
-  );
+    log.mockRestore();
+  });
 
   it("accepts a small streamed body with no Content-Length", async () => {
     // The cap must not reject legitimate beacons that arrive chunked.
@@ -252,7 +260,7 @@ describe("path handling", () => {
     ["an absolute URL", "https://evil.test/products"],
     ["a protocol-relative URL", "//evil.test/products"],
     ["path traversal", "/products/../../etc/passwd"],
-    ["an embedded newline", "/products\n{\"event\":\"forged\"}"],
+    ["an embedded newline", '/products\n{"event":"forged"}'],
     ["a carriage return", "/products\r\nX-Injected: 1"],
     ["a NUL byte", "/products\u0000"],
     ["an ANSI escape sequence", "/products\u001b[31mred"],
@@ -261,23 +269,26 @@ describe("path handling", () => {
     ["a very long path", `/products/${"a".repeat(200)}`],
     ["an empty string", ""],
     ["a relative path", "products"],
-  ])("logs %s as the unknown route rather than the raw value", async (_label, path) => {
-    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+  ])(
+    "logs %s as the unknown route rather than the raw value",
+    async (_label, path) => {
+      const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
-    await post(beacon({ name: "LCP", value: 1, path }));
+      await post(beacon({ name: "LCP", value: 1, path }));
 
-    const line = log.mock.calls[0][0] as string;
-    expect(JSON.parse(line).route).toBe("other");
-    // The whole log line must be free of the supplied value, not just the
-    // route field — a forged newline must not be able to fake a log entry.
-    expect(line).not.toContain("evil.test");
-    expect(line).not.toContain("secret123");
-    expect(line).not.toContain("passwd");
-    expect(line).not.toContain("X-Injected");
-    expect(line).not.toContain("shopper@example.test");
+      const line = log.mock.calls[0][0] as string;
+      expect(JSON.parse(line).route).toBe("other");
+      // The whole log line must be free of the supplied value, not just the
+      // route field — a forged newline must not be able to fake a log entry.
+      expect(line).not.toContain("evil.test");
+      expect(line).not.toContain("secret123");
+      expect(line).not.toContain("passwd");
+      expect(line).not.toContain("X-Injected");
+      expect(line).not.toContain("shopper@example.test");
 
-    log.mockRestore();
-  });
+      log.mockRestore();
+    },
+  );
 
   it.each([
     ["a number", 42],
@@ -296,14 +307,17 @@ describe("path handling", () => {
 });
 
 describe("rating handling", () => {
-  it.each([["good"], ["needs-improvement"], ["poor"]])("keeps the known rating %s", async (rating) => {
-    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+  it.each([["good"], ["needs-improvement"], ["poor"]])(
+    "keeps the known rating %s",
+    async (rating) => {
+      const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
-    await post(beacon({ name: "LCP", value: 1, rating }));
+      await post(beacon({ name: "LCP", value: 1, rating }));
 
-    expect(logged(log).rating).toBe(rating);
-    log.mockRestore();
-  });
+      expect(logged(log).rating).toBe(rating);
+      log.mockRestore();
+    },
+  );
 
   it("discards an arbitrary rating string", async () => {
     // Same untrusted payload as everything else here; it was previously logged
@@ -311,7 +325,7 @@ describe("rating handling", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
     await post(
-      beacon({ name: "LCP", value: 1, rating: "good\",\"injected\":\"yes" }),
+      beacon({ name: "LCP", value: 1, rating: 'good","injected":"yes' }),
     );
 
     const line = log.mock.calls[0][0] as string;

@@ -1,7 +1,10 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { removeLineAction, setLineQuantityAction } from "@/commerce/cart/actions";
+import {
+  removeLineAction,
+  setLineQuantityAction,
+} from "@/commerce/cart/actions";
 import { getCart } from "@/commerce/cart/queries";
 import { getCartId } from "@/commerce/session";
 import { Price } from "@/components/commerce/price";
@@ -20,7 +23,10 @@ function EmptyBasket() {
   return (
     <div className="py-16 text-center">
       <p className="text-muted-foreground">Your basket is empty.</p>
-      <Link href="/products" className="mt-4 inline-block underline underline-offset-4">
+      <Link
+        href="/products"
+        className="mt-4 inline-block underline underline-offset-4"
+      >
         Browse products
       </Link>
     </div>
@@ -42,7 +48,10 @@ async function CartContents() {
     <div className="grid gap-10 md:grid-cols-[1fr_20rem]">
       <ul className="divide-border divide-y">
         {cart.lines.map((line) => (
-          <li key={line.id} className="flex items-start justify-between gap-4 py-4">
+          <li
+            key={line.id}
+            className="flex items-start justify-between gap-4 py-4"
+          >
             <div>
               <p className="font-medium">{line.title}</p>
               <p className="text-muted-foreground mt-1 text-sm tabular-nums">
@@ -59,7 +68,9 @@ async function CartContents() {
 
             <div className="text-right">
               {/* Server-rendered: the line total is money, never optimistic. */}
-              <p className="font-medium tabular-nums">{formatMoney(line.lineTotal)}</p>
+              <p className="font-medium tabular-nums">
+                {formatMoney(line.lineTotal)}
+              </p>
               <RemoveLineButton lineId={line.id} onRemove={removeLineAction} />
             </div>
           </li>

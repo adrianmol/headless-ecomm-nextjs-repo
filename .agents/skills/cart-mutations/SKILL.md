@@ -14,13 +14,15 @@ Server Actions**. No client code calls a cart endpoint.
 ## Canonical shape
 
 ```ts
-'use server';
+"use server";
 
 export async function addToCart(variantId: string, qty: number) {
-  const cartId = await getOrCreateCart();          // sets cookie if absent
-  const { error } = await client.POST('/carts/{id}/lines', {
+  const cartId = await getOrCreateCart(); // sets cookie if absent
+  const { error } = await client.POST("/carts/{id}/lines", {
     params: { path: { id: cartId } },
-    headers: { 'Idempotency-Key': idempotencyKey('add', cartId, variantId, qty) },
+    headers: {
+      "Idempotency-Key": idempotencyKey("add", cartId, variantId, qty),
+    },
     body: { variantId, quantity: qty },
   });
   if (error) return { ok: false as const, error: normalizeError(error) };
@@ -32,7 +34,7 @@ export async function addToCart(variantId: string, qty: number) {
 ## Rules
 
 **Idempotency key on every mutation.** Server Actions can be retried and users double-click. Derive the
-key deterministically from the operation + cart id + payload, so a retry of the *same* intent collapses
+key deterministically from the operation + cart id + payload, so a retry of the _same_ intent collapses
 while a genuine second add still counts. Never use a random UUID per call — that defeats the purpose.
 
 **Cart creation timing.** Cookies cannot be set during Server Component render. So:

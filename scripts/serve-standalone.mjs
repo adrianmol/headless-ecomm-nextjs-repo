@@ -26,9 +26,13 @@ try {
   process.exit(1);
 }
 
-await cp(path.join(root, ".next", "static"), path.join(standalone, ".next", "static"), {
-  recursive: true,
-});
+await cp(
+  path.join(root, ".next", "static"),
+  path.join(standalone, ".next", "static"),
+  {
+    recursive: true,
+  },
+);
 
 try {
   await cp(path.join(root, "public"), path.join(standalone, "public"), {

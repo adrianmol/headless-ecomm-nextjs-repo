@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/setup";
-import { API_BASE, cartFixture, errorBody, idempotencyLog } from "@/mocks/handlers";
+import {
+  API_BASE,
+  cartFixture,
+  errorBody,
+  idempotencyLog,
+} from "@/mocks/handlers";
 import { __setCookie } from "@/test/stubs/next-headers";
 import { SESSION_COOKIE } from "../session";
 import {
@@ -113,7 +118,12 @@ describe("addCartLine", () => {
 // The three mutations below share addCartLine's idempotency pattern. They are
 // tested separately because "same pattern" is an assumption until verified.
 describe("updateCartLineQuantity", () => {
-  const base = { cartId: "cart_1", cartVersion: 3, lineId: "line_1", quantity: 2 };
+  const base = {
+    cartId: "cart_1",
+    cartVersion: 3,
+    lineId: "line_1",
+    quantity: 2,
+  };
 
   it("collapses a retry and distinguishes a later change", async () => {
     await updateCartLineQuantity(base);

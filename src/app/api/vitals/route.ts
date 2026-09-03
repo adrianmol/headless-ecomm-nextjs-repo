@@ -45,7 +45,10 @@ const MAX_METRIC_VALUE = 3_600_000;
  * Counted in bytes, not string length. `text.length` counts UTF-16 code units,
  * so a multi-byte payload measures smaller than it really is.
  */
-async function readCappedBody(request: Request, max: number): Promise<string | null> {
+async function readCappedBody(
+  request: Request,
+  max: number,
+): Promise<string | null> {
   // Content-Length is attacker-controlled: it can be absent, or lie in either
   // direction. It is used only as a cheap early rejection, never as the
   // protection itself — the streaming limit below is what actually holds.
@@ -145,7 +148,11 @@ export async function POST(request: Request) {
     return noContent();
   }
 
-  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    Array.isArray(payload)
+  ) {
     return noContent();
   }
 
@@ -155,7 +162,12 @@ export async function POST(request: Request) {
   if (name === null || !ALLOWED_METRICS.has(name)) return noContent();
 
   const value = typeof metric.value === "number" ? metric.value : null;
-  if (value === null || !Number.isFinite(value) || value < 0 || value > MAX_METRIC_VALUE) {
+  if (
+    value === null ||
+    !Number.isFinite(value) ||
+    value < 0 ||
+    value > MAX_METRIC_VALUE
+  ) {
     return noContent();
   }
 

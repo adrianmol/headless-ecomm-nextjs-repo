@@ -66,7 +66,9 @@ export function PaymentConfirming({
   if (timedOut) {
     return (
       <div className="text-center">
-        <h1 className="text-2xl font-semibold">Still confirming your payment</h1>
+        <h1 className="text-2xl font-semibold">
+          Still confirming your payment
+        </h1>
         <p className="text-muted-foreground mt-3">
           This is taking longer than usual. Your payment may still have gone
           through, so please do not pay again.
@@ -75,7 +77,10 @@ export function PaymentConfirming({
           Quote reference <span className="font-mono">{orderRef}</span> when you
           contact us.
         </p>
-        <Link href="/products" className="mt-6 inline-block underline underline-offset-4">
+        <Link
+          href="/products"
+          className="mt-6 inline-block underline underline-offset-4"
+        >
           Continue shopping
         </Link>
       </div>

@@ -21,13 +21,21 @@ describe("normalizeError", () => {
         message: "changed",
         details: { oldPrice: eur(8900), newPrice: eur(9900) },
       }),
-    ).toEqual({ kind: "PriceChanged", oldPrice: eur(8900), newPrice: eur(9900) });
+    ).toEqual({
+      kind: "PriceChanged",
+      oldPrice: eur(8900),
+      newPrice: eur(9900),
+    });
   });
 
   it("degrades price_changed to Unavailable when the prices are unreadable", () => {
     // We must never guess a price: the customer has to see and accept the new one.
     expect(
-      normalizeError({ code: "price_changed", message: "changed", details: {} }),
+      normalizeError({
+        code: "price_changed",
+        message: "changed",
+        details: {},
+      }),
     ).toEqual({ kind: "Unavailable", retryable: false });
   });
 
@@ -99,7 +107,9 @@ describe("normalizeError", () => {
 
 describe("NotFound is distinct from Unavailable", () => {
   it("maps not_found to NotFound", () => {
-    expect(normalizeError({ code: "not_found", message: "no such product" })).toEqual({
+    expect(
+      normalizeError({ code: "not_found", message: "no such product" }),
+    ).toEqual({
       kind: "NotFound",
     });
   });

@@ -24,13 +24,13 @@ delegated to a skill:
 Invoke the matching skill before writing code in these areas — each one encodes decisions that are
 not obvious from the surrounding code:
 
-| Working on | Skill |
-| --- | --- |
+| Working on                                                    | Skill                  |
+| ------------------------------------------------------------- | ---------------------- |
 | API client, typed fetchers, Zod boundary, error normalisation | `/commerce-data-layer` |
-| Add/update/remove cart lines, Server Actions, optimistic UI | `/cart-mutations` |
-| Caching, revalidation, `<Suspense>` streaming, TTLs | `/commerce-caching` |
-| Checkout steps, order creation, PSP redirect and return | `/checkout-flow` |
-| Server/Client component split, `'use client'`, bundle budgets | `/rsc-boundaries` |
+| Add/update/remove cart lines, Server Actions, optimistic UI   | `/cart-mutations`      |
+| Caching, revalidation, `<Suspense>` streaming, TTLs           | `/commerce-caching`    |
+| Checkout steps, order creation, PSP redirect and return       | `/checkout-flow`       |
+| Server/Client component split, `'use client'`, bundle budgets | `/rsc-boundaries`      |
 
 Available review subagents: `commerce-reviewer` (architecture-invariant review),
 `api-contract-auditor` (OpenAPI spec gaps), `perf-budget-auditor` (bundle and Core Web Vitals).

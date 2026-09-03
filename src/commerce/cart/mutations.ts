@@ -13,8 +13,7 @@ import type { Cart } from "./queries";
  * the surrounding UI state.
  */
 export type MutationResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: CommerceError };
+  { ok: true; data: T } | { ok: false; error: CommerceError };
 
 export async function addCartLine(input: {
   cartId: string;
@@ -125,9 +124,7 @@ export async function removeCartLine(input: {
  * anti-pattern this module exists to prevent, and it produces two carts on a
  * double-clicked first add-to-cart.
  */
-export async function createCart(
-  seed: string,
-): Promise<MutationResult<Cart>> {
+export async function createCart(seed: string): Promise<MutationResult<Cart>> {
   const { data, error, response } = await commerceClient().POST("/carts", {
     params: { header: { "Idempotency-Key": idempotencyKey("create", seed) } },
   });

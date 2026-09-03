@@ -36,6 +36,13 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # Formatting only — `pnpm lint` owns correctness. Kept as a separate step so
+      # a failure reads as "run pnpm format" rather than looking like a lint error.
+      # See .prettierignore for what is deliberately excluded, in particular the
+      # generated API client and the append-only handoff log.
+      - name: Format
+        run: pnpm format:check
+
       # Fails if the committed types drift from openapi/commerce.yaml, so a
       # backend contract change surfaces as a reviewable diff rather than a
       # silent runtime break.

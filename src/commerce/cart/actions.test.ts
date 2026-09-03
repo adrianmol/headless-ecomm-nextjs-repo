@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/setup";
-import { API_BASE, cartFixture, errorBody, idempotencyLog } from "@/mocks/handlers";
+import {
+  API_BASE,
+  cartFixture,
+  errorBody,
+  idempotencyLog,
+} from "@/mocks/handlers";
 import { __setCookie, cookies } from "@/test/stubs/next-headers";
 import { CART_COOKIE } from "../session";
 import { addToCartAction, setLineQuantityAction } from "./actions";
@@ -44,16 +49,26 @@ describe("addToCartAction", () => {
     server.use(
       http.post(`${API_BASE}/carts`, ({ request }) => {
         created += 1;
-        idempotencyLog.push(request.headers.get("Idempotency-Key") ?? "<missing>");
+        idempotencyLog.push(
+          request.headers.get("Idempotency-Key") ?? "<missing>",
+        );
         return HttpResponse.json(cartFixture, { status: 201 });
       }),
     );
 
-    await addToCartAction({ variantId: "var_1", quantity: 1, seed: "same-seed" });
+    await addToCartAction({
+      variantId: "var_1",
+      quantity: 1,
+      seed: "same-seed",
+    });
     const keyForFirstAdd = idempotencyLog[0];
 
     // Second call now finds the cookie, so it does not create at all.
-    await addToCartAction({ variantId: "var_1", quantity: 1, seed: "same-seed" });
+    await addToCartAction({
+      variantId: "var_1",
+      quantity: 1,
+      seed: "same-seed",
+    });
     expect(created).toBe(1);
     expect(keyForFirstAdd).not.toBe("<missing>");
   });
@@ -63,7 +78,9 @@ describe("addToCartAction", () => {
     __setCookie(CART_COOKIE, "cart_gone");
     server.use(
       http.get(`${API_BASE}/carts/cart_gone`, () =>
-        HttpResponse.json(errorBody("cart_expired", "expired"), { status: 409 }),
+        HttpResponse.json(errorBody("cart_expired", "expired"), {
+          status: 409,
+        }),
       ),
     );
 
@@ -144,11 +161,16 @@ describe("setLineQuantityAction", () => {
     let body: unknown;
 
     server.use(
-      http.patch(`${API_BASE}/carts/:cartId/lines/:lineId`, async ({ request }) => {
-        body = await request.json();
-        idempotencyLog.push(request.headers.get("Idempotency-Key") ?? "<missing>");
-        return HttpResponse.json(cartFixture);
-      }),
+      http.patch(
+        `${API_BASE}/carts/:cartId/lines/:lineId`,
+        async ({ request }) => {
+          body = await request.json();
+          idempotencyLog.push(
+            request.headers.get("Idempotency-Key") ?? "<missing>",
+          );
+          return HttpResponse.json(cartFixture);
+        },
+      ),
     );
 
     await setLineQuantityAction({ lineId: "line_1", quantity: 4 });
@@ -166,7 +188,9 @@ describe("setLineQuantityAction input guard", () => {
     __setCookie(CART_COOKIE, "cart_1");
 
     for (const quantity of [Number.POSITIVE_INFINITY, Number.NaN, 1.5, -1]) {
-      expect(await setLineQuantityAction({ lineId: "line_1", quantity })).toEqual({
+      expect(
+        await setLineQuantityAction({ lineId: "line_1", quantity }),
+      ).toEqual({
         status: "error",
         retryable: false,
       });

@@ -81,7 +81,10 @@ const validationFailedDetails = z.object({
  * error shape — degrades to `Unavailable`, because an error we cannot classify
  * is an infrastructure fault, not a user-actionable one.
  */
-export function normalizeError(payload: unknown, status?: number): CommerceError {
+export function normalizeError(
+  payload: unknown,
+  status?: number,
+): CommerceError {
   const parsed = apiErrorSchema.safeParse(payload);
 
   if (!parsed.success) {
