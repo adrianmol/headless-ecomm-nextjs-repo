@@ -16,6 +16,18 @@ async function scan(page: import("@playwright/test").Page) {
 }
 
 test.describe("accessibility", () => {
+  test("landing page", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { level: 2, name: "Featured" })).toBeVisible();
+    expect((await scan(page)).violations).toEqual([]);
+  });
+
+  test("global not-found page", async ({ page }) => {
+    await page.goto("/no-such-page");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    expect((await scan(page)).violations).toEqual([]);
+  });
+
   test("product listing", async ({ page }) => {
     await page.goto("/products");
     await expect(page.getByRole("heading", { name: "All products" })).toBeVisible();

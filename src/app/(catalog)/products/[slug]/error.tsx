@@ -1,11 +1,16 @@
 "use client";
 
 import { useEffect } from "react";
-import { Button } from "@/components/ui/button";
 
 /**
  * Route error boundary. Must be a Client Component — this is one of the few
  * legitimate 'use client' leaves, since it needs reset() and an effect.
+ *
+ * Imports nothing beyond React on purpose. An error boundary ships with the
+ * route whether or not it renders, and this one is on the PDP — the route
+ * closest to the client-JS budget. It previously imported `Button`, which pulls
+ * `class-variance-authority` and Radix `Slot` into the PDP bundle to style a
+ * button almost no visitor sees. Tailwind classes are CSS, not JavaScript.
  *
  * Deliberately shows no error detail. `error.message` is backend prose that is
  * unlocalised and may name internal fields; in production Next replaces it with
@@ -31,7 +36,13 @@ export default function ProductError({
         We couldn&apos;t load this product. Please try again.
       </p>
       <div className="mt-6">
-        <Button onClick={reset}>Try again</Button>
+        <button
+          type="button"
+          onClick={reset}
+          className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring rounded-md px-4 py-2 text-sm font-medium focus-visible:ring-2 focus-visible:outline-none"
+        >
+          Try again
+        </button>
       </div>
       {error.digest && (
         <p className="text-muted-foreground mt-6 text-xs">
