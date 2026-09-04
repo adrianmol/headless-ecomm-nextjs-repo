@@ -79,7 +79,14 @@ COPY --from=build --chown=node:node /app/public ./public
 USER node
 EXPOSE 3000
 
+# Liveness, deliberately — not readiness. Docker's restart policy acts on this,
+# and restarting the storefront does nothing about an unreachable commerce API
+# except destroy a process that was still serving cached catalog pages. It used
+# to curl `/`, which is prerendered: measured with the commerce API stopped, `/`,
+# `/products` and `/products/merino-crew` all still returned 200. Readiness is
+# `/health/ready`, and which deployment gates should use it is an open decision
+# in docs/next-steps.md.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD curl -fsS http://127.0.0.1:3000/ >/dev/null || exit 1
+    CMD curl -fsS http://127.0.0.1:3000/health >/dev/null || exit 1
 
 CMD ["node", "server.js"]

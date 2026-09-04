@@ -180,3 +180,37 @@ These block or reorder the above and are owner calls, recorded here rather than 
    the static shell; or adopt a nonce and render all HTML per request. Everything else in the
    policy is already strict — no foreign script origin, no `eval` in production, no framing,
    no off-origin form posts — so this decision is narrowly about inline script execution.
+
+7. **Which deployment gates should use `/health/ready`?** The delivery pipeline currently
+   cannot detect a storefront that cannot reach its backend. Measured on 2026-09-04 against
+   the standalone production build with the commerce API stopped:
+
+   | Request                 | Status  | Used by                                                                |
+   | ----------------------- | ------- | ---------------------------------------------------------------------- |
+   | `/`                     | 200     | container `HEALTHCHECK` (until this change), `deploy.sh` rollback gate |
+   | `/products/merino-crew` | 200     | Jenkins post-deploy smoke test                                         |
+   | `/health`               | 200     | container `HEALTHCHECK` (correct — liveness)                           |
+   | `/health/ready`         | **503** | nothing yet                                                            |
+
+   All three of the first rows pass because the catalog shell is prerendered. A deploy with a
+   wrong `COMMERCE_API_URL` in the env file therefore reports success, and `deploy.sh` never
+   triggers its rollback. `/health/ready` returns 503 and `curl -f` exits non-zero, so it
+   closes the hole — but pointing gates at it is an operational trade, not an obvious win:
+
+   - **`deploy/deploy.sh` `HEALTH_URL`.** Using readiness makes the gate meaningful, but a
+     transient backend outage during a deploy would fail the new container, roll back, fail
+     again on the old one, and log "ROLLBACK ALSO FAILED — site is down" while the container
+     is in fact up and serving cached catalog pages. Arguably it should check liveness for
+     rollback and readiness as a separate non-rollback gate.
+   - **Jenkins post-deploy smoke test.** Lower risk: it runs after the deploy is committed and
+     currently proves almost nothing, so adding `/health/ready` alongside the existing
+     `/products/{slug}` fetch is close to a pure gain.
+
+   Deliberately unchanged pending a decision. The container `HEALTHCHECK` was moved to
+   `/health`, which needs no decision — restarting a container never fixes an unreachable
+   backend, so liveness is the only correct signal for a restart policy.
+
+8. **The backend has no health endpoint in the contract.** `openapi/commerce.yaml` defines no
+   health or readiness path, so `probeCommerceApi` uses `GET /products?limit=1`. That works
+   but makes a catalog query the readiness signal. A dedicated, cheap backend readiness
+   endpoint should be requested from the backend team rather than invented here.
