@@ -2,6 +2,7 @@
 
 import { refresh } from "next/cache";
 import type { CartFeedback } from "@/lib/cart-feedback";
+import { isSameOrigin } from "@/lib/request-origin";
 import { CommerceErrorException, type CommerceError } from "../errors";
 import { clearCartId, getCartId, setCartId } from "../session";
 import {
@@ -91,6 +92,11 @@ export async function addToCartAction(input: {
    */
   seed: string;
 }): Promise<CartFeedback> {
+  // Mutation: reject a request that cannot prove it came from this origin.
+  // Next rejects a mismatched `Origin` but allows an absent one — measurements
+  // in src/lib/request-origin.ts.
+  if (!(await isSameOrigin())) return { status: "error", retryable: false };
+
   const cart = await resolveCart(input.seed);
   if ("kind" in cart) return toFeedback(cart);
 
@@ -113,6 +119,11 @@ export async function setLineQuantityAction(input: {
   lineId: string;
   quantity: number;
 }): Promise<CartFeedback> {
+  // Mutation: reject a request that cannot prove it came from this origin.
+  // Next rejects a mismatched `Origin` but allows an absent one — measurements
+  // in src/lib/request-origin.ts.
+  if (!(await isSameOrigin())) return { status: "error", retryable: false };
+
   // Defence in depth. A client bug once sent Infinity here, which serialises to
   // null and was read downstream as 0 — silently deleting the line. Server
   // Actions are a public HTTP surface regardless, so the argument is validated
@@ -147,6 +158,11 @@ export async function setLineQuantityAction(input: {
 export async function removeLineAction(input: {
   lineId: string;
 }): Promise<CartFeedback> {
+  // Mutation: reject a request that cannot prove it came from this origin.
+  // Next rejects a mismatched `Origin` but allows an absent one — measurements
+  // in src/lib/request-origin.ts.
+  if (!(await isSameOrigin())) return { status: "error", retryable: false };
+
   const cartId = await getCartId();
   if (!cartId) return { status: "cart_expired" };
 

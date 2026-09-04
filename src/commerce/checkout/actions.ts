@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { CheckoutFormState } from "@/lib/checkout-form";
+import { isSameOrigin } from "@/lib/request-origin";
 import { getCart } from "../cart/queries";
 import { CommerceErrorException } from "../errors";
 import { getCartId } from "../session";
@@ -28,6 +29,12 @@ export async function startCheckoutAction(
   _previous: CheckoutFormState,
   formData: FormData,
 ): Promise<CheckoutFormState> {
+  // Before anything else, and before any backend call: this action creates an
+  // order. Next blocks a mismatched `Origin` but allows an absent one, so the
+  // check is explicit here rather than inherited. See src/lib/request-origin.ts
+  // for the measurements behind that.
+  if (!(await isSameOrigin())) return { status: "error" };
+
   const parsed = checkoutSchema.safeParse(Object.fromEntries(formData));
 
   if (!parsed.success) {
