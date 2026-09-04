@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { normalizeError } from "./errors";
+import {
+  CommerceErrorException,
+  isCommerceErrorException,
+  normalizeError,
+} from "./errors";
 
 const eur = (amountMinor: number) => ({ amountMinor, currency: "EUR" });
 
@@ -119,5 +123,88 @@ describe("NotFound is distinct from Unavailable", () => {
     // buries real outages among deleted products.
     const notFound = normalizeError({ code: "not_found", message: "x" }, 404);
     expect(notFound).not.toMatchObject({ kind: "Unavailable" });
+  });
+});
+
+describe("isCommerceErrorException", () => {
+  it("accepts a genuine NotFound error", () => {
+    const error = new CommerceErrorException({ kind: "NotFound" });
+    expect(isCommerceErrorException(error)).toBe(true);
+    if (isCommerceErrorException(error)) {
+      expect(error.error.kind).toBe("NotFound");
+    }
+  });
+
+  it("accepts every valid CommerceError kind", () => {
+    const cases: Array<{ error: ReturnType<typeof normalizeError> }> = [
+      { error: { kind: "NotFound" } },
+      { error: { kind: "OutOfStock", variantId: null, available: 0 } },
+      {
+        error: { kind: "PriceChanged", oldPrice: eur(100), newPrice: eur(200) },
+      },
+      { error: { kind: "CartExpired" } },
+      { error: { kind: "Unauthorized" } },
+      { error: { kind: "ValidationFailed", field: null, devMessage: "bad" } },
+      { error: { kind: "Unavailable", retryable: true } },
+    ];
+
+    for (const { error } of cases) {
+      expect(isCommerceErrorException(new CommerceErrorException(error))).toBe(
+        true,
+      );
+    }
+  });
+
+  it("rejects non-Error values", () => {
+    expect(isCommerceErrorException({ name: "CommerceErrorException" })).toBe(
+      false,
+    );
+    expect(isCommerceErrorException(null)).toBe(false);
+    expect(isCommerceErrorException(undefined)).toBe(false);
+    expect(isCommerceErrorException("CommerceErrorException")).toBe(false);
+  });
+
+  it("rejects an unbranded object with an otherwise valid error payload", () => {
+    const lookalike = {
+      name: "CommerceErrorException",
+      message: "NotFound",
+      error: { kind: "NotFound" },
+    };
+    expect(isCommerceErrorException(lookalike)).toBe(false);
+  });
+
+  it("rejects an Error with the right name but no validated .error", () => {
+    const lookalike = new Error("NotFound");
+    lookalike.name = "CommerceErrorException";
+    expect(isCommerceErrorException(lookalike)).toBe(false);
+  });
+
+  it("rejects an Error whose .error is missing required fields", () => {
+    const lookalike = new Error("OutOfStock");
+    lookalike.name = "CommerceErrorException";
+    (lookalike as { error?: unknown }).error = {
+      kind: "OutOfStock",
+      variantId: null,
+      // missing `available`
+    };
+    expect(isCommerceErrorException(lookalike)).toBe(false);
+  });
+
+  it("rejects an Error whose .error.kind is not in the union", () => {
+    const lookalike = new Error("Unknown");
+    lookalike.name = "CommerceErrorException";
+    (lookalike as { error?: unknown }).error = { kind: "Unknown" };
+    expect(isCommerceErrorException(lookalike)).toBe(false);
+  });
+
+  it("rejects an object with a mismatched brand symbol", () => {
+    const wrongBrand = Symbol.for("headless-ecomm-flow.WrongBrand");
+    const lookalike = {
+      name: "CommerceErrorException",
+      message: "NotFound",
+      [wrongBrand]: true,
+      error: { kind: "NotFound" },
+    };
+    expect(isCommerceErrorException(lookalike)).toBe(false);
   });
 });

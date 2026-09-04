@@ -3,6 +3,15 @@ import type { Money } from "@/lib/money";
 import { moneySchema } from "./schemas";
 
 /**
+ * Stable runtime brand that survives duplicated server chunks and cross-realm
+ * `Error` constructors, which break `instanceof`. `Symbol.for` gives the same
+ * identity across every copy of this module.
+ */
+const COMMERCE_ERROR_EXCEPTION_BRAND = Symbol.for(
+  "headless-ecomm-flow.CommerceErrorException",
+);
+
+/**
  * Every backend failure is normalised into this union before it leaves the data
  * layer. The UI switches on `kind` exhaustively and never sees a raw API
  * payload, an HTTP status, or a Zod error.
@@ -35,6 +44,7 @@ export type CommerceError =
 /** Thrown by read paths. Write paths return errors instead, so forms can render them. */
 export class CommerceErrorException extends Error {
   readonly error: CommerceError;
+  readonly [COMMERCE_ERROR_EXCEPTION_BRAND] = true;
 
   constructor(error: CommerceError) {
     super(error.kind);
@@ -140,4 +150,82 @@ function isRetryableStatus(status?: number): boolean {
 /** A response body that failed schema validation is an infrastructure fault. */
 export function schemaViolation(): CommerceError {
   return { kind: "Unavailable", retryable: false };
+}
+
+function isMoney(
+  value: unknown,
+): value is { amountMinor: number; currency: string } {
+  return moneySchema.safeParse(value).success;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Validates the complete known discriminated `CommerceError` union.
+ */
+function isCommerceError(value: unknown): value is CommerceError {
+  if (!isPlainObject(value)) return false;
+  const { kind, ...rest } = value;
+  if (typeof kind !== "string") return false;
+
+  switch (kind) {
+    case "NotFound":
+      return true;
+    case "OutOfStock": {
+      const { variantId, available } = rest;
+      return (
+        (typeof variantId === "string" || variantId === null) &&
+        typeof available === "number" &&
+        Number.isInteger(available) &&
+        available >= 0
+      );
+    }
+    case "PriceChanged": {
+      const { oldPrice, newPrice } = rest;
+      return isMoney(oldPrice) && isMoney(newPrice);
+    }
+    case "CartExpired":
+    case "Unauthorized":
+      return true;
+    case "ValidationFailed": {
+      const { field, devMessage } = rest;
+      return (
+        (typeof field === "string" || field === null) &&
+        typeof devMessage === "string"
+      );
+    }
+    case "Unavailable": {
+      const { retryable } = rest;
+      return typeof retryable === "boolean";
+    }
+    default:
+      return false;
+  }
+}
+
+/**
+ * Runtime-validated guard for `CommerceErrorException`.
+ *
+ * Uses a stable module-level brand instead of `instanceof` because thrown
+ * values can cross bundle chunk boundaries where duplicated `Error` and
+ * `CommerceErrorException` constructors no longer share identity.
+ */
+export function isCommerceErrorException(
+  error: unknown,
+): error is CommerceErrorException {
+  if (typeof error !== "object" || error === null) return false;
+
+  const brandedError = error as Record<symbol, unknown>;
+  if (brandedError[COMMERCE_ERROR_EXCEPTION_BRAND] !== true) return false;
+
+  if (
+    (error as { name?: unknown }).name !== "CommerceErrorException" ||
+    typeof (error as { message?: unknown }).message !== "string"
+  ) {
+    return false;
+  }
+
+  return isCommerceError((error as { error?: unknown }).error);
 }
