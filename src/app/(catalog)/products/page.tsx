@@ -27,6 +27,16 @@ const PAGE_SIZE = 2;
 
 type ParsedParams = { ok: true; cursor?: string } | { ok: false };
 
+/**
+ * A cursor is an opaque backend token, so its contents are not ours to
+ * constrain — but its *size* is. Without a cap, any visitor can put an
+ * arbitrarily long string in `?cursor=` and we forward it upstream on every
+ * request. A miss is a live backend round trip, because `use cache` does not
+ * cache a rejected call, so this is a cheap amplification vector against the
+ * commerce API. 200 bytes is far beyond any real cursor.
+ */
+const MAX_CURSOR_LENGTH = 200;
+
 function parseParams(raw: {
   [key: string]: string | string[] | undefined;
 }): ParsedParams {
@@ -34,6 +44,10 @@ function parseParams(raw: {
 
   if (raw.cursor !== undefined) {
     if (Array.isArray(raw.cursor) || raw.cursor === "") return { ok: false };
+    if (raw.cursor.length > MAX_CURSOR_LENGTH) return { ok: false };
+    // Control characters cannot appear in a legitimate opaque token and are
+    // exactly what would be used to forge a log line downstream.
+    if (/[\u0000-\u001f\u007f]/.test(raw.cursor)) return { ok: false };
     result.cursor = raw.cursor;
   }
 
@@ -146,16 +160,27 @@ function NextPageLink({ cursor }: { cursor: string }) {
   );
 }
 
+/**
+ * Reserves exactly the box a real "Next page" button occupies, so the Suspense
+ * swap and the terminal page do not shift the layout.
+ *
+ * The label is present only to derive the width, and is wrapped in `invisible`
+ * (`visibility: hidden`) rather than coloured `text-transparent`. Transparent
+ * text over `bg-muted` is a genuine contrast failure — axe scored it 1.09
+ * against a 4.5 threshold and `aria-hidden` does not exempt it, because the rule
+ * is about what is painted, not what is announced. `visibility: hidden` still
+ * occupies layout, so the geometry is unchanged and there is nothing to paint.
+ */
 function NextPagePlaceholder({ skeleton = false }: { skeleton?: boolean }) {
   return (
     <span
       className={cn(
         "inline-flex h-10 items-center rounded-md px-4 py-2 text-sm font-medium",
-        skeleton ? "bg-muted text-transparent animate-pulse" : "invisible",
+        skeleton ? "bg-muted animate-pulse" : "invisible",
       )}
       aria-hidden="true"
     >
-      Next page
+      <span className="invisible">Next page</span>
     </span>
   );
 }

@@ -2307,3 +2307,128 @@ immediately after appending to it.**
 The five open decisions in `docs/next-steps.md` §6 are unchanged, and the harness is still
 deliberately stuck: do not clear `~/.config/devin/handoff-monitor/attempts` before the
 dirty-tree guard exists, or the next run resumes on top of a partial diff.
+
+### 2026-09-04 — Devin, review of the unreviewed commits, and two corrections of my own
+
+The scheduled harness has been **removed** by the owner — directory, launchd plist and job
+registration all deleted, verified afterwards with no agent, wrapper, CLI process or orphaned
+mock left. Nothing runs on a timer. That settles the supervision question: work happens when
+asked. `docs/next-steps.md` was updated accordingly and its A2 item is moot.
+
+With the harness gone, the review debt was the next thing needing no decision. `17f5108`,
+`be4f720`, `c98c27a`, `c0a329e` and `7db7d88` have now been reviewed by the
+`commerce-reviewer` subagent against the architecture invariants and skills.
+
+#### Correction: I published a test count I did not measure
+
+The previous entry recorded `pnpm test` as **119 passed**. It is **128**. `fc54233` added
+tests to `errors.test.ts`, and when I ran the gate loop before committing I printed only
+PASS/FAIL and then wrote down a figure carried over from an earlier run.
+
+That is exactly the failure this log's protocol warns about — reporting the expected result
+rather than the observed one — and it is the same class of error as the "false negative" and
+"stale mock" entries above. The number was wrong, no conclusion drawn from it changes, and it
+is corrected here rather than edited in place. **Print the count, do not remember it.**
+
+#### Correction: the `/products` PPR finding was real but I overstated it
+
+I recorded that pagination moving `/products` from `○` static to `◐` Partial Prerender
+"contradicts the caching table". The reclassification is real, but the review establishes what
+I did not check: `listProducts` still has `use cache` + `cacheLife("hours")` +
+`cacheTag(productListTag)`, and still uses the session-free `publicCommerceClient`. **The data
+caching is intact — there is no stale-price and no cross-visitor leakage risk.** Each cursor
+gets its own cache entry and one tag invalidates them all on publish.
+
+What is left is a route-level classification change that is an unavoidable consequence of a
+shell that varies by page, plus a documentation gap. Recommended treatment is to evolve
+`docs/architecture.md` §5 with an explicit row for paginated listings, not to revert the
+feature. Still needs the owner's acknowledgement before Phase 3 can be called complete.
+
+#### Confirmed defects, fixed in this milestone
+
+**A false verification claim.** `e2e/button-equivalence.spec.ts` asserted only the default,
+enabled state at page load, while the Phase 2 checklist claimed disabled, pending and
+focus-visible were "confirmed". They were not tested at all. The test now exercises the
+disabled state through the out-of-stock fixture (asserting computed `opacity` 0.5 and
+`pointer-events: none`, so the tokens must actually resolve), checks the focus ring under real
+keyboard navigation, and compares the shared stateful tokens structurally.
+
+Proven to be a guard rather than decoration: with `disabled:opacity-50` removed from
+`buttonBaseClasses` and a clean rebuild, **all three tests fail**. Restored afterwards.
+
+**An accessibility defect in `7db7d88`.** The Suspense fallback's next-page spacer painted
+`text-transparent` over `bg-muted` — axe scored the contrast **1.09** against a 4.5 threshold,
+64 violations. `aria-hidden="true"` does not exempt it, because the rule is about what is
+painted, not what is announced. The sizing label is now wrapped in `invisible`
+(`visibility: hidden`), which still occupies layout so the geometry the commit existed to fix
+is unchanged, but paints nothing.
+
+**A racy accessibility test.** `a11y.spec.ts` "product listing" waited only for the `<h1>`,
+which is in the prerendered shell, so axe sometimes scanned the skeleton and sometimes the
+settled page. That intermittency is why the contrast defect above went unnoticed — and when
+the test did catch it, it was right. It now waits for streamed content.
+
+**Cursor size cap.** `parseParams` forwarded any non-empty cursor upstream. `use cache` does
+not cache a rejected call, so every unique bogus cursor was a live backend round trip — cheap
+amplification. Now capped at 200 bytes with control characters rejected, matching the
+`/api/vitals` byte-cap posture.
+
+#### One review finding I am refuting
+
+The review flagged `add-to-cart.tsx` concatenating `defaultButtonClasses` with `w-full` via a
+template string instead of `cn()`, as inconsistent with the codebase convention. **Do not
+apply that.** `cn` imports `tailwind-merge` and `clsx`, and `AddToCart` is a client leaf on the
+PDP — importing it there puts `tailwind-merge` back into the PDP bundle and undoes part of the
+10.4 kB that component was rewritten to save. The concatenation is deliberate and is now
+commented as such so it does not get "fixed" later.
+
+#### Two flaky tests I introduced and then fixed
+
+Recorded because the debugging is the useful part. My first focus-ring assertion read computed
+`boxShadow` once; `buttonBaseClasses` carries `transition-all`, so it captured a mid-animation
+frame — `alpha 0.0036 / spread 0.02px` on the way to `alpha 0.5 / 3px`. It failed on one run
+and passed the next with identical code. Polling for "not none" made it worse by sampling even
+earlier in the transition. It now samples until two consecutive reads agree, which waits for
+the animation without hard-coding its duration. Verified with `--repeat-each`: 44/44.
+
+I also invalidated one negative check by chaining `grep -c ... && pnpm build:ci` — `grep -c`
+exits non-zero on a count of 0, so the build never ran and Playwright tested the previous
+build, reporting a pass that meant nothing. **Fourth stale-artefact trap in this project.**
+Rerun with an explicit build and exit-code check, the guard failed as it should.
+
+#### Left for the owner
+
+- **`PAGE_SIZE = 2`** is confirmed a test-fixture artefact, not a product decision — chosen so
+  five mock products yield two full pages and a terminal page. It is the literal production
+  page size on `main`. Needs a real value, or an env-driven one with the small value scoped to
+  test config.
+- **`/products` PPR reclassification** needs acknowledgement plus the `docs/architecture.md`
+  §5 note described above.
+- The review's own suggestion to move durable decisions out of this log into `docs/adr/` is
+  worth taking: this file is now ~2400 lines and has already been damaged three times.
+
+Nothing critical was found. No money/float issues, no PSP trust-boundary issues, no session or
+secret leakage, no `use client` boundary violations, and no `components/ → commerce/` imports
+in any of the five commits.
+
+#### Exact verification results
+
+`PATH=/opt/homebrew/opt/node@20/bin:$PATH`, ports 3101/4021/4010/3199/4099 confirmed free and
+`.next` removed before the build. All exit code 0:
+
+| Command | Result |
+| --- | --- |
+| `pnpm lint` | passed |
+| `pnpm format:check` | passed |
+| `pnpm codegen:check` | passed, no OpenAPI drift |
+| `pnpm typecheck` | passed |
+| `pnpm test` | **128 passed across 9 files** — counted, not remembered |
+| `pnpm build:ci` | passed (clean rebuild) |
+| `pnpm e2e` | **37 passed**, up from 35; both intermittent failures resolved |
+| `playwright --repeat-each=4` on the two previously-flaky specs | 44/44 |
+
+#### Recommended next action
+
+Phase 4 security remains, in my view, the right next block ahead of finishing Phase 3 SEO —
+reasoning in `docs/next-steps.md` §6 decision 4, still an open owner call. `sitemap.ts` and
+`robots.ts` are the remaining Phase 3 gaps.

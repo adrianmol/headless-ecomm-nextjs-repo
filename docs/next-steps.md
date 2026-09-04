@@ -22,9 +22,18 @@ work since 17:28 on 2026-09-03.
 | 17:46 → 03:16 | Six runs killed by the 2400 s watchdog. One completed at 2205 s — 3 minutes under the wire      |
 | 09:18 onward  | Circuit breaker tripped; skipping every 5 minutes with "3 consecutive failures … needs a human" |
 
-The breaker is the only reason this stopped rather than churning all night. **Stuck is the
-safe state** until fault 3 below is fixed; do not clear
-`~/.config/devin/handoff-monitor/attempts` before then.
+The breaker is the only reason this stopped rather than churning all night.
+
+> **Superseded on 2026-09-04: the harness has been removed.** The owner deleted
+> `~/.config/devin/handoff-monitor/`, removed
+> `~/Library/LaunchAgents/ai.devin.handoff-monitor.plist`, and unloaded the launchd job.
+> Verified afterwards: no launchd agent, no wrapper process, no headless CLI process, and no
+> orphaned mock APIs on 3101/4021/4010. **Nothing runs on a timer.** Work now happens only
+> when the owner asks for it in a session.
+>
+> Sections 1, 2 and 4 below are retained as history — they are why the review debt in §4
+> exists, and the faults are worth knowing if a scheduled harness is ever rebuilt. The
+> operational instructions in them no longer apply.
 
 ## 2. Root cause: three compounding faults in the wrapper
 
@@ -94,15 +103,20 @@ terminal-page test reachable with four fixtures, not as a product decision.
 
 ### A. Stabilise the harness — before any further feature work
 
-- **A1.** Triage the uncommitted work. Run the _full_ suite including `build:ci` and `e2e`,
-  then split it: the `errors.ts` branding fix as its own reviewed commit, the SEO work as
-  another. Do not bulk-commit 12 files nobody has read. Discard and redo is an acceptable
-  outcome if review is slower than reimplementation.
-- **A2.** Fix the three wrapper faults: stream the transcript so a timeout is diagnosable;
-  raise or remove the watchdog and rely on the lock for mutual exclusion; and refuse to
-  start a run when the tree is dirty. A2 requires no owner decision and can proceed
-  immediately.
-- **A3.** Settle the supervision model (§6).
+**Complete as of 2026-09-04.** Retained for the record:
+
+- **A1 — done.** The abandoned work was triaged and landed as two commits: `fc54233` (the
+  `errors.ts` brand and guard, split out and labelled unreferenced) and `675c630` (the robots
+  fix, debug-logging removal, and the SEO work). Fixing it turned up two defects beyond the
+  reported one: six debug `console.log` calls in production paths, four of them logging the
+  raw attacker-supplied `slug`; and an orphaned mock API on port 4010 that made a `build:ci`
+  report PASS against a stale mock. Full detail in the `DEVIN_HANDOFF.md` entry for that date.
+- **A2 — moot.** The wrapper it proposed to fix no longer exists. A fourth fault was
+  identified before removal and is recorded here in case a harness is rebuilt: the watchdog's
+  kill did not reap grandchildren, so killed runs orphaned `scripts/mock-api.mjs` on port
+  4010, and `with-mock-api.mjs` waits for _a_ healthy API on that port rather than one it
+  started — which silently corrupts build measurements.
+- **A3 — settled.** No scheduled runs. This answers decision 1 in §6.
 
 ### B. Pay down the review debt
 
@@ -130,11 +144,13 @@ than quietly implementing storefront substitutes.
 
 These block or reorder the above and are owner calls, recorded here rather than assumed.
 
-1. **Supervision model.** Five-minute unattended runs with `--permission-mode dangerous`,
-   each producing a 40-minute milestone, is not working — §4 quantifies the cost. Suggested
-   alternative: one checklist item per run, stopping for review; or drop the timer and invoke
-   runs deliberately.
-2. **The abandoned SEO work** — salvage and split, or discard and redo cleanly?
+1. ~~**Supervision model.**~~ **Settled 2026-09-04: no scheduled runs.** The harness was
+   removed entirely. Five-minute unattended runs with `--permission-mode dangerous`, each
+   producing a 40-minute milestone, was not working, and §4 quantifies the cost: two of five
+   unreviewed commits existed only to repair defects the loop had shipped a cycle earlier.
+   Work now happens when the owner asks for it.
+2. ~~**The abandoned SEO work.**~~ **Settled 2026-09-04: salvaged and split**, as `fc54233`
+   and `675c630`. See §5A.
 3. **`PAGE_SIZE = 2`** — real product value, or a test artefact to correct?
 4. **Ordering: security before SEO.** This document puts Phase 4 ahead of Phase 3, which
    contradicts the Master implementation plan. Rationale: SEO makes a storefront

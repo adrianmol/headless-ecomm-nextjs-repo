@@ -46,6 +46,12 @@ test.describe("accessibility", () => {
     await expect(
       page.getByRole("heading", { name: "All products" }),
     ).toBeVisible();
+    // The heading lives in the prerendered shell, so waiting on it alone lets
+    // axe scan while the grid is still the Suspense skeleton — which made this
+    // test intermittent and, when it did catch the skeleton, correct: the
+    // fallback had a real contrast failure. Wait for streamed content so the
+    // scan covers the settled page deterministically.
+    await expect(page.getByRole("link", { name: /Merino Crew/ })).toBeVisible();
     expect((await scan(page)).violations).toEqual([]);
   });
 

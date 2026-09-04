@@ -44,6 +44,13 @@ export function AddToCart({
         type="button"
         onClick={add}
         disabled={!inStock || pending}
+        // Plain template string, NOT `cn()`, deliberately. `cn` pulls
+        // `tailwind-merge` and `clsx`, and this is a client leaf on the PDP —
+        // importing it here would put tailwind-merge back into the PDP bundle
+        // and undo part of the 10.4 kB this component was rewritten to save.
+        // Safe as concatenation because `w-full` conflicts with nothing in
+        // `defaultButtonClasses`; if a `w-*` is ever added there, fix it there
+        // rather than reaching for a merger.
         className={`${defaultButtonClasses} w-full`}
         // Keeps the label from changing width mid-interaction, which would
         // shift the layout underneath the cursor.
