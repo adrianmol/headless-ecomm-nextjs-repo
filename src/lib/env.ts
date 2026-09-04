@@ -45,3 +45,36 @@ export function serverEnv(): z.infer<typeof envSchema> {
 export function resetServerEnvCache(): void {
   cached = null;
 }
+
+/**
+ * Minimum accepted length for the catalog invalidation secret.
+ * `.env.example` suggests `openssl rand -hex 32`, which is 64 characters.
+ */
+const MIN_REVALIDATE_SECRET_LENGTH = 32;
+
+export type RevalidateSecret =
+  | { state: "missing" }
+  | { state: "too_short"; length: number }
+  | { state: "ok"; secret: string };
+
+/**
+ * The catalog invalidation secret, validated here rather than at the call site
+ * so that every environment variable is described in this module.
+ *
+ * **Deliberately not part of `envSchema`.** A value in that schema is validated
+ * by `serverEnv()`, which the commerce client calls on every request — so a weak
+ * webhook secret would throw on catalog reads and take the whole storefront
+ * down. A shared secret for a cache-invalidation webhook must not have that
+ * blast radius: the correct failure is an inert webhook, not a dead shop.
+ *
+ * Returns a state rather than a string so the caller decides the response, and
+ * so "absent" stays distinguishable from "present but too weak to accept".
+ */
+export function revalidateSecret(): RevalidateSecret {
+  const raw = process.env.REVALIDATE_SECRET;
+  if (!raw) return { state: "missing" };
+  if (raw.length < MIN_REVALIDATE_SECRET_LENGTH) {
+    return { state: "too_short", length: raw.length };
+  }
+  return { state: "ok", secret: raw };
+}
