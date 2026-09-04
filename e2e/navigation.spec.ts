@@ -66,6 +66,13 @@ test.describe("site header", () => {
   }) => {
     // Without this, every keyboard user tabs the whole nav on every navigation.
     await page.goto("/products");
+
+    // Wait for the streamed listing before touching the keyboard. The Suspense
+    // fallback contains no focusable element, so tabbing past #content while it
+    // is still showing moves focus out of the document entirely — which is what
+    // made this test hang for 30 s rather than fail cleanly.
+    await expect(page.getByRole("link", { name: /Merino Crew/ })).toBeVisible();
+
     await page.keyboard.press("Tab");
 
     const focused = page.locator(":focus");
@@ -80,10 +87,22 @@ test.describe("site header", () => {
     await expect(page.locator("#content")).toBeFocused();
 
     // And that tabbing on from there enters the page, not the nav again.
+    //
+    // Asserted by containment rather than by comparing text. The previous
+    // version read `:focus` innerText and compared strings, which hung when
+    // nothing was focused and would have passed vacuously against an empty
+    // label. Containment answers the actual question: is focus still in the nav?
     await page.keyboard.press("Tab");
-    await expect(
-      page.getByRole("navigation", { name: "Main" }),
-    ).not.toContainText(await page.locator(":focus").innerText());
+    const focusEscapedNav = await page.evaluate(() => {
+      const nav = document.querySelector('nav[aria-label="Main"]');
+      const active = document.activeElement;
+      return {
+        hasFocus: active !== null && active !== document.body,
+        insideNav: !!(nav && active && nav.contains(active)),
+      };
+    });
+    expect(focusEscapedNav.hasFocus).toBe(true);
+    expect(focusEscapedNav.insideNav).toBe(false);
   });
 
   test("is present on every customer-facing route", async ({ page }) => {

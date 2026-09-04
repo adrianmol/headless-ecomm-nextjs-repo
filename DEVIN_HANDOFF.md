@@ -2432,3 +2432,135 @@ in any of the five commits.
 Phase 4 security remains, in my view, the right next block ahead of finishing Phase 3 SEO —
 reasoning in `docs/next-steps.md` §6 decision 4, still an open owner call. `sitemap.ts` and
 `robots.ts` are the remaining Phase 3 gaps.
+
+### 2026-09-04 — Devin, Phase 4: security headers and a measured CSP trade-off
+
+First Phase 4 milestone. The repository had **no security headers at all** — no CSP, no HSTS,
+no `nosniff`, no `Referrer-Policy`, no framing protection, no `headers()` in
+`next.config.ts`, no middleware, and nothing in `deploy/`. Every one of those is now set and
+asserted against the standalone production server.
+
+#### What landed
+
+`next.config.ts` gains a `headers()` entry applying to `/:path*`:
+`Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+`Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` denying camera,
+microphone, geolocation and browsing-topics, and — production only —
+`Strict-Transport-Security: max-age=63072000; includeSubDomains`.
+
+`preload` is deliberately **not** in the HSTS value. Submission to the preload list is
+effectively irreversible and is an owner decision, not a default. The header test asserts its
+absence so adding it has to be deliberate.
+
+The CSP is `default-src 'self'` with `object-src 'none'`, `base-uri 'self'`,
+`form-action 'self'`, `frame-ancestors 'none'`, `frame-src 'none'`,
+`img-src 'self' data: blob:`, `font-src 'self'`, `connect-src 'self'`, and
+`upgrade-insecure-requests` in production.
+
+Two of those are tighter than they might look, and both were checked rather than guessed:
+`img-src` needs no CDN host because `next/image` proxies remote art through `/_next/image` on
+this origin; `font-src 'self'` suffices because `next/font` self-hosts Geist. If a raw `<img>`
+to a CDN is ever introduced, the header test fails, which is the intent.
+
+`'unsafe-eval'` is added **only** outside production, where React Refresh requires it. The
+test asserts it never appears in a production response.
+
+#### The one real trade-off, measured rather than asserted
+
+`script-src` is `'self' 'unsafe-inline'`. That is uncomfortable, so here is the evidence
+behind it rather than a claim.
+
+Next's App Router streams RSC payloads as inline `<script>` blocks — 12 of them in the
+prerendered `/` document. Dropping `'unsafe-inline'` breaks hydration outright, and the only
+strict alternative is a per-request nonce. I implemented nonce middleware exactly as the Next
+documentation prescribes and measured the result against the standalone production build:
+
+| Route | Inline `<script>` blocks | Carrying a nonce |
+| --- | --- | --- |
+| `/` (static `○`) | 12 | **0 — every one would be blocked** |
+| `/cart` (dynamic `◐`) | 4 | 3 — nonce applied correctly |
+
+The finding is worse than the reclassification I expected. A nonce cannot be embedded in HTML
+that was prerendered at build time, so the static routes serve inline scripts the policy then
+refuses. **The build still reported `/` as `○` static, with no warning of any kind.** The
+failure is silent at build time and only observable in a browser enforcing the policy. Had I
+reasoned from the documentation instead of measuring, I would have described this as "forces
+routes dynamic", which is not what happens.
+
+So adopting a nonce means giving up the static shell `cacheComponents` exists to provide.
+That is an architecture-level trade and is recorded as open decision 6 in
+`docs/next-steps.md`, not taken here. The experiment was reverted; `src/middleware.ts` does
+not exist in the committed tree.
+
+What the policy buys even with inline scripts permitted: no script from a foreign origin, no
+`eval` in production, no framing, no `<base>` rewriting, no plugins, no off-origin form
+posts. Those close real paths regardless of the inline question.
+
+#### Tests
+
+`e2e/security-headers.spec.ts`, 6 tests, asserting the response rather than the config —
+because a stray `headers()` edit, a future `middleware.ts`, or a reverse proxy that strips or
+overrides can remove these without anything else noticing. Coverage spans one route of each
+class (static `/`, PPR `/products`, streamed PDP, dynamic `/cart`) plus the `/api/vitals`
+Route Handler, since a handler is a response like any other.
+
+Verified as guards, not decoration: with `nosniff` removed and `frame-ancestors` weakened to
+`'self'`, **5 of the 6 fail**. The sixth correctly still passes — it only inspects
+`script-src`, which that experiment did not touch. Config restored afterwards.
+
+#### A latent flake this surfaced, and its history
+
+The full suite then failed on `navigation.spec.ts` "the skip link … moves focus past the nav"
+— a 30-second hang, not a clean failure. Not caused by the CSP: the test reached its final
+assertion, so hydration was fine.
+
+The assertion was
+`expect(nav).not.toContainText(await page.locator(":focus").innerText())`. I flagged that
+exact line as fragile when I first reviewed this repository, and let it stand as a nit. It has
+two faults: it hangs when nothing is focused, and it would pass vacuously against an empty
+label. Pagination's Suspense fallback exposed it — the skeleton contains no focusable element,
+so tabbing past `#content` while the grid streams moves focus out of the document.
+
+Now: the test waits for streamed content before touching the keyboard, and asks the actual
+question via containment — is `document.activeElement` inside the nav — rather than comparing
+strings. Stable across `--repeat-each=3`.
+
+The lesson is about the earlier review, not this one: a fragile assertion recorded as a nit
+and not fixed became a 30-second CI hang two milestones later.
+
+#### Exact verification results
+
+`PATH=/opt/homebrew/opt/node@20/bin:$PATH`, ports 3101/4021/4010/3199/4099 confirmed free and
+`.next` removed before the build. All exit code 0:
+
+| Command | Result |
+| --- | --- |
+| `pnpm lint` | passed |
+| `pnpm format:check` | passed |
+| `pnpm codegen:check` | passed, no OpenAPI drift |
+| `pnpm typecheck` | passed |
+| `pnpm test` | 128 passed across 9 files |
+| `pnpm build:ci` | passed; `/` still `○` static 1h/1d, PPR intact — headers did not reclassify anything |
+| `pnpm e2e` | **43 passed**, up from 37 |
+| Negative check | 5 of 6 header tests fail on a weakened config |
+
+Lighthouse not re-run: response headers do not affect the bundle. Note for whoever does run
+it next — a CSP can affect Lighthouse's own instrumentation, so if scores move unexpectedly,
+suspect the policy before the application.
+
+#### Phase 4 remaining
+
+Still open in this phase: CSRF/Server-Action origin verification with negative tests, rate
+limits, CORS and public-handler audit, XSS and open-redirect audits, dependency automation,
+`/health` with an explicit contract, the log-hygiene audit, `.env.example` and Docker/Jenkins
+variable alignment, and the broader security smoke coverage. The order-IDOR test stays blocked
+on the backend's authorization semantics.
+
+#### Recommended next action
+
+`/health` next: it is self-contained, the Jenkins smoke test and container `HEALTHCHECK`
+already assume something like it, and its contract needs stating — process liveness must not
+be conflated with backend readiness, and it must expose nothing about configuration.
+
+Decisions 3 through 6 in `docs/next-steps.md` remain open, and decision 6 (this CSP
+trade-off) is the one that constrains architecture.

@@ -161,3 +161,22 @@ These block or reorder the above and are owner calls, recorded here rather than 
    Phase 3 first.
 5. **`STOREFRONT_URL` production domain.** Canonical URLs and Open Graph tags are wrong
    without it. A genuine external blocker for Phase 3, and it cannot be invented locally.
+6. **CSP `script-src`: `'unsafe-inline'` or a nonce?** Headers landed on 2026-09-04 with
+   `script-src 'self' 'unsafe-inline'`. The strict alternative is a per-request nonce, and the
+   cost of that was measured rather than assumed:
+
+   | Route                 | Inline `<script>` blocks | Carrying a nonce             |
+   | --------------------- | ------------------------ | ---------------------------- |
+   | `/` (static `○`)      | 12                       | **0 — all would be blocked** |
+   | `/cart` (dynamic `◐`) | 4                        | 3 — nonce applied            |
+
+   A nonce cannot be embedded in prerendered HTML, so with nonce middleware in place the
+   static routes serve 12 inline scripts that the policy then refuses. The build still
+   reported `/` as `○` static, with no warning — the breakage is silent and only visible in a
+   browser enforcing the policy. Adopting a nonce therefore means making every HTML response
+   dynamic and giving up the static shell `cacheComponents` exists to provide.
+
+   Options: keep `'unsafe-inline'` and accept weaker inline-XSS protection while retaining
+   the static shell; or adopt a nonce and render all HTML per request. Everything else in the
+   policy is already strict — no foreign script origin, no `eval` in production, no framing,
+   no off-origin form posts — so this decision is narrowly about inline script execution.
