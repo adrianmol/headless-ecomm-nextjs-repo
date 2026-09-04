@@ -22,7 +22,7 @@ export const productListTag = "product-list";
  * still never serve a stale price, because the price is not in here.
  * Invalidated by tag when the backend publishes (see /api/revalidate).
  */
-export async function getProduct(slug: string): Promise<Product> {
+export async function getProduct(slug: string): Promise<Product | null> {
   "use cache";
   cacheLife("days");
   cacheTag(productTag(slug));
@@ -33,7 +33,11 @@ export async function getProduct(slug: string): Promise<Product> {
   );
 
   if (error || !data) {
-    throw new CommerceErrorException(normalizeError(error, response?.status));
+    const domainError = normalizeError(error, response?.status);
+    // A missing product is an ordinary outcome the caller renders as a 404, not
+    // a fault. Anything else is a real failure and propagates.
+    if (domainError.kind === "NotFound") return null;
+    throw new CommerceErrorException(domainError);
   }
   return data;
 }

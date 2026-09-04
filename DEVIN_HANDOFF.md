@@ -2197,3 +2197,113 @@ EOL. The Priority 4 IDOR test still depends on the order-authorization rules.
 Phase 3 continues with per-product `generateMetadata` (title, description, canonical,
 Open Graph, Twitter cards), then safe Product/Offer and BreadcrumbList JSON-LD with
 availability read from the live offer, `sitemap.ts`, and `robots.ts`.
+
+### 2026-09-04 — Devin, salvaging the abandoned Phase 3 SEO work
+
+**Context:** the scheduled harness stalled overnight and left 12 modified files plus an
+untracked `e2e/seo.spec.ts` in the tree. Full analysis in `docs/next-steps.md` (commit
+`a67830c`). The owner asked for the blocking defect fixed and the work committed. Done, with
+three defects found that were not the one I was sent to fix.
+
+#### The reported defect: two conflicting robots directives
+
+`e2e/seo.spec.ts` failed on a missing product: `meta[name="robots"]` resolved to **two**
+elements, `content="noindex"` and `content="noindex, nofollow"`. Not a strict-mode test
+artefact — the route genuinely emitted both, and they disagreed on `follow`.
+
+Cause: `notFound()` makes Next inject its own `noindex`, and
+`products/[slug]/not-found.tsx` *also* exported `robots: { index: false, follow: false }`.
+The explicit export does not replace Next's tag, it adds a second one.
+
+Settled by measurement rather than by reading Next's source. With the explicit export
+removed, against the standalone production build:
+
+| Measurement | Result |
+| --- | --- |
+| `meta[name="robots"]` tags on `/products/no-such-product` | exactly 1, `content="noindex"` |
+| HTTP status | 200 — confirming it is a soft 404 |
+| Escape link present | yes, `Browse all products` |
+
+So the comment claiming the explicit tag "is what actually keeps missing products out of
+search results" was wrong: Next emits `noindex` even on the 200 response. Removing it also
+restores `follow`, which is what we want — the escape link points at a real page, and telling
+crawlers not to follow it was counterproductive.
+
+The test now asserts the invariant that matters — exactly one directive, containing
+`noindex`, not containing `nofollow`, status 200 — rather than one exact string. It is a real
+guard: the two-tag state it rejects is precisely the state observed before the fix.
+
+#### Second defect, not reported: six debug `console.log` calls in production paths
+
+`src/commerce/catalog/queries.ts` (×4) and the PDP page (×2), four of them logging the raw
+attacker-supplied `slug`. This is the same class of issue the `/api/vitals` hardening was done
+to prevent, and the `commerce-data-layer` skill is explicit that request-scoped values are not
+to be logged. Removed. The only remaining `console.log` under `src/` is the deliberate
+telemetry sink in `/api/vitals`.
+
+#### Third defect, not reported: an orphaned mock API corrupted a measurement
+
+Port 4010 was held by a `scripts/mock-api.mjs` orphaned when the watchdog killed a run — the
+wrapper's kill does not reap grandchildren, a fourth harness fault now recorded in
+`docs/next-steps.md`. `with-mock-api.mjs` waits for *a* healthy API on that port, so the first
+`build:ci` of this session silently built against a **stale mock predating the pagination
+fixtures** and reported PASS. Killed the orphan, removed `.next`, rebuilt clean. Third
+port-reuse measurement trap in this project; the first result was discarded, not trusted.
+
+#### A design change worth naming
+
+`getProduct` now returns `Promise<Product | null>` instead of throwing on `NotFound`. That is
+the right call: it is inside a `use cache` scope, and a thrown `CommerceErrorException` does
+not survive that boundary with `instanceof` intact.
+
+Consequence: the 88 lines added to `src/commerce/errors.ts` — a `Symbol.for` brand plus
+`isCommerceErrorException` — are **dead code**. Nothing outside `errors.ts` and its own tests
+references them; the null-return approach superseded that attempt. Committed separately and
+labelled so a reviewer can drop them on sight. **Recommendation: drop them** unless a caller
+appears, since an exported helper with no consumer will be assumed load-bearing later.
+
+#### Not addressed here
+
+`/products` is now `◐` Partial Prerender rather than `○` Static with a 1h revalidate, because
+pagination reads `searchParams`. That landed unreviewed in `c98c27a` and contradicts the
+caching table in `docs/architecture.md`, which has product listings as cached with tag-based
+invalidation. Earlier entries cited "`/products` still `○` static" as evidence of no
+regression; that claim is no longer true. It needs an owner decision, not a silent fix.
+
+Phase 3 remains incomplete: no `sitemap.ts`, no `robots.ts`.
+
+#### Exact verification results
+
+`PATH=/opt/homebrew/opt/node@20/bin:$PATH`, ports 3101/4021/4010/3199/4099 confirmed free and
+`.next` removed before the build. All exit code 0:
+
+| Command | Result |
+| --- | --- |
+| `pnpm lint` | passed |
+| `pnpm format:check` | passed |
+| `pnpm codegen:check` | passed, no OpenAPI drift |
+| `pnpm typecheck` | passed |
+| `pnpm test` | 119 passed across 9 files |
+| `pnpm build:ci` | passed (clean rebuild, fresh mock) |
+| `pnpm e2e` | **35 passed**, was 34 passed / 1 failed |
+
+Gates were run on the combined tree; the split into two commits is for reviewability, and the
+`errors.ts` half is unreferenced so it cannot affect the other.
+
+#### A fourth incident on this file
+
+`DEVIN_HANDOFF.md` was **deleted** from the working tree during this session — `git status`
+showed `D`, not `M`. A `git commit -a` would have committed the removal of this log. Restored
+from `HEAD`: 2199 lines, 49 entries, with a copy in `$HOME`. The ~255 lines that were
+uncommitted are **unrecoverable** — not on disk, never staged so no dangling blob, no editor
+local history, and the runs that wrote them left 0-byte transcripts.
+
+That is three incidents on this file and the second irrecoverable loss. The rule already
+written down after the first one stands and was again not followed: **commit this log
+immediately after appending to it.**
+
+#### Recommended next action
+
+The five open decisions in `docs/next-steps.md` §6 are unchanged, and the harness is still
+deliberately stuck: do not clear `~/.config/devin/handoff-monitor/attempts` before the
+dirty-tree guard exists, or the next run resumes on top of a partial diff.

@@ -48,6 +48,9 @@ const child = spawn(process.execPath, [path.join(standalone, "server.js")], {
     ...process.env,
     PORT: process.env.PORT ?? "3000",
     HOSTNAME: process.env.HOSTNAME ?? "127.0.0.1",
+    STOREFRONT_URL:
+      process.env.STOREFRONT_URL ||
+      `http://localhost:${process.env.PORT ?? 3000}`,
   },
 });
 

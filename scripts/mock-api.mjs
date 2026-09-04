@@ -158,8 +158,13 @@ function commit() {
 }
 
 // Where the stand-in payment page sends the shopper back to. Overridable
-// because the storefront port varies between dev and `next start`.
-const STOREFRONT_URL = process.env.STOREFRONT_URL ?? "http://localhost:3000";
+// because the storefront port varies between dev and `next start`, and
+// because E2E runs the app under a test-only origin while claiming a public
+// STOREFRONT_URL for SEO metadata.
+const PSP_RETURN_ORIGIN =
+  process.env.MOCK_PSP_RETURN_ORIGIN ??
+  process.env.STOREFRONT_URL ??
+  "http://localhost:3000";
 
 /**
  * Stand-in for the payment provider, so the full redirect round trip can be
@@ -448,7 +453,7 @@ const server = createServer(async (req, res) => {
   // --- stand-in hosted payment page (NOT part of the commerce API) ----------
   if (req.method === "GET" && url.pathname === "/psp/pay") {
     const ref = url.searchParams.get("ref") ?? "";
-    const back = `${STOREFRONT_URL}/checkout/return?ref=${encodeURIComponent(ref)}`;
+    const back = `${PSP_RETURN_ORIGIN}/checkout/return?ref=${encodeURIComponent(ref)}`;
     const html = `<!doctype html><meta charset="utf-8"><title>Mock payment provider</title>
 <body style="font-family:system-ui;max-width:34rem;margin:4rem auto">
 <h1>Mock payment provider</h1>
@@ -469,7 +474,7 @@ immediately exercises the <em>pending</em> path.</p>
     const order = orders.get(ref);
     if (order) order.cancelled = true;
     res.writeHead(302, {
-      location: `${STOREFRONT_URL}/checkout/return?ref=${encodeURIComponent(ref)}`,
+      location: `${PSP_RETURN_ORIGIN}/checkout/return?ref=${encodeURIComponent(ref)}`,
     });
     return res.end();
   }

@@ -52,7 +52,13 @@ try {
   child = spawn(command, args, {
     stdio: "inherit",
     shell: process.platform === "win32",
-    env: { ...process.env, COMMERCE_API_URL: BASE },
+    env: {
+      ...process.env,
+      COMMERCE_API_URL: BASE,
+      STOREFRONT_URL:
+        process.env.STOREFRONT_URL ||
+        `http://localhost:${process.env.PORT ?? 3000}`,
+    },
   });
 
   child.on("exit", (code, signal) => shutdown(signal ? 1 : (code ?? 0)));

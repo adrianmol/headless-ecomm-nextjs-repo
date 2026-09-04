@@ -7,6 +7,13 @@ export const BASE_URL = `http://localhost:${PORT}`;
 export const MOCK_API_URL = `http://127.0.0.1:${MOCK_PORT}`;
 
 /**
+ * Deterministic public origin used for SEO metadata assertions. The app is still
+ * served from `BASE_URL`; this origin lets E2E prove that canonical URLs, Open
+ * Graph, and Twitter card URLs come from `STOREFRONT_URL`, not the test server.
+ */
+export const STOREFRONT_URL = "https://storefront.test";
+
+/**
  * E2E runs against a production build, not `next dev`.
  *
  * Partial prerendering, cache lifetimes and streaming all behave differently in
@@ -50,8 +57,12 @@ export default defineConfig({
       // The standalone server takes its port from the environment, not a flag.
       PORT: String(PORT),
       MOCK_API_PORT: String(MOCK_PORT),
-      // The stand-in payment page must send the shopper back to this server.
-      STOREFRONT_URL: BASE_URL,
+      // The public storefront origin: used for canonical/OG/Twitter metadata.
+      // A non-local value proves URLs are built from config, not the test server.
+      STOREFRONT_URL: STOREFRONT_URL,
+      // The mock PSP must send the browser back to the actual test server,
+      // not to the configured public origin.
+      MOCK_PSP_RETURN_ORIGIN: BASE_URL,
       // Short enough to keep tests quick, long enough that returning
       // immediately still lands on the pending path.
       MOCK_PENDING_MS: "2500",

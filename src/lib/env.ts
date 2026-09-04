@@ -13,6 +13,10 @@ import { z } from "zod";
  */
 const envSchema = z.object({
   COMMERCE_API_URL: z.url(),
+  STOREFRONT_URL: z.preprocess(
+    (val) => (val === "" ? undefined : val),
+    z.url().optional(),
+  ),
 });
 
 let cached: z.infer<typeof envSchema> | null = null;
@@ -22,6 +26,7 @@ export function serverEnv(): z.infer<typeof envSchema> {
 
   const parsed = envSchema.safeParse({
     COMMERCE_API_URL: process.env.COMMERCE_API_URL,
+    STOREFRONT_URL: process.env.STOREFRONT_URL,
   });
 
   if (!parsed.success) {

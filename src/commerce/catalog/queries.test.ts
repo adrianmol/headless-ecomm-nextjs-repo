@@ -11,7 +11,7 @@ import { getOffer, getProduct, listProducts, productTag } from "./queries";
 describe("getProduct", () => {
   it("returns product content", async () => {
     const product = await getProduct("merino-crew");
-    expect(product.slug).toBe("merino-crew");
+    expect(product?.slug).toBe("merino-crew");
   });
 
   it("carries no price or stock, so a cached shell cannot go stale", async () => {
@@ -20,7 +20,17 @@ describe("getProduct", () => {
     expect(product).not.toHaveProperty("availability");
   });
 
-  it("throws a normalised domain error, never a raw payload", async () => {
+  it("returns null for a missing product instead of throwing", async () => {
+    server.use(
+      http.get(`${API_BASE}/products/:slug`, () =>
+        HttpResponse.json(errorBody("not_found"), { status: 404 }),
+      ),
+    );
+
+    await expect(getProduct("no-such-product")).resolves.toBeNull();
+  });
+
+  it("throws a normalised domain error for non-404 failures", async () => {
     server.use(
       http.get(`${API_BASE}/products/:slug`, () =>
         HttpResponse.json(errorBody("unavailable"), { status: 503 }),
