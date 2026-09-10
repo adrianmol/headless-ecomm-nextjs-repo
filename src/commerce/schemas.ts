@@ -23,10 +23,40 @@ export const availabilitySchema = z.object({
   quantity: z.number().int().nonnegative(),
 });
 
+/**
+ * A quantity break. `minQuantity` starts at 2: a "tier" of one is just the
+ * unit price, and admitting 1 here would let a malformed feed render a
+ * duplicate, contradictory headline price.
+ */
+export const priceTierSchema = z.object({
+  minQuantity: z.number().int().min(2),
+  unitPrice: moneySchema,
+  unitPriceExVat: moneySchema.optional(),
+});
+
+/**
+ * Validated because every field here is charged or invoiced.
+ *
+ * `priceExVat` is required and comes from the backend. It is deliberately not
+ * derived from `price` and `vatRate` — see openapi/commerce.yaml `Offer` and
+ * ADR-0004. `vatRate` is carried for display and invoicing only.
+ *
+ * `priceTiers` is sorted here rather than trusted: the contract says ascending,
+ * but a tier table rendered out of order reads as a price *rise* for buying
+ * more, and sorting is cheaper than the support ticket.
+ */
 export const offerSchema = z.object({
   variantId: z.string(),
   price: moneySchema,
+  priceExVat: moneySchema,
+  vatRate: z.number().int().nonnegative(),
   compareAtPrice: moneySchema.optional(),
+  priceTiers: z
+    .array(priceTierSchema)
+    .optional()
+    .transform((tiers) =>
+      tiers ? [...tiers].sort((a, b) => a.minQuantity - b.minQuantity) : tiers,
+    ),
   availability: availabilitySchema,
 });
 

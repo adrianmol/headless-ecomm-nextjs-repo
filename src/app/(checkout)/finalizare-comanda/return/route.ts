@@ -22,7 +22,7 @@ import { CommerceErrorException } from "@/commerce/errors";
 export async function GET(request: Request) {
   const ref = new URL(request.url).searchParams.get("ref");
 
-  if (!ref) redirect("/cart");
+  if (!ref) redirect("/cos");
 
   let status: string;
   try {
@@ -32,20 +32,20 @@ export async function GET(request: Request) {
       // Cannot establish the truth, so assert nothing. The confirming screen
       // keeps polling; claiming failure here could tell somebody their
       // successful payment did not go through.
-      redirect(`/checkout/confirming?ref=${encodeURIComponent(ref)}`);
+      redirect(`/finalizare-comanda/confirming?ref=${encodeURIComponent(ref)}`);
     }
     throw error;
   }
 
   switch (status) {
     case "paid":
-      redirect(`/orders/${encodeURIComponent(ref)}`);
+      redirect(`/comenzi/${encodeURIComponent(ref)}`);
     case "failed":
     case "cancelled":
-      redirect("/checkout?error=payment_failed");
+      redirect("/finalizare-comanda?error=payment_failed");
     default:
       // `pending` is normal, not an error: the PSP webhook may not have reached
       // the backend yet. Poll rather than guess.
-      redirect(`/checkout/confirming?ref=${encodeURIComponent(ref)}`);
+      redirect(`/finalizare-comanda/confirming?ref=${encodeURIComponent(ref)}`);
   }
 }

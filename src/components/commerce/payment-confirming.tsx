@@ -45,11 +45,11 @@ export function PaymentConfirming({
         if (cancelled.current) return;
 
         if (status === "paid") {
-          router.replace(`/orders/${encodeURIComponent(orderRef)}`);
+          router.replace(`/comenzi/${encodeURIComponent(orderRef)}`);
           return;
         }
         if (status === "failed" || status === "cancelled") {
-          router.replace("/checkout?error=payment_failed");
+          router.replace("/finalizare-comanda?error=payment_failed");
           return;
         }
         delay = Math.min(delay * 1.5, 8000);
@@ -89,7 +89,7 @@ export function PaymentConfirming({
 
   return (
     <div className="text-center" role="status" aria-live="polite">
-      <h1 className="text-2xl font-semibold">Confirming your payment</h1>
+      <h1 className="text-2xl font-semibold">Confirmam plata</h1>
       <p className="text-muted-foreground mt-3">
         This usually takes a few seconds. Please do not close this page or pay
         again.

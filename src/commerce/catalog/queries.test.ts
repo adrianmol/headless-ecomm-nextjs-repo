@@ -10,12 +10,12 @@ import { getOffer, getProduct, listProducts, productTag } from "./queries";
 
 describe("getProduct", () => {
   it("returns product content", async () => {
-    const product = await getProduct("merino-crew");
-    expect(product?.slug).toBe("merino-crew");
+    const product = await getProduct("toner-compatibil-hp-35a-black-cb435a");
+    expect(product?.slug).toBe("toner-compatibil-hp-35a-black-cb435a");
   });
 
   it("carries no price or stock, so a cached shell cannot go stale", async () => {
-    const product = await getProduct("merino-crew");
+    const product = await getProduct("toner-compatibil-hp-35a-black-cb435a");
     expect(product).not.toHaveProperty("price");
     expect(product).not.toHaveProperty("availability");
   });
@@ -37,10 +37,12 @@ describe("getProduct", () => {
       ),
     );
 
-    await expect(getProduct("merino-crew")).rejects.toBeInstanceOf(
-      CommerceErrorException,
-    );
-    await expect(getProduct("merino-crew")).rejects.toMatchObject({
+    await expect(
+      getProduct("toner-compatibil-hp-35a-black-cb435a"),
+    ).rejects.toBeInstanceOf(CommerceErrorException);
+    await expect(
+      getProduct("toner-compatibil-hp-35a-black-cb435a"),
+    ).rejects.toMatchObject({
       error: { kind: "Unavailable", retryable: true },
     });
   });
@@ -50,8 +52,10 @@ describe("catalog caching", () => {
   it("tags the product with the same string the revalidation path uses", async () => {
     // A tag that differs between read and write fails silently: the cache just
     // never invalidates. Both sides go through productTag() for this reason.
-    await getProduct("merino-crew");
-    expect(appliedTags).toContain(productTag("merino-crew"));
+    await getProduct("toner-compatibil-hp-35a-black-cb435a");
+    expect(appliedTags).toContain(
+      productTag("toner-compatibil-hp-35a-black-cb435a"),
+    );
   });
 
   it("tags the listing so a publish can invalidate it", async () => {
@@ -60,7 +64,7 @@ describe("catalog caching", () => {
   });
 
   it("does not tag the offer, which must never be cached", async () => {
-    await getOffer("merino-crew");
+    await getOffer("toner-compatibil-hp-35a-black-cb435a");
     expect(appliedTags).toHaveLength(0);
   });
 });
@@ -80,14 +84,16 @@ describe("catalog requests carry no session", () => {
       }),
     );
 
-    await getOffer("merino-crew");
+    await getOffer("toner-compatibil-hp-35a-black-cb435a");
     expect(seen).toBeNull();
   });
 });
 
 describe("getOffer", () => {
   it("returns price and availability", async () => {
-    await expect(getOffer("merino-crew")).resolves.toEqual(offerFixture);
+    await expect(
+      getOffer("toner-compatibil-hp-35a-black-cb435a"),
+    ).resolves.toEqual(offerFixture);
   });
 
   it("rejects a response whose price violates the schema", async () => {
@@ -102,7 +108,9 @@ describe("getOffer", () => {
       ),
     );
 
-    await expect(getOffer("merino-crew")).rejects.toMatchObject({
+    await expect(
+      getOffer("toner-compatibil-hp-35a-black-cb435a"),
+    ).rejects.toMatchObject({
       error: { kind: "Unavailable" },
     });
   });
@@ -114,8 +122,8 @@ describe("getOffer", () => {
       ),
     );
 
-    await expect(getOffer("merino-crew")).rejects.toBeInstanceOf(
-      CommerceErrorException,
-    );
+    await expect(
+      getOffer("toner-compatibil-hp-35a-black-cb435a"),
+    ).rejects.toBeInstanceOf(CommerceErrorException);
   });
 });

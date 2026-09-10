@@ -17,12 +17,12 @@ import { getOrder } from "./queries";
  * provider and carrier both validate properly downstream.
  */
 const checkoutSchema = z.object({
-  email: z.email("Enter a valid email address"),
-  name: z.string().trim().min(1, "Enter a name"),
-  line1: z.string().trim().min(1, "Enter an address"),
-  city: z.string().trim().min(1, "Enter a city"),
-  postcode: z.string().trim().min(1, "Enter a postcode"),
-  country: z.string().trim().length(2, "Select a country"),
+  email: z.email("Introdu o adresa de email valida"),
+  name: z.string().trim().min(1, "Introdu numele"),
+  line1: z.string().trim().min(1, "Introdu adresa"),
+  city: z.string().trim().min(1, "Introdu orasul"),
+  postcode: z.string().trim().min(1, "Introdu codul postal"),
+  country: z.string().trim().length(2, "Alege tara"),
 });
 
 export async function startCheckoutAction(

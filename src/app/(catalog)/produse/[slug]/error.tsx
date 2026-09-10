@@ -32,9 +32,9 @@ export default function ProductError({
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-20 text-center">
-      <h1 className="text-2xl font-semibold">Something went wrong</h1>
+      <h1 className="text-2xl font-semibold">A aparut o eroare</h1>
       <p className="text-muted-foreground mt-3">
-        We couldn&apos;t load this product. Please try again.
+        Nu am putut incarca acest produs. Te rugam sa incerci din nou.
       </p>
       <div className="mt-6">
         <button
@@ -42,7 +42,7 @@ export default function ProductError({
           onClick={reset}
           className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring rounded-md px-4 py-2 text-sm font-medium focus-visible:ring-2 focus-visible:outline-none"
         >
-          Try again
+          Incearca din nou
         </button>
       </div>
 
@@ -53,15 +53,15 @@ export default function ProductError({
       */}
       <p className="mt-8">
         <Link
-          href="/products"
+          href="/produse"
           className="focus-visible:ring-ring rounded underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none"
         >
-          Browse all products
+          Vezi tot catalogul
         </Link>
       </p>
       {error.digest && (
         <p className="text-muted-foreground mt-6 text-xs">
-          Reference: {error.digest}
+          Referinta: {error.digest}
         </p>
       )}
     </main>

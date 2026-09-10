@@ -6,28 +6,51 @@ export const API_BASE = "https://commerce.test/v1";
 type Money = components["schemas"]["Money"];
 type Cart = components["schemas"]["Cart"];
 
-const eur = (amountMinor: number): Money => ({ amountMinor, currency: "EUR" });
+const ron = (amountMinor: number): Money => ({ amountMinor, currency: "RON" });
+
+/** Romanian standard VAT, in basis points. */
+const VAT_RATE = 2100;
 
 export const productFixture: components["schemas"]["Product"] = {
   id: "prod_1",
-  slug: "merino-crew",
-  title: "Merino Crew",
-  description: "A jumper.",
+  slug: "toner-compatibil-hp-35a-black-cb435a",
+  title: "Toner compatibil (2K) HP 35A Black (CB435A)",
+  description: "Cartus de toner compatibil pentru imprimante HP LaserJet.",
+  kind: "toner",
+  attributes: {
+    color: "black",
+    yieldPages: 2000,
+    oemCodes: ["CB435A", "35A"],
+    manufacturer: "G&G",
+    isOriginal: false,
+  },
+  compatibility: [
+    {
+      printerBrand: { slug: "hp", name: "HP" },
+      printerModels: [{ slug: "laserjet-p1005", name: "LaserJet P1005" }],
+    },
+  ],
   images: [
     {
       url: "https://cdn.test/1.jpg",
-      alt: "Merino Crew",
+      alt: "Toner compatibil HP 35A",
       width: 800,
-      height: 1000,
+      height: 800,
     },
   ],
-  variants: [{ id: "var_1", title: "M" }],
+  variants: [{ id: "var_1", title: "Standard" }],
 };
 
+/**
+ * Both VAT figures are present because the contract requires both. 3400 gross
+ * at 21% is 2810 net — the storefront reads that number, it never computes it.
+ */
 export const offerFixture: components["schemas"]["Offer"] = {
   variantId: "var_1",
-  price: eur(8900),
-  availability: { inStock: true, quantity: 4 },
+  price: ron(3400),
+  priceExVat: ron(2810),
+  vatRate: VAT_RATE,
+  availability: { inStock: true, quantity: 42 },
 };
 
 export const cartFixture: Cart = {
@@ -37,13 +60,13 @@ export const cartFixture: Cart = {
     {
       id: "line_1",
       variantId: "var_1",
-      title: "Merino Crew",
+      title: "Toner compatibil (2K) HP 35A Black (CB435A)",
       quantity: 1,
-      unitPrice: eur(8900),
-      lineTotal: eur(8900),
+      unitPrice: ron(3400),
+      lineTotal: ron(3400),
     },
   ],
-  totals: { subtotal: eur(8900), total: eur(8900) },
+  totals: { subtotal: ron(3400), total: ron(3400) },
 };
 
 /** Structured error body matching the spec's Error schema. */
@@ -60,7 +83,38 @@ export const idempotencyLog: string[] = [];
 
 export const handlers = [
   http.get(`${API_BASE}/products`, () =>
-    HttpResponse.json({ items: [productFixture], nextCursor: null }),
+    HttpResponse.json({
+      items: [productFixture],
+      nextCursor: null,
+      total: 1,
+      facets: [
+        {
+          key: "kind",
+          label: "Tip consumabil",
+          values: [{ value: "toner", label: "Tonere", count: 1 }],
+        },
+      ],
+    }),
+  ),
+
+  http.get(`${API_BASE}/offers`, () =>
+    HttpResponse.json({
+      items: [{ slug: productFixture.slug, offer: offerFixture }],
+    }),
+  ),
+
+  http.get(`${API_BASE}/compat/brands`, () =>
+    HttpResponse.json({
+      items: [{ slug: "hp", name: "HP", productCount: 1 }],
+    }),
+  ),
+
+  http.get(`${API_BASE}/compat/brands/:brand/models`, () =>
+    HttpResponse.json({
+      items: [
+        { slug: "laserjet-p1005", name: "LaserJet P1005", productCount: 1 },
+      ],
+    }),
   ),
 
   http.get(`${API_BASE}/products/:slug`, () =>

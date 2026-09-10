@@ -36,7 +36,7 @@ export function RemoveLineButton({
         disabled={pending}
         className="text-muted-foreground hover:text-foreground focus-visible:ring-ring mt-2 rounded text-xs underline underline-offset-4 disabled:opacity-50 focus-visible:ring-2 focus-visible:outline-none"
       >
-        {pending ? "Removing…" : "Remove"}
+        {pending ? "Se sterge…" : "Sterge"}
       </button>
       {failed && (
         <p role="status" className="text-destructive mt-1 text-xs">

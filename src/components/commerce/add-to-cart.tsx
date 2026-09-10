@@ -56,7 +56,7 @@ export function AddToCart({
         // shift the layout underneath the cursor.
         aria-busy={pending}
       >
-        {!inStock ? "Out of stock" : pending ? "Adding…" : "Add to basket"}
+        {!inStock ? "Stoc epuizat" : pending ? "Se adauga…" : "Adauga in cos"}
       </button>
 
       {feedback && (
@@ -68,20 +68,20 @@ export function AddToCart({
               : "text-destructive mt-2 text-sm"
           }
         >
-          {feedback.status === "ok" && "Added to your basket."}
+          {feedback.status === "ok" && "Adaugat in cos."}
           {feedback.status === "out_of_stock" &&
             (feedback.available > 0
-              ? `Only ${feedback.available} left.`
-              : "This item just sold out.")}
+              ? `Au mai ramas doar ${feedback.available} bucati.`
+              : "Produsul tocmai s-a epuizat.")}
           {/* The customer must see and accept a new price, never be charged it silently. */}
           {feedback.status === "price_changed" &&
-            `The price changed to ${formatMoney(feedback.newPrice)}. Refresh to continue.`}
+            `Pretul s-a schimbat la ${formatMoney(feedback.newPrice)}. Reincarca pagina pentru a continua.`}
           {feedback.status === "cart_expired" &&
-            "Your basket expired. Try adding the item again."}
+            "Cosul a expirat. Incearca sa adaugi produsul din nou."}
           {feedback.status === "error" &&
             (feedback.retryable
-              ? "Something went wrong. Try again."
-              : "We could not add this item.")}
+              ? "A aparut o eroare. Incearca din nou."
+              : "Nu am putut adauga acest produs.")}
         </p>
       )}
     </div>

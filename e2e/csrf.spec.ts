@@ -15,21 +15,21 @@ import { test, expect } from "./fixtures";
  */
 
 async function checkoutFormFields(page: import("@playwright/test").Page) {
-  await page.goto("/products/merino-crew");
-  await page.getByRole("button", { name: "Add to basket" }).click();
-  await expect(page.getByText("Added to your basket.")).toBeVisible();
+  await page.goto("/produse/toner-compatibil-hp-35a-black-cb435a");
+  await page.getByRole("button", { name: "Adauga in cos" }).click();
+  await expect(page.getByText("Adaugat in cos.")).toBeVisible();
 
-  await page.goto("/checkout");
+  await page.goto("/finalizare-comanda");
   await expect(
-    page.getByRole("button", { name: "Continue to payment" }),
+    page.getByRole("button", { name: "Continua spre plata" }),
   ).toBeVisible();
 
   await page.getByLabel("Email").fill("shopper@example.test");
-  await page.getByLabel("Full name").fill("A Shopper");
-  await page.getByLabel("Address").fill("1 Test Street");
-  await page.getByLabel("City").fill("Dublin");
-  await page.getByLabel("Postcode").fill("D01");
-  await page.getByLabel("Country code").fill("IE");
+  await page.getByLabel("Nume complet").fill("A Shopper");
+  await page.getByLabel("Adresa").fill("1 Test Street");
+  await page.getByLabel("Oras").fill("Dublin");
+  await page.getByLabel("Cod postal").fill("D01");
+  await page.getByLabel("Cod tara").fill("IE");
 
   // The progressive-enhancement encoding: the action id travels in the body, so
   // a hidden auto-submitting form on another origin is a real CSRF vector.
@@ -52,7 +52,7 @@ test.describe("cross-origin mutation attempts", () => {
   }) => {
     const fields = await checkoutFormFields(page);
 
-    const response = await page.request.post(`${baseURL}/checkout`, {
+    const response = await page.request.post(`${baseURL}/finalizare-comanda`, {
       multipart: fields,
       headers: { origin: baseURL!, referer: `${baseURL}/` },
       maxRedirects: 0,
@@ -73,12 +73,15 @@ test.describe("cross-origin mutation attempts", () => {
     test(`checkout is refused with ${label}`, async ({ page, baseURL }) => {
       const fields = await checkoutFormFields(page);
 
-      const response = await page.request.post(`${baseURL}/checkout`, {
-        multipart: fields,
-        headers,
-        maxRedirects: 0,
-        failOnStatusCode: false,
-      });
+      const response = await page.request.post(
+        `${baseURL}/finalizare-comanda`,
+        {
+          multipart: fields,
+          headers,
+          maxRedirects: 0,
+          failOnStatusCode: false,
+        },
+      );
 
       // The security property is that no order was created, which shows up as
       // the absence of a redirect to the payment provider. Asserted that way
@@ -96,18 +99,18 @@ test.describe("cross-origin mutation attempts", () => {
   }) => {
     // Guards against the obvious over-correction: a check so strict that the
     // real browser flow is blocked too.
-    await page.goto("/products/merino-crew");
-    await page.getByRole("button", { name: "Add to basket" }).click();
-    await expect(page.getByText("Added to your basket.")).toBeVisible();
+    await page.goto("/produse/toner-compatibil-hp-35a-black-cb435a");
+    await page.getByRole("button", { name: "Adauga in cos" }).click();
+    await expect(page.getByText("Adaugat in cos.")).toBeVisible();
 
-    await page.goto("/checkout");
+    await page.goto("/finalizare-comanda");
     await page.getByLabel("Email").fill("shopper@example.test");
-    await page.getByLabel("Full name").fill("A Shopper");
-    await page.getByLabel("Address").fill("1 Test Street");
-    await page.getByLabel("City").fill("Dublin");
-    await page.getByLabel("Postcode").fill("D01");
-    await page.getByLabel("Country code").fill("IE");
-    await page.getByRole("button", { name: "Continue to payment" }).click();
+    await page.getByLabel("Nume complet").fill("A Shopper");
+    await page.getByLabel("Adresa").fill("1 Test Street");
+    await page.getByLabel("Oras").fill("Dublin");
+    await page.getByLabel("Cod postal").fill("D01");
+    await page.getByLabel("Cod tara").fill("IE");
+    await page.getByRole("button", { name: "Continua spre plata" }).click();
 
     await expect(
       page.getByRole("heading", { name: "Mock payment provider" }),

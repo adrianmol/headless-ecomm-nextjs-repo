@@ -84,8 +84,8 @@ async function settledRing(locator: Locator) {
 
 /** A real `<Button variant="default">`, for comparison. */
 async function defaultButton(page: Page) {
-  await page.goto("/cart");
-  const checkout = page.getByRole("link", { name: "Checkout" });
+  await page.goto("/cos");
+  const checkout = page.getByRole("link", { name: "Finalizeaza comanda" });
   await expect(checkout).toBeVisible();
   return checkout;
 }
@@ -94,13 +94,13 @@ test.describe("AddToCart matches a default Button", () => {
   test("resolved size, colour and layout tokens are identical", async ({
     page,
   }) => {
-    await page.goto("/products/merino-crew");
-    const add = page.getByRole("button", { name: "Add to basket" });
+    await page.goto("/produse/toner-compatibil-hp-35a-black-cb435a");
+    const add = page.getByRole("button", { name: "Adauga in cos" });
     await expect(add).toBeVisible();
     const addSnap = await snapshot(add);
 
     await add.click();
-    await expect(page.getByText("Added to your basket.")).toBeVisible();
+    await expect(page.getByText("Adaugat in cos.")).toBeVisible();
 
     const buttonSnap = await snapshot(await defaultButton(page));
 
@@ -130,11 +130,11 @@ test.describe("AddToCart matches a default Button", () => {
   test("the disabled state is really disabled and really dimmed", async ({
     page,
   }) => {
-    // oxford-shirt is out of stock in the mock, which is the only route to a
+    // toner-compatibil-hp-w1106a-black is out of stock in the mock, which is the only route to a
     // genuinely disabled AddToCart.
-    await page.goto("/products/oxford-shirt");
+    await page.goto("/produse/toner-compatibil-hp-w1106a-black");
 
-    const add = page.getByRole("button", { name: "Out of stock" });
+    const add = page.getByRole("button", { name: "Stoc epuizat" });
     await expect(add).toBeVisible();
     await expect(add).toBeDisabled();
 
@@ -154,8 +154,8 @@ test.describe("AddToCart matches a default Button", () => {
   test("keyboard focus draws the same ring as a default Button", async ({
     page,
   }) => {
-    await page.goto("/products/merino-crew");
-    const add = page.getByRole("button", { name: "Add to basket" });
+    await page.goto("/produse/toner-compatibil-hp-35a-black-cb435a");
+    const add = page.getByRole("button", { name: "Adauga in cos" });
     await expect(add).toBeVisible();
 
     // Tab to it rather than calling focus(): `:focus-visible` is about input
@@ -176,10 +176,10 @@ test.describe("AddToCart matches a default Button", () => {
     expect(addRing).not.toBe("none");
 
     // Activate from the keyboard too, both to stay in keyboard modality and
-    // because the basket must be non-empty for /cart to render a Checkout
+    // because the basket must be non-empty for /cos to render a checkout
     // button to compare against.
     await page.keyboard.press("Enter");
-    await expect(page.getByText("Added to your basket.")).toBeVisible();
+    await expect(page.getByText("Adaugat in cos.")).toBeVisible();
 
     const checkout = await defaultButton(page);
     await page.keyboard.press("Tab");

@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true },
 };
 
-type ParamsPromise = PageProps<"/orders/[id]">["params"];
+type ParamsPromise = PageProps<"/comenzi/[id]">["params"];
 
 /**
  * Reads order state from the backend, never from URL parameters or client
@@ -23,15 +23,15 @@ async function OrderDetail({ params }: { params: ParamsPromise }) {
   if (order.status !== "paid") {
     return (
       <div className="text-center">
-        <h1 className="text-2xl font-semibold">Payment not completed</h1>
+        <h1 className="text-2xl font-semibold">Plata nu a fost finalizata</h1>
         <p className="text-muted-foreground mt-3">
-          This order has not been paid for.
+          Aceasta comanda nu a fost platita.
         </p>
         <Link
-          href="/cart"
+          href="/cos"
           className="mt-6 inline-block underline underline-offset-4"
         >
-          Back to basket
+          Inapoi la cos
         </Link>
       </div>
     );
@@ -40,25 +40,25 @@ async function OrderDetail({ params }: { params: ParamsPromise }) {
   return (
     <div className="text-center">
       <h1 className="text-2xl font-semibold">
-        Thank you — your order is confirmed
+        Multumim — comanda ta este confirmata
       </h1>
       <p className="text-muted-foreground mt-3">
-        Order reference <span className="font-mono">{order.id}</span>
+        Numar comanda <span className="font-mono">{order.id}</span>
       </p>
       <p className="mt-6 text-lg font-medium tabular-nums">
         {formatMoney(order.total)}
       </p>
       <Link
-        href="/products"
+        href="/produse"
         className="mt-8 inline-block underline underline-offset-4"
       >
-        Continue shopping
+        Continua cumparaturile
       </Link>
     </div>
   );
 }
 
-export default function OrderPage({ params }: PageProps<"/orders/[id]">) {
+export default function OrderPage({ params }: PageProps<"/comenzi/[id]">) {
   return (
     <main className="mx-auto max-w-xl px-4 py-20">
       <Suspense

@@ -88,7 +88,7 @@ export function QuantityStepper({
           type="button"
           onClick={() => step(-1)}
           disabled={optimistic <= 0}
-          aria-label="Decrease quantity"
+          aria-label="Scade cantitatea"
           className="border-input hover:bg-accent focus-visible:ring-ring size-8 rounded-md border disabled:opacity-40 focus-visible:ring-2 focus-visible:outline-none"
         >
           −
@@ -97,7 +97,7 @@ export function QuantityStepper({
         {/* Announced politely: the value changes without the user moving focus. */}
         <output
           aria-live="polite"
-          aria-label="Quantity"
+          aria-label="Cantitate"
           className="w-10 text-center text-sm tabular-nums"
         >
           {optimistic}
@@ -107,7 +107,7 @@ export function QuantityStepper({
           type="button"
           onClick={() => step(1)}
           disabled={atMax}
-          aria-label="Increase quantity"
+          aria-label="Creste cantitatea"
           className="border-input hover:bg-accent focus-visible:ring-ring size-8 rounded-md border disabled:opacity-40 focus-visible:ring-2 focus-visible:outline-none"
         >
           +
@@ -117,22 +117,22 @@ export function QuantityStepper({
           className="text-muted-foreground ml-1 text-xs"
           aria-hidden={!pending}
         >
-          {pending ? "Saving…" : ""}
+          {pending ? "Se salveaza…" : ""}
         </span>
       </div>
 
       {feedback && feedback.status !== "ok" && (
         <p role="status" className="text-destructive mt-1 text-xs">
           {feedback.status === "out_of_stock" &&
-            `Only ${feedback.available} left — we adjusted the quantity.`}
+            `Au mai ramas doar ${feedback.available} bucati — am ajustat cantitatea.`}
           {feedback.status === "cart_expired" &&
-            "Your basket expired. Refresh the page to start again."}
+            "Cosul a expirat. Reincarca pagina pentru a incepe din nou."}
           {feedback.status === "price_changed" &&
-            "The price changed. Refresh to see the new total."}
+            "Pretul s-a schimbat. Reincarca pagina pentru noul total."}
           {feedback.status === "error" &&
             (feedback.retryable
-              ? "Something went wrong. Try again."
-              : "We could not update your basket.")}
+              ? "A aparut o eroare. Incearca din nou."
+              : "Nu am putut actualiza cosul.")}
         </p>
       )}
     </div>

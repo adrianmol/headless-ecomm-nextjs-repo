@@ -24,17 +24,15 @@ import Link from "next/link";
 export default function ProductNotFound() {
   return (
     <main className="mx-auto max-w-2xl px-4 py-20 text-center">
-      <h1 className="text-2xl font-semibold">
-        We couldn&apos;t find that product
-      </h1>
+      <h1 className="text-2xl font-semibold">Nu am gasit acest produs</h1>
       <p className="text-muted-foreground mt-3">
-        It may have been removed, or the link may be wrong.
+        Este posibil sa fi fost retras sau linkul sa fie gresit.
       </p>
       <Link
-        href="/products"
+        href="/produse"
         className="mt-6 inline-block underline underline-offset-4"
       >
-        Browse all products
+        Vezi tot catalogul
       </Link>
     </main>
   );

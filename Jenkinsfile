@@ -48,7 +48,7 @@ pipeline {
     ENV_FILE    = '/opt/headless-ecomm-flow/app.env'
 
     // Product used by the post-deploy smoke test. Must exist in the catalogue.
-    SMOKE_SLUG  = 'merino-crew'
+    SMOKE_SLUG  = 'toner-compatibil-hp-35a-black-cb435a'
   }
 
   stages {
@@ -208,7 +208,7 @@ EOF
           // vhost or an expired certificate fails the build rather than the
           // first customer.
           //
-          // Deliberately a PDP and not `/`. The homepage and /products are
+          // Deliberately a PDP and not `/`. The homepage and /produse are
           // prerendered into the image, so both return 200 even when the
           // commerce API is completely unreachable — a smoke test against them
           // passes while every real page is broken. The PDP streams
@@ -217,9 +217,9 @@ EOF
           sh '''
             set -eu
             body="$(ssh -o StrictHostKeyChecking=yes "$DEPLOY_USER@$DEPLOY_HOST" \
-              "curl -fsS --max-time 15 'https://$DEPLOY_HOST/products/$SMOKE_SLUG'")"
+              "curl -fsS --max-time 15 'https://$DEPLOY_HOST/produse/$SMOKE_SLUG'")"
 
-            if ! printf '%s' "$body" | grep -Eq 'In stock|Out of stock'; then
+            if ! printf '%s' "$body" | grep -Eq 'In stoc|Stoc limitat|Stoc epuizat'; then
               echo "SMOKE FAILED: PDP rendered no availability." >&2
               echo "The container is up but cannot reach COMMERCE_API_URL." >&2
               exit 1

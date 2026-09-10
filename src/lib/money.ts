@@ -1,3 +1,5 @@
+import { LOCALE } from "./locale";
+
 /**
  * Money is an integer count of minor units plus a currency code.
  *
@@ -78,8 +80,14 @@ export function sumMoney(items: readonly Money[], currency: string): Money {
  * Display only. Dividing by the minor-unit factor produces a float, which is
  * safe here because the value is immediately formatted and never fed back into
  * arithmetic.
+ *
+ * The default locale is the storefront's, not `en-US`. This is a single-locale
+ * shop, and an omitted argument used to render `RON 34.00` instead of
+ * `34,00 RON` — silently, on the cart, the checkout summary and the order
+ * confirmation. Defaulting to the storefront locale makes the correct output
+ * the one you get by forgetting; pass `locale` explicitly to override.
  */
-export function formatMoney(money: Money, locale = "en-US"): string {
+export function formatMoney(money: Money, locale = LOCALE): string {
   const exponent = minorUnitExponent(money.currency, locale);
   const major = money.amountMinor / 10 ** exponent;
   return new Intl.NumberFormat(locale, {

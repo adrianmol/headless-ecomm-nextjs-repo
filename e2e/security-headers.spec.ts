@@ -12,7 +12,12 @@ import { test, expect } from "./fixtures";
  */
 
 /** Every route class: static shell, PPR, dynamic handler. */
-const ROUTES = ["/", "/products", "/products/merino-crew", "/cart"];
+const ROUTES = [
+  "/",
+  "/produse",
+  "/produse/toner-compatibil-hp-35a-black-cb435a",
+  "/cos",
+];
 
 function directive(csp: string, name: string) {
   const found = csp

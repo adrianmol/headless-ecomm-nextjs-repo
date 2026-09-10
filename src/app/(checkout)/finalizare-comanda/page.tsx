@@ -5,11 +5,11 @@ import { getCart } from "@/commerce/cart/queries";
 import { startCheckoutAction } from "@/commerce/checkout/actions";
 import { getCartId } from "@/commerce/session";
 import { CheckoutForm } from "@/components/commerce/checkout-form";
-import { Price } from "@/components/commerce/price";
+import { CartTotals } from "@/components/commerce/cart-totals";
 import { formatMoney } from "@/lib/money";
 
 export const metadata: Metadata = {
-  title: "Checkout",
+  title: "Finalizare comanda",
   robots: { index: false, follow: false },
 };
 
@@ -21,13 +21,13 @@ async function CheckoutSummary() {
     return (
       <div className="py-16 text-center">
         <p className="text-muted-foreground">
-          Your basket is empty, so there is nothing to check out.
+          Cosul tau este gol, asa ca nu ai ce comanda.
         </p>
         <Link
-          href="/products"
+          href="/produse"
           className="mt-4 inline-block underline underline-offset-4"
         >
-          Browse products
+          Vezi produsele
         </Link>
       </div>
     );
@@ -36,12 +36,12 @@ async function CheckoutSummary() {
   return (
     <div className="grid gap-10 md:grid-cols-[1fr_20rem]">
       <section>
-        <h2 className="mb-4 text-sm font-medium">Delivery details</h2>
+        <h2 className="mb-4 text-sm font-medium">Date de livrare</h2>
         <CheckoutForm action={startCheckoutAction} />
       </section>
 
       <aside className="h-fit rounded-lg border p-5">
-        <h2 className="text-sm font-medium">Order summary</h2>
+        <h2 className="text-sm font-medium">Sumar comanda</h2>
         <ul className="mt-4 space-y-2">
           {cart.lines.map((line) => (
             <li key={line.id} className="flex justify-between gap-4 text-sm">
@@ -54,10 +54,9 @@ async function CheckoutSummary() {
             </li>
           ))}
         </ul>
-        <div className="mt-4 flex items-baseline justify-between border-t pt-4">
-          <span className="text-muted-foreground text-sm">Total</span>
-          {/* Server-rendered from the cart the backend just returned. */}
-          <Price price={cart.totals.total} />
+        {/* Server-rendered from the cart the backend just returned. */}
+        <div className="border-border mt-4 border-t pt-4">
+          <CartTotals totals={cart.totals} />
         </div>
       </aside>
     </div>
@@ -72,23 +71,25 @@ async function CheckoutSummary() {
 async function PaymentFailedNotice({
   searchParams,
 }: {
-  searchParams: PageProps<"/checkout">["searchParams"];
+  searchParams: PageProps<"/finalizare-comanda">["searchParams"];
 }) {
   const { error } = await searchParams;
   if (error !== "payment_failed") return null;
 
   return (
     <p role="alert" className="text-destructive mb-6 text-sm">
-      Your payment was not completed. Nothing has been charged — you can try
-      again below.
+      Plata nu a fost finalizata. Nu ti-a fost debitata nicio suma — poti
+      incerca din nou mai jos.
     </p>
   );
 }
 
-export default function CheckoutPage({ searchParams }: PageProps<"/checkout">) {
+export default function CheckoutPage({
+  searchParams,
+}: PageProps<"/finalizare-comanda">) {
   return (
     <main className="mx-auto max-w-5xl px-4 py-10">
-      <h1 className="mb-8 text-2xl font-semibold">Checkout</h1>
+      <h1 className="mb-8 text-2xl font-semibold">Finalizare comanda</h1>
 
       <Suspense fallback={null}>
         <PaymentFailedNotice searchParams={searchParams} />

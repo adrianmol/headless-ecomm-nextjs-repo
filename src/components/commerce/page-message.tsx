@@ -36,15 +36,15 @@ export function PageMessage({
       {children}
 
       <Link
-        href="/products"
+        href="/produse"
         className="focus-visible:ring-ring mt-8 rounded underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none"
       >
-        Browse all products
+        Vezi tot catalogul
       </Link>
 
       {reference && (
         <p className="text-muted-foreground mt-8 text-xs">
-          Reference: <span className="font-mono">{reference}</span>
+          Referinta: <span className="font-mono">{reference}</span>
         </p>
       )}
     </main>

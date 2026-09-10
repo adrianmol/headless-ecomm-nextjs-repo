@@ -1,82 +1,118 @@
 import { test, expect } from "./fixtures";
 
+/** A stable in-stock fixture from scripts/fixtures.mjs. */
+const PRODUCT_SLUG = "toner-compatibil-hp-35a-black-cb435a";
+const PRODUCT_NAME = /HP 35A Black/;
+
 test.describe("landing page", () => {
-  test("shows the hero and a catalogue preview", async ({ page }) => {
+  test("leads with the printer finder", async ({ page }) => {
     await page.goto("/");
 
     await expect(
-      page.getByRole("heading", { level: 1, name: /shop the collection/i }),
+      page.getByRole("heading", { level: 1, name: /consumabile compatibile/i }),
     ).toBeVisible();
 
-    // The products come from the real catalog query, not hardcoded copy. The
-    // heading must stay neutral: there is no `featured` flag in the contract, so
-    // "Featured" would claim curation the backend does not perform.
-    await expect(
-      page.getByRole("heading", { level: 2, name: "From the catalogue" }),
-    ).toBeVisible();
-    await expect(page.getByRole("link", { name: /Merino Crew/ })).toBeVisible();
+    // The finder is the primary entry point for this catalog: shoppers arrive
+    // knowing a printer, not a product.
+    await expect(page.getByLabel("Marca imprimantei")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Cauta" })).toBeVisible();
   });
 
-  test("the primary call to action reaches the listing", async ({ page }) => {
-    await page.goto("/");
-    await page.getByRole("link", { name: "Shop all products" }).click();
-
-    await expect(page).toHaveURL(/\/products$/);
-    await expect(
-      page.getByRole("heading", { level: 1, name: "All products" }),
-    ).toBeVisible();
-  });
-
-  test("a previewed product links through to its detail page", async ({
+  test("the model select is disabled until a brand is chosen", async ({
     page,
   }) => {
     await page.goto("/");
+
+    // The two-step finder depends on this: with no brand there are no models to
+    // offer, and an enabled-but-empty select would look broken.
+    await expect(page.getByLabel("Modelul")).toBeDisabled();
+  });
+
+  test("the finder navigates to a brand's compatibility page", async ({
+    page,
+  }) => {
+    await page.goto("/");
+
+    await page.getByLabel("Marca imprimantei").selectOption("brother");
+    await page.getByRole("button", { name: "Cauta" }).click();
+
+    // Proves the whole no-JavaScript path: GET form -> redirect handler ->
+    // canonical path URL.
+    await expect(page).toHaveURL(/\/compatibil\/brother$/);
+    await expect(
+      page.getByRole("heading", { level: 1, name: /imprimante Brother/i }),
+    ).toBeVisible();
+  });
+
+  test("the finder reaches a specific model in two steps", async ({ page }) => {
+    await page.goto("/compatibil/brother");
+
+    // On the brand page the model select is populated server-side.
+    await page.getByLabel("Modelul").selectOption("hl-2130");
+    await page.getByRole("button", { name: "Cauta" }).click();
+
+    await expect(page).toHaveURL(/\/compatibil\/brother\/hl-2130$/);
+    await expect(
+      page.getByRole("heading", { level: 1, name: /Brother HL-2130/i }),
+    ).toBeVisible();
+  });
+
+  test("category tiles reach a category listing", async ({ page }) => {
+    await page.goto("/");
+
     await page
-      .getByRole("link", { name: /Merino Crew/ })
+      .getByRole("link", { name: "Tonere", exact: true })
       .first()
       .click();
 
-    await expect(page).toHaveURL(/\/products\/merino-crew$/);
+    await expect(page).toHaveURL(/\/categorii\/tonere$/);
     await expect(
-      page.getByRole("button", { name: "Add to basket" }),
+      page.getByRole("heading", { level: 1, name: "Tonere" }),
     ).toBeVisible();
   });
 });
 
 test.describe("site header", () => {
-  test("navigates between Home, Products and Basket", async ({ page }) => {
+  test("navigates between the catalogue and the basket", async ({ page }) => {
     await page.goto("/");
-    const nav = page.getByRole("navigation", { name: "Main" });
+    const nav = page.getByRole("navigation", { name: "Principal" });
 
-    await nav.getByRole("link", { name: "Products" }).click();
-    await expect(page).toHaveURL(/\/products$/);
+    await nav.getByRole("link", { name: "Toate produsele" }).click();
+    await expect(page).toHaveURL(/\/produse$/);
 
-    await nav.getByRole("link", { name: "Basket" }).click();
-    await expect(page).toHaveURL(/\/cart$/);
+    await nav.getByRole("link", { name: "Cos" }).click();
+    await expect(page).toHaveURL(/\/cos$/);
     await expect(
-      page.getByRole("heading", { level: 1, name: "Basket" }),
+      page.getByRole("heading", { level: 1, name: "Cosul meu" }),
     ).toBeVisible();
+  });
 
-    await nav.getByRole("link", { name: "Home" }).click();
-    await expect(page).toHaveURL(/\/$/);
+  test("the category nav is present and links through", async ({ page }) => {
+    await page.goto("/");
+    const nav = page.getByRole("navigation", { name: "Categorii de produse" });
+
+    await nav.getByRole("link", { name: "Unitati cilindru" }).click();
+    await expect(page).toHaveURL(/\/categorii\/unitati-cilindru$/);
   });
 
   test("the skip link is first and actually moves focus past the nav", async ({
     page,
   }) => {
     // Without this, every keyboard user tabs the whole nav on every navigation.
-    await page.goto("/products");
+    await page.goto("/produse");
 
     // Wait for the streamed listing before touching the keyboard. The Suspense
     // fallback contains no focusable element, so tabbing past #content while it
     // is still showing moves focus out of the document entirely — which is what
     // made this test hang for 30 s rather than fail cleanly.
-    await expect(page.getByRole("link", { name: /Merino Crew/ })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: PRODUCT_NAME }).first(),
+    ).toBeVisible();
 
     await page.keyboard.press("Tab");
 
     const focused = page.locator(":focus");
-    await expect(focused).toHaveText("Skip to content");
+    await expect(focused).toHaveText("Sari la continut");
 
     await focused.press("Enter");
 
@@ -87,14 +123,9 @@ test.describe("site header", () => {
     await expect(page.locator("#content")).toBeFocused();
 
     // And that tabbing on from there enters the page, not the nav again.
-    //
-    // Asserted by containment rather than by comparing text. The previous
-    // version read `:focus` innerText and compared strings, which hung when
-    // nothing was focused and would have passed vacuously against an empty
-    // label. Containment answers the actual question: is focus still in the nav?
     await page.keyboard.press("Tab");
     const focusEscapedNav = await page.evaluate(() => {
-      const nav = document.querySelector('nav[aria-label="Main"]');
+      const nav = document.querySelector('nav[aria-label="Principal"]');
       const active = document.activeElement;
       return {
         hasFocus: active !== null && active !== document.body,
@@ -108,14 +139,19 @@ test.describe("site header", () => {
   test("is present on every customer-facing route", async ({ page }) => {
     for (const path of [
       "/",
-      "/products",
-      "/products/merino-crew",
-      "/cart",
-      "/checkout",
+      "/produse",
+      `/produse/${PRODUCT_SLUG}`,
+      "/categorii/tonere",
+      "/compatibil",
+      "/compatibil/brother",
+      "/compatibil/brother/hl-2130",
+      "/info/seap",
+      "/cos",
+      "/finalizare-comanda",
     ]) {
       await page.goto(path);
       await expect(
-        page.getByRole("navigation", { name: "Main" }),
+        page.getByRole("navigation", { name: "Principal" }),
         `header missing on ${path}`,
       ).toBeVisible();
     }
@@ -123,20 +159,21 @@ test.describe("site header", () => {
 });
 
 test.describe("route error state", () => {
-  // Requested twice in review and previously unaddressed. An error boundary is
-  // the one surface you cannot check by browsing, so without fault injection it
-  // is only ever exercised during a real incident.
+  // An error boundary is the one surface you cannot check by browsing, so
+  // without fault injection it is only ever exercised during a real incident.
   test("a failing live offer renders the error UI, not a blank page", async ({
     page,
   }) => {
     // The product resolves; its offer returns 500. That is the degraded-backend
     // shape: cached shell fine, request-time pricing unavailable.
-    await page.goto("/products/force-error");
+    await page.goto("/produse/force-error");
 
     await expect(
-      page.getByRole("heading", { level: 1, name: /something went wrong/i }),
+      page.getByRole("heading", { level: 1, name: /a aparut o eroare/i }),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Incearca din nou" }),
+    ).toBeVisible();
 
     // Must never surface backend prose to a customer.
     await expect(page.locator("body")).not.toContainText("injected fault");
@@ -144,13 +181,16 @@ test.describe("route error state", () => {
   });
 
   test("the error state offers a way out of the dead end", async ({ page }) => {
-    await page.goto("/products/force-error");
+    await page.goto("/produse/force-error");
     await expect(
-      page.getByRole("heading", { level: 1, name: /something went wrong/i }),
+      page.getByRole("heading", { level: 1, name: /a aparut o eroare/i }),
     ).toBeVisible();
 
-    await page.getByRole("link", { name: /browse all products/i }).click();
-    await expect(page).toHaveURL(/\/products$/);
+    await page
+      .getByRole("link", { name: /vezi tot catalogul/i })
+      .first()
+      .click();
+    await expect(page).toHaveURL(/\/produse$/);
   });
 });
 
@@ -160,11 +200,11 @@ test.describe("global not-found", () => {
 
     expect(response?.status()).toBe(404);
     await expect(
-      page.getByRole("heading", { level: 1, name: /couldn't find that page/i }),
+      page.getByRole("heading", { level: 1, name: /nu am gasit aceasta/i }),
     ).toBeVisible();
     // Still navigable rather than a dead end.
     await expect(
-      page.getByRole("link", { name: "Browse all products" }),
+      page.getByRole("link", { name: "Vezi tot catalogul" }).first(),
     ).toBeVisible();
   });
 });

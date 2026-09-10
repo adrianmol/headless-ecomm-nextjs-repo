@@ -9,8 +9,8 @@ import { probeCommerceApi } from "@/commerce/health";
  * unreachable commerce API, so the two must not share an endpoint.
  *
  * **This is the check the delivery pipeline currently lacks.** Measured on
- * 2026-09-04 with the commerce API stopped: `/`, `/products` and
- * `/products/merino-crew` all returned 200, because the catalog shell is
+ * 2026-09-04 with the commerce API stopped: `/`, `/produse` and
+ * `/produse/toner-compatibil-hp-35a-black-cb435a` all returned 200, because the catalog shell is
  * prerendered. The container HEALTHCHECK, `deploy/deploy.sh`'s rollback gate and
  * the Jenkins post-deploy smoke test all target those URLs, so a storefront
  * deployed with a wrong `COMMERCE_API_URL` reports a successful deploy. Pointing

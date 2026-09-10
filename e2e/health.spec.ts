@@ -60,8 +60,8 @@ test.describe("health endpoints", () => {
     // The distinction the pipeline needs. Asserted structurally here: liveness
     // returns a fixed body with no dependency section at all, so it cannot fail
     // for a reason a restart would not fix. Proven by measurement rather than
-    // inference: with the commerce API stopped on 2026-09-04, `/`, `/products`
-    // and `/products/merino-crew` all still returned 200, which is why the
+    // inference: with the commerce API stopped on 2026-09-04, `/`, `/produse`
+    // and `/produse/toner-compatibil-hp-35a-black-cb435a` all still returned 200, which is why the
     // pipeline could not detect an unreachable backend.
     const live = await (await request.get("/health")).json();
     const ready = await (await request.get("/health/ready")).json();

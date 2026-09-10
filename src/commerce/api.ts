@@ -11,7 +11,60 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description Faceted catalog listing. Filters are AND-combined across keys and
+         *     OR-combined within a key, which is the behaviour a facet panel implies:
+         *     ticking two brands widens, ticking a brand and a kind narrows.
+         *
+         *     `brand` + `model` together are how a shopper finds the consumable that
+         *     fits their printer — the single most important query this shop serves.
+         *     They filter on the `compatibility` of the product, not on its own
+         *     manufacturer; see `Compatibility`.
+         */
         get: operations["listProducts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/compat/brands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Printer manufacturers this catalog carries consumables for. Small and
+         *     near-static, so the storefront caches it hard and renders the finder
+         *     without a round trip.
+         */
+        get: operations["listPrinterBrands"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/compat/brands/{brand}/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Printer models for one brand, for the second step of the finder.
+         *     Separate from `/compat/brands` so the payload stays small: shipping every
+         *     model of every brand up front would be a large download to support one
+         *     dropdown.
+         */
+        get: operations["listPrinterModels"];
         put?: never;
         post?: never;
         delete?: never;
@@ -53,6 +106,35 @@ export interface paths {
          *     product content so a cached PDP shell can never serve a stale price.
          */
         get: operations["getOffer"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Live prices and availability for several products at once.
+         *
+         *     Exists so a listing page can show prices without giving up its cache.
+         *     The product grid is cached for hours; offers must never be. Fetching
+         *     them per card would mean one uncached round trip per product, so the
+         *     storefront issues exactly one batched call per listing page and streams
+         *     the result into the already-rendered grid behind `<Suspense>`.
+         *
+         *     Unknown slugs are omitted rather than erroring: a product deleted
+         *     between the cached listing and this call is an ordinary race, and it
+         *     must not blank the prices of every other product on the page.
+         */
+        get: operations["listOffers"];
         put?: never;
         post?: never;
         delete?: never;
@@ -213,11 +295,82 @@ export interface components {
             width: number;
             height: number;
         };
+        /**
+         * @description What the consumable physically is. Drives category navigation and is a
+         *     facet. `other` exists so an unrecognised backend value degrades to a
+         *     listable product rather than breaking the catalog.
+         * @enum {string}
+         */
+        ProductKind: "toner" | "inkjet" | "drum" | "fuser" | "waste" | "roller" | "other";
+        /**
+         * @description `none` for items that have no colour at all (fuser units, rollers, waste
+         *     containers) — distinct from an unknown or absent colour.
+         * @enum {string}
+         */
+        ProductColor: "black" | "cyan" | "magenta" | "yellow" | "tricolor" | "none";
+        /** @description A printer manufacturer, e.g. Brother, HP, Kyocera. */
+        PrinterBrand: {
+            /** @description URL-safe identifier */
+            slug: string;
+            name: string;
+            productCount?: number;
+        };
+        /** @description A printer model within a brand, e.g. HL-2130. */
+        PrinterModel: {
+            slug: string;
+            name: string;
+            productCount?: number;
+        };
+        /**
+         * @description One printer brand and the models of it this consumable fits. A product
+         *     carries several of these, because a single cartridge typically fits
+         *     dozens of models and occasionally more than one brand.
+         *
+         *     This is the field that makes the shop usable: it is what `brand`/`model`
+         *     on `/products` filter against, and what the PDP prints so a buyer can
+         *     confirm the part fits before ordering.
+         */
+        Compatibility: {
+            printerBrand: components["schemas"]["PrinterBrand"];
+            printerModels: components["schemas"]["PrinterModel"][];
+        };
+        /**
+         * @description Consumable specifications. Every field is optional because the catalog
+         *     mixes categories: a fuser unit has no page yield or colour, and a
+         *     third-party cartridge may have no OEM code at all.
+         */
+        ProductAttributes: {
+            color?: components["schemas"]["ProductColor"];
+            /**
+             * @description Rated page yield at the industry standard coverage (ISO/IEC 19752 for
+             *     mono toner, 24711 for inkjet). The headline number on every listing —
+             *     price per page is how these products are actually compared.
+             */
+            yieldPages?: number;
+            /**
+             * @description Original manufacturer part codes this item replaces, e.g.
+             *     ["CB435A", "35A"]. Buyers search by these, so they are matched
+             *     against and displayed verbatim — never normalised or prettified.
+             */
+            oemCodes?: string[];
+            /** @description Who made this consumable (G&G, INTEGRAL, CET, HYB…). */
+            manufacturer?: string;
+            /**
+             * @description True for genuine OEM stock, false for a compatible equivalent.
+             *     Supplied explicitly by the backend and never inferred from the title:
+             *     selling a compatible cartridge as original is a consumer-protection
+             *     problem, not a display detail.
+             */
+            isOriginal?: boolean;
+        };
         Product: {
             id: string;
             slug: string;
             title: string;
             description?: string;
+            kind?: components["schemas"]["ProductKind"];
+            attributes?: components["schemas"]["ProductAttributes"];
+            compatibility?: components["schemas"]["Compatibility"][];
             images: components["schemas"]["Image"][];
             variants: components["schemas"]["Variant"][];
         };
@@ -225,20 +378,95 @@ export interface components {
             id: string;
             title: string;
         };
+        FacetValue: {
+            /** @description The value to send back as a query parameter. */
+            value: string;
+            /**
+             * @description Display text, supplied by the backend rather than derived from
+             *     `value`. The storefront must not map codes to Romanian prose itself:
+             *     that mapping would silently go stale as the catalog grows.
+             */
+            label: string;
+            count: number;
+        };
+        Facet: {
+            /**
+             * @description The `/products` query parameter this facet drives.
+             * @enum {string}
+             */
+            key: "brand" | "model" | "kind" | "manufacturer" | "color";
+            label: string;
+            values: components["schemas"]["FacetValue"][];
+        };
         ProductPage: {
             items: components["schemas"]["Product"][];
             /** @description Cursor pagination; offsets duplicate rows under concurrent writes. */
             nextCursor?: string | null;
+            /** @description Total matches for the filter, not the size of this page. */
+            total?: number;
+            /**
+             * @description Available refinements for the current filter, with counts computed
+             *     against it. Counts are catalog data and must never depend on the
+             *     session, or a per-visitor number would land in a shared cache.
+             */
+            facets?: components["schemas"]["Facet"][];
         };
         Availability: {
             inStock: boolean;
             quantity: number;
         };
+        /**
+         * @description One quantity break. `unitPrice` is the VAT-inclusive price each unit costs
+         *     once `minQuantity` is reached — already computed by the backend, never a
+         *     percentage the storefront applies.
+         */
+        PriceTier: {
+            minQuantity: number;
+            unitPrice: components["schemas"]["Money"];
+            unitPriceExVat?: components["schemas"]["Money"];
+        };
+        /**
+         * @description Price and availability for one variant.
+         *
+         *     **Both VAT figures are supplied by the backend.** The storefront never
+         *     derives one from the other, even though the rate is right there. Applying
+         *     a rate means multiplying money by a fraction, which requires a rounding
+         *     policy — and `src/lib/money.ts` refuses fractional multipliers precisely
+         *     so that policy cannot be invented at the render edge. In Romania the
+         *     ex-VAT figure is what B2B buyers compare and what appears on the invoice,
+         *     so a storefront-side rounding error is a billing discrepancy, not a
+         *     cosmetic one.
+         */
         Offer: {
             variantId: string;
+            /** @description VAT-inclusive unit price. The headline figure. */
             price: components["schemas"]["Money"];
+            /** @description VAT-exclusive unit price, for business buyers. */
+            priceExVat: components["schemas"]["Money"];
+            /**
+             * @description VAT rate in basis points (1900 = 19%). Integer, so the rate itself is
+             *     exact. Present for display and invoicing, NOT so the client can
+             *     compute the other price.
+             */
+            vatRate: number;
             compareAtPrice?: components["schemas"]["Money"];
+            /**
+             * @description Quantity breaks, ascending by `minQuantity`. Display-only in the
+             *     storefront: what a customer is charged comes from the cart response,
+             *     never from re-applying a tier client-side.
+             */
+            priceTiers?: components["schemas"]["PriceTier"][];
             availability: components["schemas"]["Availability"];
+        };
+        /**
+         * @description An offer tagged with the slug it belongs to. The pairing is explicit
+         *     rather than positional, because the response omits slugs that did not
+         *     resolve and an index-based mapping would then silently attach prices to
+         *     the wrong products.
+         */
+        OfferListItem: {
+            slug: string;
+            offer: components["schemas"]["Offer"];
         };
         CartLine: {
             id: string;
@@ -332,6 +560,20 @@ export interface operations {
                 category?: string;
                 cursor?: string;
                 limit?: number;
+                /** @description Printer manufacturer the consumable must be compatible with. */
+                brand?: string;
+                /**
+                 * @description Printer model the consumable must be compatible with. Only meaningful
+                 *     alongside `brand`: model designations are not unique across brands.
+                 */
+                model?: string;
+                kind?: components["schemas"]["ProductKind"];
+                /** @description Who made the consumable (G&G, INTEGRAL, CET…), not the printer brand. */
+                manufacturer?: string;
+                color?: components["schemas"]["ProductColor"];
+                /** @description When true, exclude products with no available stock. */
+                inStock?: boolean;
+                sort?: "relevance" | "price_asc" | "price_desc" | "yield_desc";
             };
             header?: never;
             path?: never;
@@ -348,6 +590,55 @@ export interface operations {
                     "application/json": components["schemas"]["ProductPage"];
                 };
             };
+            default: components["responses"]["Error"];
+        };
+    };
+    listPrinterBrands: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Printer brands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["PrinterBrand"][];
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listPrinterModels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                brand: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Printer models. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["PrinterModel"][];
+                    };
+                };
+            };
+            404: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };
@@ -396,6 +687,32 @@ export interface operations {
                 };
             };
             404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    listOffers: {
+        parameters: {
+            query: {
+                /** @description Comma-separated product slugs. Capped to protect the backend. */
+                slugs: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Offers for the slugs that resolved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["OfferListItem"][];
+                    };
+                };
+            };
             default: components["responses"]["Error"];
         };
     };

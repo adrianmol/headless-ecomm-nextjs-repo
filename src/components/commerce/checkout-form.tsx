@@ -55,7 +55,7 @@ function SubmitButton() {
       disabled={pending}
       aria-busy={pending}
     >
-      {pending ? "Redirecting to payment…" : "Continue to payment"}
+      {pending ? "Se redirectioneaza…" : "Continua spre plata"}
     </Button>
   );
 }
@@ -87,13 +87,13 @@ export function CheckoutForm({
       {state.status !== "idle" && state.status !== "invalid" && (
         <p role="alert" className="text-destructive text-sm">
           {state.status === "empty" &&
-            "Your basket is empty or has expired. Add something to it and try again."}
+            "Cosul este gol sau a expirat. Adauga produse si incearca din nou."}
           {state.status === "out_of_stock" &&
-            "Something in your basket just sold out. Review it and try again."}
+            "Un produs din cos tocmai s-a epuizat. Verifica cosul si incearca din nou."}
           {state.status === "price_changed" &&
             "A price changed while you were checking out. Review your basket to see the new total before paying."}
           {state.status === "error" &&
-            "We could not start checkout. Please try again."}
+            "Nu am putut incepe finalizarea comenzii. Incearca din nou."}
         </p>
       )}
 
@@ -106,31 +106,31 @@ export function CheckoutForm({
       />
       <Field
         name="name"
-        label="Full name"
+        label="Nume complet"
         autoComplete="name"
         error={errors.name}
       />
       <Field
         name="line1"
-        label="Address"
+        label="Adresa"
         autoComplete="address-line1"
         error={errors.line1}
       />
       <Field
         name="city"
-        label="City"
+        label="Oras"
         autoComplete="address-level2"
         error={errors.city}
       />
       <Field
         name="postcode"
-        label="Postcode"
+        label="Cod postal"
         autoComplete="postal-code"
         error={errors.postcode}
       />
       <Field
         name="country"
-        label="Country code"
+        label="Cod tara"
         autoComplete="country"
         error={errors.country}
       />

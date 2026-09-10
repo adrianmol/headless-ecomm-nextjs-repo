@@ -2,7 +2,7 @@
 
 **Status:** Accepted (draft implementation not started)
 **Owner:** Frontend
-**Last reviewed:** 2026-09-03
+**Last reviewed:** 2026-09-10
 
 ## Locked decisions
 
@@ -16,6 +16,8 @@
 | Auth               | Session cookie issued by the internal API, forwarded first-party | —                                                    |
 | Payments           | Hosted redirect (PSP-hosted checkout)                            | —                                                    |
 | Styling            | Tailwind + shadcn/ui                                             | —                                                    |
+| Domain             | Printer consumables; faceted catalog, backend-supplied VAT       | [ADR-0004](adr/0004-consumables-domain-model.md)     |
+| Locale             | Romanian only, RON. No locale routing.                           | [redesign-reprint.md](redesign-reprint.md)           |
 
 ## 1. Topology
 
@@ -55,12 +57,15 @@ frontend availability. Rationale and rejected alternatives: [ADR-0001](adr/0001-
 src/
   app/                      # routing + composition ONLY, no business logic
     (catalog)/
-      products/page.tsx             # PLP
-      products/[slug]/page.tsx      # PDP
+      _listing/product-listing.tsx  # shared faceted listing (private folder)
+      produse/page.tsx              # PLP
+      produse/[slug]/page.tsx       # PDP
+      categorii/[slug]/page.tsx     # one consumable kind
+      compatibil/[brand]/[model]/   # consumables fitting one printer
     (checkout)/
-      cart/page.tsx
-      checkout/page.tsx
-      checkout/return/route.ts      # PSP return handler
+      cos/page.tsx
+      finalizare-comanda/page.tsx
+      finalizare-comanda/return/route.ts   # PSP return handler
   commerce/                 # the data layer
     client.ts               # typed client factory, `import 'server-only'`
     session.ts              # cookie read / forward / set
@@ -192,11 +197,18 @@ through it.
 
 Measured app-owned JS, i.e. everything above the 131 kB framework floor:
 
-| Route              | Total  | App-owned |
-| ------------------ | ------ | --------- |
-| `/products`        | 139 kB | +8 kB     |
-| `/cart`            | 136 kB | +5 kB     |
-| `/products/[slug]` | 152 kB | +21 kB    |
+Measured 2026-09-10 on the consumables build, as gzipped transfer of all page JS:
+
+| Route                         | Total    |
+| ----------------------------- | -------- |
+| `/`, `/compatibil`, `/cos`    | 144.4 kB |
+| `/produse`                    | 151.5 kB |
+| `/produse/[slug]`             | 151.5 kB |
+| `/compatibil/[brand]/[model]` | 151.5 kB |
+
+The catalog redesign added no client JavaScript: the printer finder and the facet panel are plain
+forms and links rather than islands, so the worst route is unchanged from the pre-redesign PDP even
+though there are now four more catalog route families.
 
 When re-measuring, exclude `<script noModule>`: that is the legacy polyfill bundle (~39 kB) and no
 modern browser downloads it. Counting it inflates every figure by a third.

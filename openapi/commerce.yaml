@@ -36,18 +36,105 @@ paths:
     get:
       operationId: listProducts
       tags: [catalog]
+      description: |
+        Faceted catalog listing. Filters are AND-combined across keys and
+        OR-combined within a key, which is the behaviour a facet panel implies:
+        ticking two brands widens, ticking a brand and a kind narrows.
+
+        `brand` + `model` together are how a shopper finds the consumable that
+        fits their printer — the single most important query this shop serves.
+        They filter on the `compatibility` of the product, not on its own
+        manufacturer; see `Compatibility`.
       parameters:
         - { name: category, in: query, schema: { type: string } }
         - { name: cursor, in: query, schema: { type: string } }
         - name: limit
           in: query
           schema: { type: integer, minimum: 1, maximum: 100, default: 24 }
+        - name: brand
+          in: query
+          description: Printer manufacturer the consumable must be compatible with.
+          schema: { type: string }
+        - name: model
+          in: query
+          description: |
+            Printer model the consumable must be compatible with. Only meaningful
+            alongside `brand`: model designations are not unique across brands.
+          schema: { type: string }
+        - name: kind
+          in: query
+          schema: { $ref: "#/components/schemas/ProductKind" }
+        - name: manufacturer
+          in: query
+          description: Who made the consumable (G&G, INTEGRAL, CET…), not the printer brand.
+          schema: { type: string }
+        - name: color
+          in: query
+          schema: { $ref: "#/components/schemas/ProductColor" }
+        - name: inStock
+          in: query
+          description: When true, exclude products with no available stock.
+          schema: { type: boolean }
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [relevance, price_asc, price_desc, yield_desc]
+            default: relevance
       responses:
         "200":
           description: A page of products.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ProductPage" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /compat/brands:
+    get:
+      operationId: listPrinterBrands
+      tags: [catalog]
+      description: |
+        Printer manufacturers this catalog carries consumables for. Small and
+        near-static, so the storefront caches it hard and renders the finder
+        without a round trip.
+      responses:
+        "200":
+          description: Printer brands.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/PrinterBrand" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /compat/brands/{brand}/models:
+    get:
+      operationId: listPrinterModels
+      tags: [catalog]
+      description: |
+        Printer models for one brand, for the second step of the finder.
+        Separate from `/compat/brands` so the payload stays small: shipping every
+        model of every brand up front would be a large download to support one
+        dropdown.
+      parameters:
+        - { name: brand, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Printer models.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/PrinterModel" }
+        "404": { $ref: "#/components/responses/Error" }
         default: { $ref: "#/components/responses/Error" }
 
   /products/{slug}:
@@ -85,6 +172,42 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Offer" }
         "404": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /offers:
+    get:
+      operationId: listOffers
+      tags: [catalog]
+      description: |
+        Live prices and availability for several products at once.
+
+        Exists so a listing page can show prices without giving up its cache.
+        The product grid is cached for hours; offers must never be. Fetching
+        them per card would mean one uncached round trip per product, so the
+        storefront issues exactly one batched call per listing page and streams
+        the result into the already-rendered grid behind `<Suspense>`.
+
+        Unknown slugs are omitted rather than erroring: a product deleted
+        between the cached listing and this call is an ordinary race, and it
+        must not blank the prices of every other product on the page.
+      parameters:
+        - name: slugs
+          in: query
+          required: true
+          description: Comma-separated product slugs. Capped to protect the backend.
+          schema: { type: string, maxLength: 4000 }
+      responses:
+        "200":
+          description: Offers for the slugs that resolved.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/OfferListItem" }
         default: { $ref: "#/components/responses/Error" }
 
   /carts:
@@ -306,6 +429,90 @@ components:
         width: { type: integer }
         height: { type: integer }
 
+    ProductKind:
+      type: string
+      enum: [toner, inkjet, drum, fuser, waste, roller, other]
+      description: |
+        What the consumable physically is. Drives category navigation and is a
+        facet. `other` exists so an unrecognised backend value degrades to a
+        listable product rather than breaking the catalog.
+
+    ProductColor:
+      type: string
+      enum: [black, cyan, magenta, yellow, tricolor, none]
+      description: |
+        `none` for items that have no colour at all (fuser units, rollers, waste
+        containers) — distinct from an unknown or absent colour.
+
+    PrinterBrand:
+      type: object
+      required: [slug, name]
+      description: A printer manufacturer, e.g. Brother, HP, Kyocera.
+      properties:
+        slug:
+          { type: string, description: URL-safe identifier, e.g. `brother`. }
+        name: { type: string }
+        productCount: { type: integer, minimum: 0 }
+
+    PrinterModel:
+      type: object
+      required: [slug, name]
+      description: A printer model within a brand, e.g. HL-2130.
+      properties:
+        slug: { type: string }
+        name: { type: string }
+        productCount: { type: integer, minimum: 0 }
+
+    Compatibility:
+      type: object
+      required: [printerBrand, printerModels]
+      description: |
+        One printer brand and the models of it this consumable fits. A product
+        carries several of these, because a single cartridge typically fits
+        dozens of models and occasionally more than one brand.
+
+        This is the field that makes the shop usable: it is what `brand`/`model`
+        on `/products` filter against, and what the PDP prints so a buyer can
+        confirm the part fits before ordering.
+      properties:
+        printerBrand: { $ref: "#/components/schemas/PrinterBrand" }
+        printerModels:
+          type: array
+          items: { $ref: "#/components/schemas/PrinterModel" }
+
+    ProductAttributes:
+      type: object
+      description: |
+        Consumable specifications. Every field is optional because the catalog
+        mixes categories: a fuser unit has no page yield or colour, and a
+        third-party cartridge may have no OEM code at all.
+      properties:
+        color: { $ref: "#/components/schemas/ProductColor" }
+        yieldPages:
+          type: integer
+          minimum: 0
+          description: |
+            Rated page yield at the industry standard coverage (ISO/IEC 19752 for
+            mono toner, 24711 for inkjet). The headline number on every listing —
+            price per page is how these products are actually compared.
+        oemCodes:
+          type: array
+          description: |
+            Original manufacturer part codes this item replaces, e.g.
+            ["CB435A", "35A"]. Buyers search by these, so they are matched
+            against and displayed verbatim — never normalised or prettified.
+          items: { type: string }
+        manufacturer:
+          type: string
+          description: Who made this consumable (G&G, INTEGRAL, CET, HYB…).
+        isOriginal:
+          type: boolean
+          description: |
+            True for genuine OEM stock, false for a compatible equivalent.
+            Supplied explicitly by the backend and never inferred from the title:
+            selling a compatible cartridge as original is a consumer-protection
+            problem, not a display detail.
+
     Product:
       type: object
       required: [id, slug, title, images, variants]
@@ -314,6 +521,11 @@ components:
         slug: { type: string }
         title: { type: string }
         description: { type: string }
+        kind: { $ref: "#/components/schemas/ProductKind" }
+        attributes: { $ref: "#/components/schemas/ProductAttributes" }
+        compatibility:
+          type: array
+          items: { $ref: "#/components/schemas/Compatibility" }
         images:
           type: array
           items: { $ref: "#/components/schemas/Image" }
@@ -328,6 +540,34 @@ components:
         id: { type: string }
         title: { type: string }
 
+    FacetValue:
+      type: object
+      required: [value, label, count]
+      properties:
+        value:
+          type: string
+          description: The value to send back as a query parameter.
+        label:
+          type: string
+          description: |
+            Display text, supplied by the backend rather than derived from
+            `value`. The storefront must not map codes to Romanian prose itself:
+            that mapping would silently go stale as the catalog grows.
+        count: { type: integer, minimum: 0 }
+
+    Facet:
+      type: object
+      required: [key, label, values]
+      properties:
+        key:
+          type: string
+          description: The `/products` query parameter this facet drives.
+          enum: [brand, model, kind, manufacturer, color]
+        label: { type: string }
+        values:
+          type: array
+          items: { $ref: "#/components/schemas/FacetValue" }
+
     ProductPage:
       type: object
       required: [items]
@@ -338,6 +578,17 @@ components:
         nextCursor:
           type: [string, "null"]
           description: Cursor pagination; offsets duplicate rows under concurrent writes.
+        total:
+          type: integer
+          minimum: 0
+          description: Total matches for the filter, not the size of this page.
+        facets:
+          type: array
+          description: |
+            Available refinements for the current filter, with counts computed
+            against it. Counts are catalog data and must never depend on the
+            session, or a per-visitor number would land in a shared cache.
+          items: { $ref: "#/components/schemas/Facet" }
 
     Availability:
       type: object
@@ -346,14 +597,68 @@ components:
         inStock: { type: boolean }
         quantity: { type: integer, minimum: 0 }
 
+    PriceTier:
+      type: object
+      required: [minQuantity, unitPrice]
+      description: |
+        One quantity break. `unitPrice` is the VAT-inclusive price each unit costs
+        once `minQuantity` is reached — already computed by the backend, never a
+        percentage the storefront applies.
+      properties:
+        minQuantity: { type: integer, minimum: 2 }
+        unitPrice: { $ref: "#/components/schemas/Money" }
+        unitPriceExVat: { $ref: "#/components/schemas/Money" }
+
     Offer:
       type: object
-      required: [variantId, price, availability]
+      required: [variantId, price, priceExVat, vatRate, availability]
+      description: |
+        Price and availability for one variant.
+
+        **Both VAT figures are supplied by the backend.** The storefront never
+        derives one from the other, even though the rate is right there. Applying
+        a rate means multiplying money by a fraction, which requires a rounding
+        policy — and `src/lib/money.ts` refuses fractional multipliers precisely
+        so that policy cannot be invented at the render edge. In Romania the
+        ex-VAT figure is what B2B buyers compare and what appears on the invoice,
+        so a storefront-side rounding error is a billing discrepancy, not a
+        cosmetic one.
       properties:
         variantId: { type: string }
-        price: { $ref: "#/components/schemas/Money" }
+        price:
+          allOf: [{ $ref: "#/components/schemas/Money" }]
+          description: VAT-inclusive unit price. The headline figure.
+        priceExVat:
+          allOf: [{ $ref: "#/components/schemas/Money" }]
+          description: VAT-exclusive unit price, for business buyers.
+        vatRate:
+          type: integer
+          minimum: 0
+          description: |
+            VAT rate in basis points (1900 = 19%). Integer, so the rate itself is
+            exact. Present for display and invoicing, NOT so the client can
+            compute the other price.
         compareAtPrice: { $ref: "#/components/schemas/Money" }
+        priceTiers:
+          type: array
+          description: |
+            Quantity breaks, ascending by `minQuantity`. Display-only in the
+            storefront: what a customer is charged comes from the cart response,
+            never from re-applying a tier client-side.
+          items: { $ref: "#/components/schemas/PriceTier" }
         availability: { $ref: "#/components/schemas/Availability" }
+
+    OfferListItem:
+      type: object
+      required: [slug, offer]
+      description: |
+        An offer tagged with the slug it belongs to. The pairing is explicit
+        rather than positional, because the response omits slugs that did not
+        resolve and an index-based mapping would then silently attach prices to
+        the wrong products.
+      properties:
+        slug: { type: string }
+        offer: { $ref: "#/components/schemas/Offer" }
 
     CartLine:
       type: object

@@ -18,9 +18,13 @@ async function scan(page: import("@playwright/test").Page) {
 test.describe("accessibility", () => {
   test("landing page", async ({ page }) => {
     await page.goto("/");
-    // Waits for the streamed catalogue preview, so axe scans the settled page.
+    // Waits for the streamed brand list, so axe scans the settled page rather
+    // than a set of skeletons.
     await expect(
-      page.getByRole("heading", { level: 2, name: "From the catalogue" }),
+      page.getByRole("heading", { level: 2, name: "Marci de imprimante" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Brother", exact: true }),
     ).toBeVisible();
     expect((await scan(page)).violations).toEqual([]);
   });
@@ -34,66 +38,70 @@ test.describe("accessibility", () => {
   test("route error state", async ({ page }) => {
     // Error pages are routinely the least accessible surface in an app, because
     // nobody looks at them.
-    await page.goto("/products/force-error");
+    await page.goto("/produse/force-error");
     await expect(
-      page.getByRole("heading", { level: 1, name: /something went wrong/i }),
+      page.getByRole("heading", { level: 1, name: /a aparut o eroare/i }),
     ).toBeVisible();
     expect((await scan(page)).violations).toEqual([]);
   });
 
   test("product listing", async ({ page }) => {
-    await page.goto("/products");
+    await page.goto("/produse");
     await expect(
-      page.getByRole("heading", { name: "All products" }),
+      page.getByRole("heading", { name: "Toate produsele" }),
     ).toBeVisible();
     // The heading lives in the prerendered shell, so waiting on it alone lets
     // axe scan while the grid is still the Suspense skeleton — which made this
     // test intermittent and, when it did catch the skeleton, correct: the
     // fallback had a real contrast failure. Wait for streamed content so the
     // scan covers the settled page deterministically.
-    await expect(page.getByRole("link", { name: /Merino Crew/ })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: /HP 35A Black/ }).first(),
+    ).toBeVisible();
     expect((await scan(page)).violations).toEqual([]);
   });
 
   test("product detail, after price has streamed in", async ({ page }) => {
-    await page.goto("/products/merino-crew");
+    await page.goto("/produse/toner-compatibil-hp-35a-black-cb435a");
     // Scanning before the streamed offer arrives would miss the add-to-cart
     // control entirely, which is the most interactive thing on the page.
     await expect(
-      page.getByRole("button", { name: "Add to basket" }),
+      page.getByRole("button", { name: "Adauga in cos" }),
     ).toBeVisible();
     expect((await scan(page)).violations).toEqual([]);
   });
 
   test("basket with a line in it", async ({ page }) => {
-    await page.goto("/products/merino-crew");
-    await page.getByRole("button", { name: "Add to basket" }).click();
-    await expect(page.getByText("Added to your basket.")).toBeVisible();
+    await page.goto("/produse/toner-compatibil-hp-35a-black-cb435a");
+    await page.getByRole("button", { name: "Adauga in cos" }).click();
+    await expect(page.getByText("Adaugat in cos.")).toBeVisible();
 
-    await page.goto("/cart");
-    await expect(page.getByRole("status", { name: "Quantity" })).toBeVisible();
+    await page.goto("/cos");
+    await expect(page.getByRole("status", { name: "Cantitate" })).toBeVisible();
     expect((await scan(page)).violations).toEqual([]);
   });
 
   test("checkout form", async ({ page }) => {
-    await page.goto("/products/merino-crew");
-    await page.getByRole("button", { name: "Add to basket" }).click();
-    await expect(page.getByText("Added to your basket.")).toBeVisible();
+    await page.goto("/produse/toner-compatibil-hp-35a-black-cb435a");
+    await page.getByRole("button", { name: "Adauga in cos" }).click();
+    await expect(page.getByText("Adaugat in cos.")).toBeVisible();
 
-    await page.goto("/checkout");
+    await page.goto("/finalizare-comanda");
     await expect(page.getByLabel("Email")).toBeVisible();
     expect((await scan(page)).violations).toEqual([]);
   });
 
   test("checkout form with validation errors showing", async ({ page }) => {
     // Error states are where labelling and aria-describedby usually break.
-    await page.goto("/products/merino-crew");
-    await page.getByRole("button", { name: "Add to basket" }).click();
-    await expect(page.getByText("Added to your basket.")).toBeVisible();
+    await page.goto("/produse/toner-compatibil-hp-35a-black-cb435a");
+    await page.getByRole("button", { name: "Adauga in cos" }).click();
+    await expect(page.getByText("Adaugat in cos.")).toBeVisible();
 
-    await page.goto("/checkout");
-    await page.getByRole("button", { name: "Continue to payment" }).click();
-    await expect(page.getByText("Enter a valid email address")).toBeVisible();
+    await page.goto("/finalizare-comanda");
+    await page.getByRole("button", { name: "Continua spre plata" }).click();
+    await expect(
+      page.getByText("Introdu o adresa de email valida"),
+    ).toBeVisible();
 
     expect((await scan(page)).violations).toEqual([]);
   });

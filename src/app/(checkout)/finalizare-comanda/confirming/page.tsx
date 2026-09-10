@@ -11,21 +11,21 @@ export const metadata: Metadata = {
 async function Confirming({
   searchParams,
 }: {
-  searchParams: PageProps<"/checkout/confirming">["searchParams"];
+  searchParams: PageProps<"/finalizare-comanda/confirming">["searchParams"];
 }) {
   const { ref } = await searchParams;
 
   // `ref` is an opaque identifier from the URL and is treated as untrusted.
   // Nothing is rendered from it beyond the reference itself; the status comes
   // from the backend on every poll.
-  if (typeof ref !== "string" || ref.length === 0) redirect("/cart");
+  if (typeof ref !== "string" || ref.length === 0) redirect("/cos");
 
   return <PaymentConfirming orderRef={ref} poll={pollOrderStatusAction} />;
 }
 
 export default function ConfirmingPage({
   searchParams,
-}: PageProps<"/checkout/confirming">) {
+}: PageProps<"/finalizare-comanda/confirming">) {
   return (
     <main className="mx-auto max-w-xl px-4 py-20">
       <Suspense

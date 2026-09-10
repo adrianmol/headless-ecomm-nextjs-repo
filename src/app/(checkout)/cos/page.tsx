@@ -7,14 +7,14 @@ import {
 } from "@/commerce/cart/actions";
 import { getCart } from "@/commerce/cart/queries";
 import { getCartId } from "@/commerce/session";
-import { Price } from "@/components/commerce/price";
+import { CartTotals } from "@/components/commerce/cart-totals";
 import { QuantityStepper } from "@/components/commerce/quantity-stepper";
 import { RemoveLineButton } from "@/components/commerce/remove-line-button";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/money";
 
 export const metadata: Metadata = {
-  title: "Basket",
+  title: "Cosul meu",
   // A basket is per-visitor and must never be indexed or cached.
   robots: { index: false, follow: false },
 };
@@ -22,12 +22,12 @@ export const metadata: Metadata = {
 function EmptyBasket() {
   return (
     <div className="py-16 text-center">
-      <p className="text-muted-foreground">Your basket is empty.</p>
+      <p className="text-muted-foreground">Cosul tau este gol.</p>
       <Link
-        href="/products"
+        href="/produse"
         className="mt-4 inline-block underline underline-offset-4"
       >
-        Browse products
+        Vezi produsele
       </Link>
     </div>
   );
@@ -55,7 +55,7 @@ async function CartContents() {
             <div>
               <p className="font-medium">{line.title}</p>
               <p className="text-muted-foreground mt-1 text-sm tabular-nums">
-                {formatMoney(line.unitPrice)} each
+                {formatMoney(line.unitPrice)} / bucata
               </p>
               <div className="mt-3">
                 <QuantityStepper
@@ -78,16 +78,15 @@ async function CartContents() {
       </ul>
 
       <aside className="h-fit rounded-lg border p-5">
-        <h2 className="text-sm font-medium">Summary</h2>
-        <div className="mt-4 flex items-baseline justify-between">
-          <span className="text-muted-foreground text-sm">Total</span>
-          <Price price={cart.totals.total} />
+        <h2 className="text-sm font-medium">Sumar comanda</h2>
+        <div className="mt-4">
+          <CartTotals totals={cart.totals} />
         </div>
-        <p className="text-muted-foreground mt-2 text-xs">
-          Shipping and tax are calculated at checkout.
+        <p className="text-muted-foreground mt-3 text-xs">
+          Transportul si TVA se calculeaza la finalizarea comenzii.
         </p>
         <Button className="mt-5 w-full" asChild>
-          <Link href="/checkout">Checkout</Link>
+          <Link href="/finalizare-comanda">Finalizeaza comanda</Link>
         </Button>
       </aside>
     </div>
@@ -110,7 +109,7 @@ function CartSkeleton() {
 export default function CartPage() {
   return (
     <main className="mx-auto max-w-5xl px-4 py-10">
-      <h1 className="mb-8 text-2xl font-semibold">Basket</h1>
+      <h1 className="mb-8 text-2xl font-semibold">Cosul meu</h1>
       <Suspense fallback={<CartSkeleton />}>
         <CartContents />
       </Suspense>

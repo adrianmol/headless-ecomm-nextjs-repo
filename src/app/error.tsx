@@ -37,10 +37,10 @@ export default function GlobalRouteError({
 
   return (
     <main className="mx-auto flex max-w-xl flex-col items-center px-4 py-20 text-center">
-      <h1 className="text-2xl font-semibold">Something went wrong</h1>
+      <h1 className="text-2xl font-semibold">A aparut o eroare</h1>
       <p className="text-muted-foreground mt-3">
-        We couldn&apos;t load this page. Trying again often works — nothing you
-        have added to your basket is lost.
+        Nu am putut incarca aceasta pagina. De obicei o noua incercare rezolva
+        problema, iar produsele din cos nu se pierd.
       </p>
 
       <button
@@ -48,19 +48,19 @@ export default function GlobalRouteError({
         onClick={reset}
         className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring mt-6 rounded-md px-4 py-2 text-sm font-medium focus-visible:ring-2 focus-visible:outline-none"
       >
-        Try again
+        Incearca din nou
       </button>
 
       <Link
-        href="/products"
+        href="/produse"
         className="focus-visible:ring-ring mt-8 rounded underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none"
       >
-        Browse all products
+        Vezi tot catalogul
       </Link>
 
       {error.digest && (
         <p className="text-muted-foreground mt-8 text-xs">
-          Reference: <span className="font-mono">{error.digest}</span>
+          Referinta: <span className="font-mono">{error.digest}</span>
         </p>
       )}
     </main>

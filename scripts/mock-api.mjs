@@ -12,123 +12,24 @@
  * spec, the build stops exercising the real contract and becomes theatre.
  */
 import { createServer } from "node:http";
+import {
+  buildFacets,
+  filterProducts,
+  offers,
+  printerBrands,
+  printerModels,
+  products,
+  ron,
+  sortProducts,
+} from "./fixtures.mjs";
 
 const PORT = Number(process.env.MOCK_API_PORT ?? 4010);
-
-const eur = (amountMinor) => ({ amountMinor, currency: "EUR" });
-
-const products = [
-  {
-    id: "prod_1",
-    slug: "merino-crew",
-    title: "Merino Crew",
-    description: "A mid-weight merino crew neck.",
-    images: [
-      {
-        url: "/img/merino-crew.png",
-        alt: "Merino Crew",
-        width: 800,
-        height: 1000,
-      },
-    ],
-    variants: [{ id: "var_1", title: "M" }],
-  },
-  {
-    id: "prod_2",
-    slug: "oxford-shirt",
-    title: "Oxford Shirt",
-    description: "Button-down oxford in brushed cotton.",
-    images: [
-      {
-        url: "/img/oxford-shirt.png",
-        alt: "Oxford Shirt",
-        width: 800,
-        height: 1000,
-      },
-    ],
-    variants: [{ id: "var_2", title: "L" }],
-  },
-  {
-    id: "prod_3",
-    slug: "linen-shirt",
-    title: "Linen Shirt",
-    description: "A breezy linen button-down.",
-    images: [
-      {
-        url: "/img/merino-crew.png",
-        alt: "Linen Shirt",
-        width: 800,
-        height: 1000,
-      },
-    ],
-    variants: [{ id: "var_3", title: "M" }],
-  },
-  {
-    id: "prod_4",
-    slug: "cotton-tee",
-    title: "Cotton Tee",
-    description: "A soft jersey t-shirt.",
-    images: [
-      {
-        url: "/img/oxford-shirt.png",
-        alt: "Cotton Tee",
-        width: 800,
-        height: 1000,
-      },
-    ],
-    variants: [{ id: "var_4", title: "L" }],
-  },
-  {
-    id: "prod_5",
-    slug: "wool-scarf",
-    title: "Wool Scarf",
-    description: "A lightweight woven scarf.",
-    images: [
-      {
-        url: "/img/merino-crew.png",
-        alt: "Wool Scarf",
-        width: 800,
-        height: 1000,
-      },
-    ],
-    variants: [{ id: "var_5", title: "One size" }],
-  },
-];
-
-const offers = {
-  "merino-crew": {
-    variantId: "var_1",
-    price: eur(8900),
-    compareAtPrice: eur(11900),
-    availability: { inStock: true, quantity: 4 },
-  },
-  "oxford-shirt": {
-    variantId: "var_2",
-    price: eur(6500),
-    availability: { inStock: false, quantity: 0 },
-  },
-  "linen-shirt": {
-    variantId: "var_3",
-    price: eur(7200),
-    availability: { inStock: true, quantity: 3 },
-  },
-  "cotton-tee": {
-    variantId: "var_4",
-    price: eur(4500),
-    availability: { inStock: true, quantity: 6 },
-  },
-  "wool-scarf": {
-    variantId: "var_5",
-    price: eur(3900),
-    availability: { inStock: true, quantity: 10 },
-  },
-};
 
 const cart = {
   id: "cart_1",
   version: 1,
   lines: [],
-  totals: { subtotal: eur(0), total: eur(0) },
+  totals: { subtotal: ron(0), total: ron(0) },
 };
 
 /** One cart is enough for a stand-in; the storefront only ever holds one id. */
@@ -148,7 +49,7 @@ function recalcTotals() {
     (sum, l) => sum + l.lineTotal.amountMinor,
     0,
   );
-  cart.totals = { subtotal: eur(subtotal), total: eur(subtotal) };
+  cart.totals = { subtotal: ron(subtotal), total: ron(subtotal) };
 }
 
 function commit() {
@@ -231,13 +132,13 @@ const faultProduct = {
   description: "Test fixture whose live offer always fails.",
   images: [
     {
-      url: "/img/merino-crew.png",
+      url: "/img/toner.png",
       alt: "Fault Injection",
       width: 800,
-      height: 1000,
+      height: 800,
     },
   ],
-  variants: [{ id: "var_fault", title: "One size" }],
+  variants: [{ id: "var_fault", title: "Standard" }],
 };
 
 const conflict = (res, code, message, details) =>
@@ -277,9 +178,22 @@ const server = createServer(async (req, res) => {
       });
     }
 
+    const inStockParam = url.searchParams.get("inStock");
+    const matched = sortProducts(
+      filterProducts({
+        brand: url.searchParams.get("brand") ?? undefined,
+        model: url.searchParams.get("model") ?? undefined,
+        kind: url.searchParams.get("kind") ?? undefined,
+        manufacturer: url.searchParams.get("manufacturer") ?? undefined,
+        color: url.searchParams.get("color") ?? undefined,
+        inStock: inStockParam === null ? undefined : inStockParam === "true",
+      }),
+      url.searchParams.get("sort") ?? undefined,
+    );
+
     let start = 0;
     if (cursor !== null) {
-      const idx = products.findIndex((p) => p.id === cursor);
+      const idx = matched.findIndex((p) => p.id === cursor);
       if (idx === -1) {
         return json(res, 400, {
           code: "validation_failed",
@@ -290,13 +204,59 @@ const server = createServer(async (req, res) => {
       start = idx + 1;
     }
 
-    const items = products.slice(start, start + limit);
+    const items = matched.slice(start, start + limit);
     const nextCursor =
-      items.length > 0 && start + items.length < products.length
+      items.length > 0 && start + items.length < matched.length
         ? items[items.length - 1].id
         : null;
 
-    return json(res, 200, { items, nextCursor });
+    // Facets are counted over the whole filtered set, not the current page:
+    // a count that shrank as you paged would be meaningless.
+    return json(res, 200, {
+      items,
+      nextCursor,
+      total: matched.length,
+      facets: buildFacets(matched),
+    });
+  }
+
+  if (req.method === "GET" && path === "/offers") {
+    const slugs = (url.searchParams.get("slugs") ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    // Unknown slugs are dropped, not 404'd — see the spec: one deleted product
+    // must not blank the prices of everything else on the page.
+    return json(res, 200, {
+      items: slugs
+        .filter((slug) => offers[slug])
+        .map((slug) => ({ slug, offer: offers[slug] })),
+    });
+  }
+
+  if (req.method === "GET" && path === "/compat/brands") {
+    return json(res, 200, {
+      items: printerBrands.map((brand) => ({
+        ...brand,
+        productCount: filterProducts({ brand: brand.slug }).length,
+      })),
+    });
+  }
+
+  const modelsMatch = /^\/compat\/brands\/([^/]+)\/models$/.exec(path);
+  if (req.method === "GET" && modelsMatch) {
+    const brandSlug = decodeURIComponent(modelsMatch[1]);
+    const models = printerModels[brandSlug];
+    if (!models) return notFound(res);
+
+    return json(res, 200, {
+      items: models.map((model) => ({
+        ...model,
+        productCount: filterProducts({ brand: brandSlug, model: model.slug })
+          .length,
+      })),
+    });
   }
 
   let match = path.match(/^\/products\/([^/]+)\/offer$/);
@@ -363,7 +323,7 @@ const server = createServer(async (req, res) => {
 
     if (existing) {
       existing.quantity = wanted;
-      existing.lineTotal = eur(existing.unitPrice.amountMinor * wanted);
+      existing.lineTotal = ron(existing.unitPrice.amountMinor * wanted);
     } else {
       const unitPrice = found.offer.price;
       cart.lines.push({
@@ -373,7 +333,7 @@ const server = createServer(async (req, res) => {
         image: found.product.images[0],
         quantity,
         unitPrice,
-        lineTotal: eur(unitPrice.amountMinor * quantity),
+        lineTotal: ron(unitPrice.amountMinor * quantity),
       });
     }
 
@@ -410,7 +370,7 @@ const server = createServer(async (req, res) => {
         });
       }
       line.quantity = quantity;
-      line.lineTotal = eur(line.unitPrice.amountMinor * quantity);
+      line.lineTotal = ron(line.unitPrice.amountMinor * quantity);
     } else {
       cart.lines = cart.lines.filter((l) => l.id !== line.id);
     }
@@ -446,14 +406,14 @@ const server = createServer(async (req, res) => {
         : Date.now() >= order.paidAt
           ? "paid"
           : "pending",
-      total: eur(8900),
+      total: ron(3400),
     });
   }
 
   // --- stand-in hosted payment page (NOT part of the commerce API) ----------
   if (req.method === "GET" && url.pathname === "/psp/pay") {
     const ref = url.searchParams.get("ref") ?? "";
-    const back = `${PSP_RETURN_ORIGIN}/checkout/return?ref=${encodeURIComponent(ref)}`;
+    const back = `${PSP_RETURN_ORIGIN}/finalizare-comanda/return?ref=${encodeURIComponent(ref)}`;
     const html = `<!doctype html><meta charset="utf-8"><title>Mock payment provider</title>
 <body style="font-family:system-ui;max-width:34rem;margin:4rem auto">
 <h1>Mock payment provider</h1>
@@ -474,7 +434,7 @@ immediately exercises the <em>pending</em> path.</p>
     const order = orders.get(ref);
     if (order) order.cancelled = true;
     res.writeHead(302, {
-      location: `${PSP_RETURN_ORIGIN}/checkout/return?ref=${encodeURIComponent(ref)}`,
+      location: `${PSP_RETURN_ORIGIN}/finalizare-comanda/return?ref=${encodeURIComponent(ref)}`,
     });
     return res.end();
   }

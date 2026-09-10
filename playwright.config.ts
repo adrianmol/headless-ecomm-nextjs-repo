@@ -50,7 +50,7 @@ export default defineConfig({
 
   webServer: {
     command: "pnpm start:ci",
-    url: `${BASE_URL}/products`,
+    url: `${BASE_URL}/produse`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: {

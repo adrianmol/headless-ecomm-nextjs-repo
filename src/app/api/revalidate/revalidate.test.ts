@@ -32,7 +32,12 @@ afterEach(() => {
  */
 describe("POST /api/revalidate", () => {
   it("revalidates the named products and the listing", async () => {
-    const response = await post({ slugs: ["merino-crew", "oxford-shirt"] });
+    const response = await post({
+      slugs: [
+        "toner-compatibil-hp-35a-black-cb435a",
+        "toner-compatibil-brother-tn-2000-black",
+      ],
+    });
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
@@ -41,13 +46,20 @@ describe("POST /api/revalidate", () => {
     });
     // Asserted against the real tag strings: a mismatch between the read path
     // and this one fails silently in production — the cache just never expires.
-    expect(revalidatedTags).toContain("product:merino-crew");
-    expect(revalidatedTags).toContain("product:oxford-shirt");
+    expect(revalidatedTags).toContain(
+      "product:toner-compatibil-hp-35a-black-cb435a",
+    );
+    expect(revalidatedTags).toContain(
+      "product:toner-compatibil-brother-tn-2000-black",
+    );
     expect(revalidatedTags).toContain("product-list");
   });
 
   it("rejects a wrong secret without revalidating anything", async () => {
-    const response = await post({ slugs: ["merino-crew"] }, "b".repeat(64));
+    const response = await post(
+      { slugs: ["toner-compatibil-hp-35a-black-cb435a"] },
+      "b".repeat(64),
+    );
 
     expect(response.status).toBe(401);
     expect(revalidatedTags).toEqual([]);
@@ -65,7 +77,10 @@ describe("POST /api/revalidate", () => {
   ])("rejects a secret %s", async (_label, provided) => {
     // Length must not change the answer. The comparison hashes both sides to a
     // fixed 32 bytes precisely so a length mismatch is not observable.
-    const response = await post({ slugs: ["merino-crew"] }, provided);
+    const response = await post(
+      { slugs: ["toner-compatibil-hp-35a-black-cb435a"] },
+      provided,
+    );
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: "unauthorized" });
@@ -75,7 +90,10 @@ describe("POST /api/revalidate", () => {
   it("is inert when no secret is configured", async () => {
     delete process.env.REVALIDATE_SECRET;
 
-    const response = await post({ slugs: ["merino-crew"] }, GOOD_SECRET);
+    const response = await post(
+      { slugs: ["toner-compatibil-hp-35a-black-cb435a"] },
+      GOOD_SECRET,
+    );
 
     expect(response.status).toBe(503);
     expect(revalidatedTags).toEqual([]);
@@ -85,7 +103,10 @@ describe("POST /api/revalidate", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     process.env.REVALIDATE_SECRET = "hunter2-weak-key";
 
-    const response = await post({ slugs: ["merino-crew"] }, "hunter2-weak-key");
+    const response = await post(
+      { slugs: ["toner-compatibil-hp-35a-black-cb435a"] },
+      "hunter2-weak-key",
+    );
 
     // Identical response to "absent": a prober must not learn which it is.
     expect(response.status).toBe(503);
@@ -116,7 +137,14 @@ describe("POST /api/revalidate", () => {
 
   it("ignores non-string entries in slugs rather than failing", async () => {
     const response = await post(
-      { slugs: ["merino-crew", 42, null, { slug: "nope" }] },
+      {
+        slugs: [
+          "toner-compatibil-hp-35a-black-cb435a",
+          42,
+          null,
+          { slug: "nope" },
+        ],
+      },
       GOOD_SECRET,
     );
 
@@ -125,7 +153,9 @@ describe("POST /api/revalidate", () => {
       revalidated: 1,
       listRevalidated: true,
     });
-    expect(revalidatedTags).toContain("product:merino-crew");
+    expect(revalidatedTags).toContain(
+      "product:toner-compatibil-hp-35a-black-cb435a",
+    );
   });
 
   it("still revalidates the listing when no slugs are supplied", async () => {

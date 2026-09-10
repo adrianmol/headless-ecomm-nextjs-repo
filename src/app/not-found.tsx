@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { PageMessage } from "@/components/commerce/page-message";
 
 export const metadata: Metadata = {
-  title: "Page not found",
+  title: "Pagina nu a fost gasita",
   robots: { index: false, follow: false },
 };
 
@@ -14,8 +14,8 @@ export const metadata: Metadata = {
 export default function NotFound() {
   return (
     <PageMessage
-      title="We couldn't find that page"
-      description="The link may be out of date, or the page may have moved."
+      title="Nu am gasit aceasta pagina"
+      description="Linkul poate fi vechi sau pagina a fost mutata."
     />
   );
 }

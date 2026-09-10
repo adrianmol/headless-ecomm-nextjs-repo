@@ -4,8 +4,8 @@
       "startServerCommand": "pnpm start:ci",
       "startServerReadyPattern": "Ready in",
       "url": [
-        "http://localhost:3000/products",
-        "http://localhost:3000/products/merino-crew"
+        "http://localhost:3000/produse",
+        "http://localhost:3000/produse/toner-compatibil-hp-35a-black-cb435a"
       ],
       "numberOfRuns": 3,
       "settings": {

@@ -59,7 +59,7 @@ describe("web vitals endpoint", () => {
         name: "LCP",
         value: 1234.5678,
         rating: "good",
-        path: "/products",
+        path: "/produse",
       }),
     );
 
@@ -69,7 +69,7 @@ describe("web vitals endpoint", () => {
       name: "LCP",
       value: 1234.568,
       rating: "good",
-      route: "/products",
+      route: "/produse",
     });
 
     log.mockRestore();
@@ -185,7 +185,7 @@ describe("body size cap", () => {
   it("accepts a small streamed body with no Content-Length", async () => {
     // The cap must not reject legitimate beacons that arrive chunked.
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
-    const payload = beacon({ name: "CLS", value: 0.01, path: "/cart" });
+    const payload = beacon({ name: "CLS", value: 0.01, path: "/cos" });
 
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
@@ -201,7 +201,7 @@ describe("body size cap", () => {
     } as RequestInit & { duplex: "half" });
 
     expect((await POST(request)).status).toBe(204);
-    expect(logged(log)).toMatchObject({ name: "CLS", route: "/cart" });
+    expect(logged(log)).toMatchObject({ name: "CLS", route: "/cos" });
 
     log.mockRestore();
   });
@@ -225,11 +225,15 @@ describe("body size cap", () => {
 describe("path handling", () => {
   it.each([
     ["/", "/"],
-    ["/products", "/products"],
-    ["/cart", "/cart"],
-    ["/checkout", "/checkout"],
-    ["/checkout/confirming", "/checkout/confirming"],
-    ["/products/merino-crew", "/products/[slug]"],
+    ["/produse", "/produse"],
+    ["/cos", "/cos"],
+    ["/finalizare-comanda", "/finalizare-comanda"],
+    ["/finalizare-comanda/confirming", "/finalizare-comanda/confirming"],
+    ["/produse/toner-compatibil-hp-35a-black-cb435a", "/produse/[slug]"],
+    ["/categorii/tonere", "/categorii/[slug]"],
+    ["/compatibil/brother", "/compatibil/[brand]"],
+    ["/compatibil/brother/hl-2130", "/compatibil/[brand]/[model]"],
+    ["/info/seap", "/info/seap"],
   ])("normalises %s to %s", async (path, expected) => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
@@ -244,29 +248,31 @@ describe("path handling", () => {
     // should not be sitting in stdout.
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
-    await post(beacon({ name: "LCP", value: 1, path: "/orders/ord_9djpnlej" }));
+    await post(
+      beacon({ name: "LCP", value: 1, path: "/comenzi/ord_9djpnlej" }),
+    );
 
     const entry = logged(log);
-    expect(entry.route).toBe("/orders/[id]");
+    expect(entry.route).toBe("/comenzi/[id]");
     expect(JSON.stringify(entry)).not.toContain("ord_9djpnlej");
 
     log.mockRestore();
   });
 
   it.each([
-    ["a query string", "/products?token=secret123"],
-    ["a fragment", "/products#section"],
-    ["userinfo credentials", "//user:pass@evil.test/products"],
-    ["an absolute URL", "https://evil.test/products"],
-    ["a protocol-relative URL", "//evil.test/products"],
-    ["path traversal", "/products/../../etc/passwd"],
-    ["an embedded newline", '/products\n{"event":"forged"}'],
-    ["a carriage return", "/products\r\nX-Injected: 1"],
-    ["a NUL byte", "/products\u0000"],
-    ["an ANSI escape sequence", "/products\u001b[31mred"],
-    ["percent-encoding", "/products/%2e%2e%2f%2e%2e"],
-    ["an email address", "/checkout/shopper@example.test"],
-    ["a very long path", `/products/${"a".repeat(200)}`],
+    ["a query string", "/produse?token=secret123"],
+    ["a fragment", "/produse#section"],
+    ["userinfo credentials", "//user:pass@evil.test/produse"],
+    ["an absolute URL", "https://evil.test/produse"],
+    ["a protocol-relative URL", "//evil.test/produse"],
+    ["path traversal", "/produse/../../etc/passwd"],
+    ["an embedded newline", '/produse\n{"event":"forged"}'],
+    ["a carriage return", "/produse\r\nX-Injected: 1"],
+    ["a NUL byte", "/produse\u0000"],
+    ["an ANSI escape sequence", "/produse\u001b[31mred"],
+    ["percent-encoding", "/produse/%2e%2e%2f%2e%2e"],
+    ["an email address", "/finalizare-comanda/shopper@example.test"],
+    ["a very long path", `/produse/${"a".repeat(200)}`],
     ["an empty string", ""],
     ["a relative path", "products"],
   ])(
@@ -293,7 +299,7 @@ describe("path handling", () => {
   it.each([
     ["a number", 42],
     ["an object", { toString: "nope" }],
-    ["an array", ["/products"]],
+    ["an array", ["/produse"]],
     ["null", null],
     ["undefined", undefined],
   ])("logs the unknown route when path is %s", async (_label, path) => {

@@ -39,7 +39,7 @@ describe("trace context propagation", () => {
       }),
     );
 
-    await getOffer("merino-crew");
+    await getOffer("toner-compatibil-hp-35a-black-cb435a");
     expect(seen).toBe("00-abc-def-01");
   });
 
@@ -55,7 +55,9 @@ describe("trace context propagation", () => {
       }),
     );
 
-    await expect(getOffer("merino-crew")).resolves.toEqual(offerFixture);
+    await expect(
+      getOffer("toner-compatibil-hp-35a-black-cb435a"),
+    ).resolves.toEqual(offerFixture);
     expect(seen).toBeNull();
   });
 });

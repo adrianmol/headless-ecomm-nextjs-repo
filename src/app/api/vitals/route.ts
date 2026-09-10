@@ -98,12 +98,20 @@ async function readCappedBody(
  */
 const ROUTE_TEMPLATES: ReadonlyArray<readonly [RegExp, string]> = [
   [/^\/$/, "/"],
-  [/^\/products$/, "/products"],
-  [/^\/products\/[A-Za-z0-9._~-]+$/, "/products/[slug]"],
-  [/^\/cart$/, "/cart"],
-  [/^\/checkout$/, "/checkout"],
-  [/^\/checkout\/confirming$/, "/checkout/confirming"],
-  [/^\/orders\/[A-Za-z0-9._~-]+$/, "/orders/[id]"],
+  [/^\/produse$/, "/produse"],
+  [/^\/produse\/[A-Za-z0-9._~-]+$/, "/produse/[slug]"],
+  [/^\/categorii\/[A-Za-z0-9._~-]+$/, "/categorii/[slug]"],
+  [/^\/compatibil$/, "/compatibil"],
+  [/^\/compatibil\/[A-Za-z0-9._~-]+$/, "/compatibil/[brand]"],
+  [
+    /^\/compatibil\/[A-Za-z0-9._~-]+\/[A-Za-z0-9._~-]+$/,
+    "/compatibil/[brand]/[model]",
+  ],
+  [/^\/info\/seap$/, "/info/seap"],
+  [/^\/cos$/, "/cos"],
+  [/^\/finalizare-comanda$/, "/finalizare-comanda"],
+  [/^\/finalizare-comanda\/confirming$/, "/finalizare-comanda/confirming"],
+  [/^\/comenzi\/[A-Za-z0-9._~-]+$/, "/comenzi/[id]"],
 ];
 
 const UNKNOWN_ROUTE = "other";

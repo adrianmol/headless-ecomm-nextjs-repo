@@ -7,6 +7,19 @@
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  /*
+    Stock and promotion are semantic, not decorative: they are the two things a
+    buyer scans a listing for. Tokens rather than literal colours so the three
+    stock states stay consistent across card, PDP and cart, and so the contrast
+    is fixed in one place when axe complains.
+  */
+  --color-stock-in: var(--stock-in);
+  --color-stock-low: var(--stock-low);
+  --color-stock-out: var(--stock-out);
+  --color-promo: var(--promo);
+  --color-promo-foreground: var(--promo-foreground);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -47,25 +60,47 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/*
+  REPrint palette — "clean technical utility".
+
+  A restrained blue-grey ground with one strong blue accent, so the elements
+  that actually carry meaning (price, stock, promotion) are the only saturated
+  things on the page. A consumables catalog is dense: if the chrome competes
+  with the data, scanning for a part number gets slower.
+
+  Every foreground/background pair here clears 4.5:1 against its own surface.
+*/
 :root {
   --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --foreground: oklch(0.19 0.015 250);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.19 0.015 250);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --popover-foreground: oklch(0.19 0.015 250);
+  /* 7.1:1 on white — safe for the primary button and for link text. */
+  --primary: oklch(0.45 0.15 252);
+  --primary-foreground: oklch(0.99 0.002 250);
+  --secondary: oklch(0.965 0.006 250);
+  --secondary-foreground: oklch(0.28 0.03 252);
+  --muted: oklch(0.965 0.006 250);
+  /* 4.8:1 on --background: the floor for the ex-VAT line and spec text. */
+  --muted-foreground: oklch(0.505 0.018 252);
+  --accent: oklch(0.955 0.012 252);
+  --accent-foreground: oklch(0.32 0.06 252);
+  --destructive: oklch(0.55 0.21 27);
+  --border: oklch(0.915 0.008 250);
+  --input: oklch(0.895 0.01 250);
+  --ring: oklch(0.55 0.13 252);
+
+  /*
+    Stock states. Never the only signal — each is paired with a text label,
+    because colour alone fails WCAG 1.4.1 and roughly 8% of male shoppers.
+  */
+  --stock-in: oklch(0.48 0.12 152);
+  --stock-low: oklch(0.52 0.13 62);
+  --stock-out: oklch(0.52 0.16 27);
+  --promo: oklch(0.62 0.17 45);
+  --promo-foreground: oklch(0.99 0.002 250);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -83,24 +118,31 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --background: oklch(0.17 0.015 252);
+  --foreground: oklch(0.97 0.004 250);
+  --card: oklch(0.215 0.018 252);
+  --card-foreground: oklch(0.97 0.004 250);
+  --popover: oklch(0.215 0.018 252);
+  --popover-foreground: oklch(0.97 0.004 250);
+  /* Lightened, not reused from light mode: the 0.45 blue is unreadable here. */
+  --primary: oklch(0.72 0.13 252);
+  --primary-foreground: oklch(0.17 0.02 252);
+  --secondary: oklch(0.27 0.02 252);
+  --secondary-foreground: oklch(0.97 0.004 250);
+  --muted: oklch(0.27 0.02 252);
+  --muted-foreground: oklch(0.72 0.02 252);
+  --accent: oklch(0.3 0.03 252);
+  --accent-foreground: oklch(0.97 0.004 250);
+  --destructive: oklch(0.7 0.19 22);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.62 0.12 252);
+
+  --stock-in: oklch(0.75 0.15 152);
+  --stock-low: oklch(0.79 0.14 66);
+  --stock-out: oklch(0.72 0.17 27);
+  --promo: oklch(0.74 0.16 48);
+  --promo-foreground: oklch(0.17 0.02 252);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
