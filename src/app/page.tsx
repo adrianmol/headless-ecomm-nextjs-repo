@@ -40,14 +40,61 @@ import {
  * than composed. Anything the design does not state is still absent.
  */
 
-async function Finder() {
-  const brands = await listPrinterBrands();
+/**
+ * The brand list, or `null` when the catalog cannot be reached.
+ *
+ * Every band on this page that needs brands goes through here, because a throw
+ * from a cached catalog read propagates past its `<Suspense>` boundary and lands
+ * on the global route error boundary — replacing the entire landing page with an
+ * error screen. Observed exactly that way: `CommerceErrorException: Unavailable`
+ * from `listPrinterBrands` inside a Cache scope, `GET / 200`, and then
+ * `src/app/error.tsx` taking over in the browser.
+ *
+ * `<Suspense>` is not a safety net. It handles a pending promise, not a rejected
+ * one, and the difference only shows up when the backend is down — which is the
+ * moment the page most needs to still work.
+ *
+ * Two calls to this in one render are one request: `listPrinterBrands` is
+ * `use cache`, so the second reads the first's result.
+ */
+async function safeBrands(): Promise<ReadonlyArray<{
+  slug: string;
+  name: string;
+}> | null> {
+  try {
+    const brands = await listPrinterBrands();
+    return brands.map((brand) => ({ slug: brand.slug, name: brand.name }));
+  } catch {
+    // Nothing is surfaced to the customer here; onRequestError already logged
+    // the digest, and backend prose is never shown either way.
+    return null;
+  }
+}
 
-  return (
-    <PrinterFinder
-      brands={brands.map((brand) => ({ slug: brand.slug, name: brand.name }))}
-    />
-  );
+async function Finder() {
+  const brands = await safeBrands();
+
+  /*
+    A message rather than an empty card. The finder is the page's primary entry
+    point, so a blank box where it should be reads as a broken shop, and the
+    honest thing is to say the list is unavailable and point at the catalogue —
+    which is served from cache and still works.
+  */
+  if (brands === null) {
+    return (
+      <p className="text-muted-foreground text-sm">
+        Lista de imprimante nu este disponibila momentan.{" "}
+        <Link
+          href="/produse"
+          className="text-primary focus-visible:ring-ring rounded underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none"
+        >
+          Vezi tot catalogul
+        </Link>
+      </p>
+    );
+  }
+
+  return <PrinterFinder brands={brands} />;
 }
 
 /** Must reserve the finder's exact box, or the swap shifts the band below it. */
@@ -60,34 +107,56 @@ function FinderSkeleton() {
   );
 }
 
+/**
+ * Renders its own heading, unlike the other bands.
+ *
+ * So that a failure removes the section rather than leaving "Marci de imprimante"
+ * above an empty strip — an orphaned heading looks more broken than an absent
+ * section, and this band is entirely optional.
+ */
 async function BrandLinks() {
-  const brands = await listPrinterBrands();
+  const brands = await safeBrands();
+  if (brands === null) return null;
 
   return (
-    <ul className="flex flex-wrap gap-2">
-      {brands.map((brand) => (
-        <li key={brand.slug}>
-          <Link
-            href={`/compatibil/${brand.slug}`}
-            className="border-border bg-card hover:border-foreground/30 focus-visible:ring-ring inline-block rounded-full border px-4 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
-          >
-            {brand.name}
-          </Link>
-        </li>
-      ))}
-    </ul>
+    <>
+      <SectionHeading
+        title="Marci de imprimante"
+        href="/produse"
+        linkLabel="Vezi tot catalogul"
+      />
+      <ul className="flex flex-wrap gap-2">
+        {brands.map((brand) => (
+          <li key={brand.slug}>
+            <Link
+              href={`/compatibil/${brand.slug}`}
+              className="border-border bg-card hover:border-foreground/30 focus-visible:ring-ring inline-block rounded-full border px-4 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
+            >
+              {brand.name}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
+/** Reserves the heading too, now that BrandLinks renders its own. */
 function BrandLinksSkeleton() {
   return (
-    <ul className="flex flex-wrap gap-2" aria-hidden>
-      {Array.from({ length: 10 }, (_, i) => (
-        <li key={i}>
-          <div className="bg-muted h-9.5 w-24 animate-pulse rounded-full" />
-        </li>
-      ))}
-    </ul>
+    <div aria-hidden>
+      <div className="mb-5 flex items-baseline justify-between gap-4">
+        <div className="bg-muted h-7 w-56 animate-pulse rounded" />
+        <div className="bg-muted h-5 w-32 animate-pulse rounded" />
+      </div>
+      <ul className="flex flex-wrap gap-2">
+        {Array.from({ length: 10 }, (_, i) => (
+          <li key={i}>
+            <div className="bg-muted h-9.5 w-24 animate-pulse rounded-full" />
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -213,11 +282,8 @@ export default function Home() {
       </section>
 
       <section className="max-w-page mx-auto px-4 py-12">
-        <SectionHeading
-          title="Marci de imprimante"
-          href="/produse"
-          linkLabel="Vezi tot catalogul"
-        />
+        {/* Heading lives inside BrandLinks so an unreachable catalogue removes
+            the whole section rather than orphaning its title. */}
         <Suspense fallback={<BrandLinksSkeleton />}>
           <BrandLinks />
         </Suspense>
