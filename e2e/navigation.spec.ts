@@ -69,13 +69,13 @@ test.describe("landing page", () => {
     // chips. It kept passing through the rename only because of `.first()`,
     // which is precisely the kind of quiet drift worth naming.
     await page
-      .getByRole("link", { name: "Tonere", exact: true })
+      .getByRole("link", { name: "Toner", exact: true })
       .first()
       .click();
 
     await expect(page).toHaveURL(/\/categorii\/tonere$/);
     await expect(
-      page.getByRole("heading", { level: 1, name: "Tonere" }),
+      page.getByRole("heading", { level: 1, name: "Toner" }),
     ).toBeVisible();
   });
 });
@@ -99,7 +99,7 @@ test.describe("site header", () => {
     await page.goto("/");
     const nav = page.getByRole("navigation", { name: "Categorii de produse" });
 
-    await nav.getByRole("link", { name: "Unitati cilindru" }).click();
+    await nav.getByRole("link", { name: "Cilindri" }).click();
     await expect(page).toHaveURL(/\/categorii\/unitati-cilindru$/);
   });
 

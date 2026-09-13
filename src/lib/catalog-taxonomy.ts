@@ -41,54 +41,85 @@ export type Category = {
   abbr: string;
 };
 
+/**
+ * Labels and order follow the owner's design file. Two of the six are broader
+ * than the backend kind behind them, and that is a deliberate, recorded
+ * compromise rather than an oversight:
+ *
+ *   "Piese si ansambluri"  →  `fuser`   currently only fuser assemblies
+ *   "Accesorii"            →  `waste`   currently only waste-toner containers
+ *
+ * The alternative for each was worse. `other` exists in the contract as a
+ * degradation bucket — "so an unrecognised backend value degrades to a listable
+ * product" — so pointing a customer-facing "Accesorii" at it would label whatever
+ * the backend failed to classify as an accessory. And inventing `part` and
+ * `accessory` kinds would be inventing a backend contract, which this project does
+ * not do.
+ *
+ * So the nav label is the owner's and the description is the truth: each page says
+ * exactly what it contains, which is what a shopper actually reads before
+ * deciding. The accurate fix is backend kinds for parts and accessories, and it is
+ * a backend request rather than a frontend change.
+ *
+ * `waste` keeping a nav entry under a different label also means no kind lost its
+ * navigation in this rename. `other` still has none, as before.
+ *
+ * Two slugs changed, because the labels changed fundamentally rather than
+ * cosmetically: unitati-cuptor → piese-si-ansambluri, recipiente-toner →
+ * accesorii. The other four kept theirs even where the label moved — "Toner"
+ * still lives at /categorii/tonere — because a URL is a public contract and
+ * churning one over a singular/plural difference buys nothing.
+ */
 export const CATEGORIES: readonly Category[] = [
   {
     slug: "tonere",
     abbr: "TO",
     kind: "toner",
-    name: "Tonere",
+    name: "Toner",
     description:
       "Cartuse de toner compatibile pentru imprimante laser, cu randament verificat.",
   },
   {
     slug: "cartuse-cerneala",
-    abbr: "CC",
+    abbr: "CA",
     kind: "inkjet",
     name: "Cartuse cerneala",
     description:
       "Cartuse cu cerneala compatibile pentru imprimante si multifunctionale inkjet.",
   },
   {
-    slug: "unitati-cilindru",
-    abbr: "CI",
-    kind: "drum",
-    name: "Unitati cilindru",
-    description:
-      "Unitati de cilindru (drum) compatibile, cu randament de zeci de mii de pagini.",
-  },
-  {
-    slug: "unitati-cuptor",
-    abbr: "CU",
+    slug: "piese-si-ansambluri",
+    abbr: "PI",
     kind: "fuser",
-    name: "Unitati cuptor",
+    name: "Piese si ansambluri",
+    // Says what the page holds today, which is narrower than the label above.
     description:
       "Unitati de cuptor (fuser) si ansambluri compatibile pentru service si intretinere.",
   },
   {
-    slug: "recipiente-toner",
-    abbr: "RT",
-    kind: "waste",
-    name: "Recipiente toner",
+    slug: "unitati-cilindru",
+    abbr: "CI",
+    kind: "drum",
+    name: "Cilindri",
     description:
-      "Recipiente pentru toner rezidual, consumabile de intretinere periodica.",
+      "Unitati de cilindru (drum) compatibile, cu randament de zeci de mii de pagini.",
   },
   {
     slug: "role",
     abbr: "RO",
     kind: "roller",
-    name: "Role",
+    name: "Role si role de transfer",
     description:
       "Role de preluare si separare a hartiei, pentru blocajele repetate de alimentare.",
+  },
+  {
+    slug: "accesorii",
+    abbr: "AC",
+    kind: "waste",
+    name: "Accesorii",
+    // Again narrower than the label; the page does not pretend otherwise.
+    description:
+      "Recipiente pentru toner rezidual, consumabile de intretinere periodica.",
   },
 ] as const;
 
