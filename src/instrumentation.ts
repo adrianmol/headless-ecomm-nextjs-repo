@@ -51,7 +51,48 @@ export function register() {
  * Production only. Local development has no reason to know the public origin, and
  * crashing `next dev` over it would be hostile.
  */
+/**
+ * Warns when `COMMERCE_API_URL` is pointed at the HUB host.
+ *
+ * They are two different APIs, not two spellings of one. HUB serves everything
+ * under `/hub-api/v1/` and knows nothing of `/products`, `/offers` or
+ * `/compat/brands`, which is what the provisional client requests — so pointing
+ * this variable at HUB makes ten routes 404 while three keep working, and the
+ * symptom is an empty page rather than an error anyone can act on. That cost real
+ * debugging time: an empty homepage band, then a category page with no products,
+ * then a dead product link, all from one variable.
+ *
+ * A warning rather than a throw, because it is a legitimate end state: once every
+ * route reads HUB and the provisional client is deleted, this check goes with it.
+ * Until then, three lines at startup are cheaper than rediscovering it.
+ */
+function warnIfCommerceUrlPointsAtHub() {
+  const commerce = process.env.COMMERCE_API_URL;
+  const hub = process.env.HUB_API_URL;
+  if (!commerce || !hub) return;
+
+  try {
+    if (new URL(commerce).host !== new URL(hub).host) return;
+  } catch {
+    // A malformed URL is the env schema's problem, not this check's.
+    return;
+  }
+
+  console.warn(
+    JSON.stringify({
+      event: "commerce_api_url_points_at_hub",
+      detail:
+        "COMMERCE_API_URL and HUB_API_URL share a host. HUB serves /hub-api/v1/* " +
+        "and does not answer /products, /offers or /compat/brands, so every route " +
+        "using the provisional client will 404 silently. Point COMMERCE_API_URL at " +
+        "the mock (pnpm dev:mock) or at a service implementing openapi/commerce.yaml.",
+    }),
+  );
+}
+
 function assertProductionConfig() {
+  warnIfCommerceUrlPointsAtHub();
+
   if (process.env.NODE_ENV !== "production") return;
 
   const missing = ["COMMERCE_API_URL", "STOREFRONT_URL"].filter(

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { onRequestError } from "./instrumentation";
+import { onRequestError, register } from "./instrumentation";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -105,5 +105,59 @@ describe("onRequestError", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     await onRequestError(new Error("boom"), {}, {});
     expect(JSON.parse(logOf(spy))).not.toHaveProperty("path");
+  });
+});
+
+describe("register", () => {
+  const saved = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...saved };
+  });
+
+  it("warns when COMMERCE_API_URL and HUB_API_URL share a host", async () => {
+    /*
+      They are two different APIs. HUB serves /hub-api/v1/* and does not answer
+      /products, /offers or /compat/brands, so pointing the provisional client at it
+      makes ten routes 404 while three keep working — an empty page rather than an
+      error. This warning exists because that cost an afternoon.
+    */
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    process.env.COMMERCE_API_URL = "https://hub.reprint.ro";
+    process.env.HUB_API_URL = "https://hub.reprint.ro";
+
+    register();
+
+    const line = warn.mock.calls[0]?.[0] as string;
+    expect(JSON.parse(line).event).toBe("commerce_api_url_points_at_hub");
+  });
+
+  it("stays quiet when they are different hosts", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    process.env.COMMERCE_API_URL = "https://commerce.internal/v1";
+    process.env.HUB_API_URL = "https://hub.reprint.ro";
+
+    register();
+
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("stays quiet when only one is configured", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    process.env.COMMERCE_API_URL = "https://hub.reprint.ro";
+    delete process.env.HUB_API_URL;
+
+    register();
+
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("ignores a malformed URL, which is the env schema's problem", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    process.env.COMMERCE_API_URL = "not-a-url";
+    process.env.HUB_API_URL = "https://hub.reprint.ro";
+
+    expect(() => register()).not.toThrow();
+    expect(warn).not.toHaveBeenCalled();
   });
 });
