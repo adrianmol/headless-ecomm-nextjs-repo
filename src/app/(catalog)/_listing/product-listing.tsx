@@ -20,6 +20,7 @@ import {
 } from "@/components/commerce/stock-badge";
 import { FacetPanel, type FacetView } from "@/components/commerce/facet-panel";
 import { categoryByKind } from "@/lib/catalog-taxonomy";
+import { discountPercent } from "@/lib/money";
 import {
   SORTS,
   buildCatalogHref,
@@ -74,6 +75,9 @@ async function CardPrice({
       vatRate={offer.vatRate}
       compareAtPrice={offer.compareAtPrice}
       size="sm"
+      // The card shows the percentage in its top-right corner instead, per the
+      // design. Both come from the same helper, so this is about placement.
+      showDiscountBadge={false}
     />
   );
 }
@@ -94,18 +98,10 @@ async function CardDiscount({
   offers: Promise<Map<string, Offer>>;
 }) {
   const offer = (await offers).get(slug);
-  const compareAt = offer?.compareAtPrice;
-  if (!offer || !compareAt) return null;
-  if (compareAt.currency !== offer.price.currency) return null;
-  if (compareAt.amountMinor <= offer.price.amountMinor) return null;
+  if (!offer) return null;
 
-  const percent = Math.floor(
-    ((compareAt.amountMinor - offer.price.amountMinor) /
-      compareAt.amountMinor) *
-      100,
-  );
-  // A sub-1% reduction rounds to zero, and "-0%" is worse than no badge.
-  if (percent < 1) return null;
+  const percent = discountPercent(offer.price, offer.compareAtPrice);
+  if (percent === null) return null;
 
   return (
     <span className="bg-promo text-promo-foreground rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums">

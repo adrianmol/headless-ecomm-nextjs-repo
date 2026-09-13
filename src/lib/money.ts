@@ -56,6 +56,44 @@ export function subtractMoney(a: Money, b: Money): Money {
 }
 
 /**
+ * How much off, as a whole percentage, or `null` when there is no real discount.
+ *
+ * Display only. It never produces a Money value and nothing is charged from it —
+ * which is what separates it from `multiplyMoney`'s refusal to take a fractional
+ * multiplier. A percentage *label* is safe to compute here; a discounted *total*
+ * is not, and still belongs to the backend.
+ *
+ * Shared rather than inlined at each call site because the listing card badge and
+ * the product page both show this figure. Computed twice, they could disagree
+ * with each other while both looking plausible — and a shopper comparing the two
+ * has no way to know which is wrong.
+ *
+ * **Rounds down.** A 9.6% reduction shown as "-10%" overstates the saving, and
+ * overstating is the direction that attracts a consumer-protection complaint
+ * rather than a shrug.
+ */
+export function discountPercent(
+  price: Money,
+  compareAtPrice: Money | undefined | null,
+): number | null {
+  if (!compareAtPrice) return null;
+  // Not an error: mixed currencies mean the two figures are not comparable, and
+  // a percentage across them would be meaningless rather than merely wrong.
+  if (compareAtPrice.currency !== price.currency) return null;
+  if (compareAtPrice.amountMinor <= 0) return null;
+  if (compareAtPrice.amountMinor <= price.amountMinor) return null;
+
+  const percent = Math.floor(
+    ((compareAtPrice.amountMinor - price.amountMinor) /
+      compareAtPrice.amountMinor) *
+      100,
+  );
+
+  // Below 1% there is nothing worth announcing, and "-0%" reads as a bug.
+  return percent >= 1 ? percent : null;
+}
+
+/**
  * Multiplication is by an integer quantity only. A fractional multiplier (tax
  * rate, percentage discount) requires an explicit rounding policy, which is a
  * backend concern: the storefront must never invent a rounded total.

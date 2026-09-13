@@ -1,4 +1,4 @@
-import { formatMoney, type Money } from "@/lib/money";
+import { discountPercent, formatMoney, type Money } from "@/lib/money";
 import { LOCALE, formatVatRate } from "@/lib/locale";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +21,16 @@ export function Price({
   compareAtPrice,
   size = "lg",
   locale = LOCALE,
+  /**
+   * Whether to show the "−19%" pill beside the struck price.
+   *
+   * Off for listing cards, which show the same figure in the card's top-right
+   * corner as the design specifies. Without this the badge rendered twice on
+   * every discounted card — once in the corner, once here — which is what
+   * happens when a shared component grows a feature one of its callers already
+   * provides.
+   */
+  showDiscountBadge = true,
 }: {
   price: Money;
   priceExVat: Money;
@@ -28,11 +38,15 @@ export function Price({
   compareAtPrice?: Money;
   size?: "sm" | "lg";
   locale?: string;
+  showDiscountBadge?: boolean;
 }) {
   const onSale =
     compareAtPrice !== undefined &&
     compareAtPrice.currency === price.currency &&
     compareAtPrice.amountMinor > price.amountMinor;
+  const percentOff = showDiscountBadge
+    ? discountPercent(price, compareAtPrice)
+    : null;
 
   return (
     <div>
@@ -48,6 +62,16 @@ export function Price({
         {onSale && (
           <span className="text-muted-foreground text-sm line-through tabular-nums">
             {formatMoney(compareAtPrice, locale)}
+          </span>
+        )}
+        {/*
+          The same figure the listing card shows in its corner pill, from the same
+          helper, so the two cannot disagree. A shopper who sees −19% on the grid
+          and −20% here has no way to tell which is the lie.
+        */}
+        {percentOff !== null && (
+          <span className="bg-promo text-promo-foreground rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums">
+            −{percentOff}%
           </span>
         )}
       </p>
