@@ -85,9 +85,23 @@ test.describe("site header", () => {
     await page.goto("/");
     const nav = page.getByRole("navigation", { name: "Principal" });
 
-    await nav.getByRole("link", { name: "Toate produsele" }).click();
-    await expect(page).toHaveURL(/\/produse$/);
+    /*
+      "Echipamente", not "Toate produsele": the header now points at /modele, the
+      HUB-backed catalogue browser, because HUB has no "list all products" endpoint —
+      products are reachable only through a category, so an all-products page cannot
+      exist on that data.
 
+      Only the navigation is asserted. /modele reads the live HUB catalogue and CI has
+      no credentials for it, so the page renders its unavailable state here; asserting
+      content would be asserting the failure path under a name that claims otherwise.
+    */
+    await nav.getByRole("link", { name: "Echipamente" }).click();
+    await expect(page).toHaveURL(/\/modele$/);
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Alege echipamentul" }),
+    ).toBeVisible();
+
+    await page.goto("/");
     await nav.getByRole("link", { name: "Cos" }).click();
     await expect(page).toHaveURL(/\/cos$/);
     await expect(

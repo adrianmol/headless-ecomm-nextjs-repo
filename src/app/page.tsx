@@ -120,8 +120,8 @@ async function BrandLinks() {
     <>
       <SectionHeading
         title="Marci de imprimante"
-        href="/produse"
-        linkLabel="Vezi tot catalogul"
+        href="/modele"
+        linkLabel="Vezi toate echipamentele"
       />
       <ul className="flex flex-wrap gap-2">
         {brands.map((brand) => (
@@ -278,8 +278,16 @@ export default function Home() {
       </section>
 
       <section className="max-w-page mx-auto px-4 py-12">
-        {/* Heading lives inside BrandLinks so an unreachable catalogue removes
-            the whole section rather than orphaning its title. */}
+        {/*
+          Points at the HUB catalogue browser rather than the brand chips that used to
+          be here. Those read the provisional API and linked to /compatibil/{brand},
+          and HUB cannot fill those pages: only 11 of its 20 brand roots hold any
+          products at all, between 1 and 20 each, because the tree's intermediate
+          nodes are unpublished. Nine brands would have led to an empty page.
+
+          Heading lives inside the band so an unreachable catalogue removes the whole
+          section rather than orphaning its title.
+        */}
         <Suspense fallback={<BrandLinksSkeleton />}>
           <BrandLinks />
         </Suspense>

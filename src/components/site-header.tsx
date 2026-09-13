@@ -77,11 +77,17 @@ export function SiteHeader() {
             plan lists customer accounts as later scope. A header link to a 404
             is worse than a missing link.
           */}
+          {/*
+            Points at /modele, the HUB-backed catalogue browser, because that is the
+            entry point that works against the live catalogue. HUB has no
+            "list all products" endpoint — products are reachable only through a
+            category — so an "all products" page cannot exist on that data.
+          */}
           <Link
-            href="/produse"
+            href="/modele"
             className="text-primary focus-visible:ring-ring hidden rounded font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none sm:inline"
           >
-            Toate produsele
+            Echipamente
           </Link>
           <Link
             href="/cos"
