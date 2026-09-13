@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { CheckoutFormState } from "@/lib/checkout-form";
+import { checkPspRedirect } from "@/lib/psp-redirect";
 import { isSameOrigin } from "@/lib/request-origin";
 import { getCart } from "../cart/queries";
 import { CommerceErrorException } from "../errors";
@@ -81,9 +82,28 @@ export async function startCheckoutAction(
     return { status: "error" };
   }
 
+  /*
+    The only off-origin redirect in the storefront, and the customer's next click
+    is on a page where they expect to type card details. Validated before we send
+    them, so a backend bug cannot turn the checkout button into a phishing hop.
+  */
+  const target = checkPspRedirect(session.data.redirectUrl);
+  if (!target.ok) {
+    // Host and reason, never the URL: a provider redirect commonly carries a
+    // session token in its query string.
+    console.error(
+      JSON.stringify({
+        event: "psp_redirect_rejected",
+        reason: target.reason,
+        host: target.host,
+      }),
+    );
+    return { status: "error" };
+  }
+
   // Outside the try/catch above on purpose: redirect() signals by throwing, and
   // catching it would swallow the navigation.
-  redirect(session.data.redirectUrl);
+  redirect(target.url);
 }
 
 /**
