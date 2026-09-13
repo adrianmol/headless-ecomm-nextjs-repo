@@ -16,11 +16,57 @@ import { registerOTel } from "@vercel/otel";
  * middleware in src/commerce/client.ts.
  */
 export function register() {
+  assertProductionConfig();
+
   if (!process.env.OTEL_EXPORTER_OTLP_ENDPOINT) return;
 
   registerOTel({
     serviceName: process.env.OTEL_SERVICE_NAME ?? "storefront",
   });
+}
+
+/**
+ * Refuses to start a production server that is missing configuration the
+ * storefront cannot compensate for.
+ *
+ * `STOREFRONT_URL` is here because its absence is silent, which is worse than a
+ * crash. Measured against the standalone build with the exact environment the
+ * deploy pipeline writes — `NODE_ENV`, `COMMERCE_API_URL`, `REVALIDATE_SECRET`,
+ * and no `STOREFRONT_URL`:
+ *
+ *   PDP      200, with "STOREFRONT_URL must be configured" logged and thrown
+ *            inside generateMetadata — Next swallows it and serves the page with
+ *            no canonical URL and no Open Graph tags
+ *   sitemap  200, and an empty <urlset>
+ *
+ * So the shop looks entirely healthy, the deploy's smoke test passes because
+ * availability still streams, and the whole catalogue is invisible to search
+ * engines. Nothing fails, which is exactly the problem.
+ *
+ * Startup is the right place to catch it. A container that will not start fails
+ * the health check, which makes deploy.sh roll back to the previous image — so a
+ * one-line configuration mistake costs a failed deploy rather than a silent
+ * outage in the thing the shop exists to do.
+ *
+ * Production only. Local development has no reason to know the public origin, and
+ * crashing `next dev` over it would be hostile.
+ */
+function assertProductionConfig() {
+  if (process.env.NODE_ENV !== "production") return;
+
+  const missing = ["COMMERCE_API_URL", "STOREFRONT_URL"].filter(
+    (name) => !process.env[name],
+  );
+
+  if (missing.length > 0) {
+    // Names only. These are configuration keys, not their values.
+    throw new Error(
+      `Refusing to start: ${missing.join(", ")} must be set in production. ` +
+        "Without STOREFRONT_URL every product page renders without a canonical " +
+        "URL or Open Graph tags and the sitemap is empty, and none of that fails " +
+        "a request — see src/instrumentation.ts.",
+    );
+  }
 }
 
 /**
