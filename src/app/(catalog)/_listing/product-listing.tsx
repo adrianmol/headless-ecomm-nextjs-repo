@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import Link from "next/link";
 import {
   listOffers,
@@ -130,6 +131,49 @@ function ProductGrid({
       ))}
     </ul>
   );
+}
+
+/**
+ * A short grid of products for the homepage bands.
+ *
+ * Exported from here rather than written on the homepage so the cards, the
+ * batched-offers pattern and the per-card Suspense boundaries cannot drift from
+ * the listing's. A homepage that renders its own slightly different card is how
+ * two implementations of a price end up disagreeing.
+ *
+ * **Its heading is the caller's problem, deliberately.** The design has three
+ * bands — "Produse HOT", "Promotii", "Cele mai cumparate produse" — and none of
+ * them can be sourced: the contract has no promotion, popularity or featured
+ * concept, confirmed by grep. Selecting products for a band called "HOT" would
+ * mean inventing merchandising, which is the specific thing that got earlier
+ * homepage copy rejected twice. So this returns the first page of the catalogue
+ * and lets the caller name it honestly.
+ */
+export async function ProductStrip({ count = 4 }: { count?: number }) {
+  /*
+    `await connection()` is required, not decorative. The homepage has no
+    searchParams and is otherwise fully prerenderable, so without this the build
+    fails outright: `listOffers` is an uncached, request-time read and
+    prerendering one would bake a price into static HTML.
+
+    It marks only this subtree as request-time. The band's heading and the card
+    skeletons still come from the prerendered shell, and the prices stream in
+    behind Suspense — the same arrangement as the PDP, and the reason a stale
+    price here is structurally impossible rather than a matter of tuning a TTL.
+
+    Consequence worth stating: it moves `/` from `○` static to `◐` partial
+    prerender. That is the correct trade for showing live prices on the homepage,
+    and it is a deliberate one rather than the silent reclassification pagination
+    caused on `/produse`.
+  */
+  await connection();
+
+  const { items } = await listProducts({ limit: count });
+  if (items.length === 0) return null;
+
+  const offers = listOffers(items.map((item) => item.slug));
+
+  return <ProductGrid items={items} offers={offers} />;
 }
 
 export function ProductGridSkeleton({ count = PAGE_SIZE }: { count?: number }) {

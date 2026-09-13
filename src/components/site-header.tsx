@@ -25,19 +25,6 @@ import { CATEGORIES } from "@/lib/catalog-taxonomy";
  * its own query parameters.
  */
 
-/**
- * Two-letter chips, as in the design. Derived from the category name rather than
- * stored, so a taxonomy edit cannot leave a stale abbreviation behind.
- */
-function initials(name: string): string {
-  const words = name.split(/\s+/).filter(Boolean);
-  const letters =
-    words.length > 1
-      ? `${words[0][0]}${words[1][0]}`
-      : name.replace(/[^\p{L}]/gu, "").slice(0, 2);
-  return letters.toLocaleUpperCase("ro-RO");
-}
-
 export function SiteHeader() {
   return (
     <header className="border-border bg-background sticky top-0 z-10 border-b">
@@ -127,7 +114,7 @@ export function SiteHeader() {
                     className="bg-accent text-accent-foreground flex size-9 items-center justify-center rounded-full text-xs font-bold group-hover:brightness-95"
                     aria-hidden
                   >
-                    {initials(category.name)}
+                    {category.abbr}
                   </span>
                   <span className="text-muted-foreground group-hover:text-foreground text-center text-[11px] leading-tight whitespace-normal">
                     {category.name}

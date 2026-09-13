@@ -30,7 +30,40 @@ export type ProductCardProps = {
    * prioritisation entirely and competes for bandwidth.
    */
   priority?: boolean;
+  /**
+   * The design puts an add-to-cart button on every card. A slot, like the price
+   * and stock, so this component stays presentational: adding to the cart needs
+   * a variant id and a Server Action, and importing either here would break the
+   * `components/` → `commerce/` boundary rule.
+   *
+   * Optional because a card also appears where adding is meaningless — bundle
+   * contents, "other manufacturers" lists — and a disabled button there is
+   * noise.
+   */
+  actionSlot?: React.ReactNode;
+  /**
+   * Percentage off, for the pill in the card's top-right corner. Supplied by
+   * the caller from real compare-at pricing rather than computed here, so a card
+   * cannot advertise a discount the price block does not show.
+   */
+  discountPercent?: number;
+  /** Equipment brand — HP, Brother — set above the title as in the design. */
+  brand?: string;
 };
+
+/**
+ * Deliberately no star rating.
+ *
+ * The design shows five filled stars on every card. No contract available here
+ * has a rating or review field, so rendering them would mean printing the same
+ * invented five-star score on every product in the shop. That is not the usual
+ * "invented copy" problem, it is fabricated social proof — a misleading
+ * commercial practice, and the kind of thing a consumer-protection authority
+ * fines rather than emails about.
+ *
+ * When real ratings exist, this is where they go, and the numeric value belongs
+ * in the accessible name so the stars are reinforcement rather than the signal.
+ */
 
 /**
  * Presentational: plain props, no data-layer import (enforced by the ESLint
@@ -55,10 +88,31 @@ export function ProductCard({
   priceSlot,
   stockSlot,
   priority,
+  actionSlot,
+  discountPercent,
+  brand,
 }: ProductCardProps) {
   return (
-    <article className="group border-border bg-card focus-within:ring-ring relative flex h-full flex-col rounded-lg border p-3 transition-colors focus-within:ring-2 hover:border-neutral-400">
-      <div className="bg-muted relative aspect-square overflow-hidden rounded">
+    <article className="group border-border bg-card focus-within:ring-ring relative flex h-full flex-col overflow-hidden rounded-lg border transition-colors focus-within:ring-2 hover:border-neutral-400">
+      {/*
+        The design runs the badges in a band above the image rather than floating
+        them over it. That is also the more robust arrangement: overlaid pills
+        sit on whatever colour the product photo happens to have behind them, and
+        the contrast is then unknowable.
+
+        The band keeps its height when empty so a card with no badges lines up
+        with one that has them, across a ragged grid.
+      */}
+      <div className="flex min-h-8 items-start justify-between gap-2 px-3 pt-3">
+        <div className="min-w-0">{stockSlot}</div>
+        {discountPercent !== undefined && discountPercent > 0 && (
+          <span className="bg-promo text-promo-foreground shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums">
+            −{discountPercent}%
+          </span>
+        )}
+      </div>
+
+      <div className="bg-muted relative mx-3 aspect-square overflow-hidden rounded">
         {image && (
           <Image
             src={image.url}
@@ -70,86 +124,108 @@ export function ProductCard({
             className="h-full w-full object-contain transition-transform group-hover:scale-105"
           />
         )}
-        {kindLabel && (
-          <span className="bg-background/90 text-muted-foreground absolute top-1.5 left-1.5 rounded px-1.5 py-0.5 text-[11px] font-medium">
-            {kindLabel}
-          </span>
-        )}
         {isOriginal && (
-          <span className="bg-promo text-promo-foreground absolute top-1.5 right-1.5 rounded px-1.5 py-0.5 text-[11px] font-semibold">
+          <span className="bg-accent text-accent-foreground absolute top-1.5 right-1.5 rounded px-1.5 py-0.5 text-[11px] font-semibold">
             Original
           </span>
         )}
       </div>
 
-      <h3 className="mt-2.5 text-sm leading-snug font-medium">
-        {/*
-          The whole card is the click target via this stretched link, so there
-          is exactly one link per card. Wrapping the card in an <a> instead
-          would put the image, codes and price inside the accessible name and
-          make the link announce as a paragraph of specifications.
-        */}
-        <Link
-          href={`/produse/${slug}`}
-          className="after:absolute after:inset-0 focus-visible:outline-none"
-        >
-          {title}
-        </Link>
-      </h3>
+      <div className="flex min-h-0 flex-1 flex-col px-3 pb-3">
+        {(brand || kindLabel) && (
+          <p className="text-muted-foreground mt-3 text-[11px] font-bold tracking-wide uppercase">
+            {brand ?? kindLabel}
+          </p>
+        )}
 
-      <dl className="text-muted-foreground mt-1.5 space-y-0.5 text-xs">
-        {oemCodes && oemCodes.length > 0 && (
-          <div className="flex gap-1">
-            <dt className="sr-only">Coduri echivalente</dt>
-            <dd className="truncate font-mono">{oemCodes.join(" · ")}</dd>
-          </div>
-        )}
-        {yieldPages !== undefined && (
-          <div>
-            <dt className="sr-only">Randament</dt>
-            <dd>{formatYield(yieldPages)}</dd>
-          </div>
-        )}
-        {manufacturer && (
-          <div>
-            <dt className="sr-only">Producator</dt>
-            <dd>{manufacturer}</dd>
-          </div>
-        )}
-      </dl>
+        <h3 className="mt-1 text-sm leading-snug font-semibold">
+          {/*
+            The whole card is the click target via this stretched link, so there
+            is exactly one link per card. Wrapping the card in an <a> instead
+            would put the image, codes and price inside the accessible name and
+            make the link announce as a paragraph of specifications.
 
-      {/* Pushed to the bottom so price sits on one line across a ragged grid. */}
-      <div className="mt-auto pt-3">
-        {stockSlot}
-        <div className="mt-1.5">{priceSlot}</div>
+            `relative z-10` on the action slot below keeps the button clickable
+            in spite of this overlay — without it the stretched link swallows the
+            press and every add-to-cart silently navigates instead.
+          */}
+          <Link
+            href={`/produse/${slug}`}
+            className="after:absolute after:inset-0 focus-visible:outline-none"
+          >
+            {title}
+          </Link>
+        </h3>
+
+        <dl className="text-muted-foreground mt-1.5 space-y-0.5 text-xs">
+          {oemCodes && oemCodes.length > 0 && (
+            <div className="flex gap-1">
+              <dt className="sr-only">Coduri echivalente</dt>
+              <dd className="truncate font-mono">{oemCodes.join(" · ")}</dd>
+            </div>
+          )}
+          {yieldPages !== undefined && (
+            <div>
+              <dt className="sr-only">Randament</dt>
+              <dd className="font-mono">{formatYield(yieldPages)}</dd>
+            </div>
+          )}
+          {manufacturer && (
+            <div>
+              <dt className="sr-only">Producator</dt>
+              <dd>{manufacturer}</dd>
+            </div>
+          )}
+        </dl>
+
+        {/* Pushed to the bottom so price sits on one line across a ragged grid. */}
+        <div className="mt-auto pt-3">
+          {priceSlot}
+          {actionSlot && <div className="relative z-10 mt-3">{actionSlot}</div>}
+        </div>
       </div>
     </article>
   );
 }
 
 /**
- * Mirrors ProductCard's box: same border and padding, same square image, same
- * three metadata lines, same bottom price block. If the two drift apart the
- * Suspense swap shifts the grid and costs CLS against the 0.05 budget.
+ * Mirrors ProductCard's box band for band: the badge strip's `min-h-8`, the
+ * inset square image, the brand line, title, three metadata lines and the bottom
+ * price block. If the two drift apart the Suspense swap shifts the grid and costs
+ * CLS against the 0.05 budget — and nothing fails a test when it does, the
+ * number just quietly rises.
+ *
+ * `withAction` must match whether the caller passes an `actionSlot`, for the same
+ * reason: a button's worth of height appearing on swap is a visible jump.
  */
-export function ProductCardSkeleton() {
+export function ProductCardSkeleton({
+  withAction = false,
+}: {
+  withAction?: boolean;
+}) {
   return (
     <div
-      className="border-border bg-card flex h-full flex-col rounded-lg border p-3"
+      className="border-border bg-card flex h-full flex-col overflow-hidden rounded-lg border"
       aria-hidden
     >
-      <div className="bg-muted aspect-square animate-pulse rounded" />
-      <div className="bg-muted mt-2.5 h-5 w-5/6 animate-pulse rounded" />
-      <div className="mt-1.5 space-y-1">
-        <div className="bg-muted h-3 w-2/3 animate-pulse rounded" />
-        <div className="bg-muted h-3 w-1/3 animate-pulse rounded" />
-        <div className="bg-muted h-3 w-1/4 animate-pulse rounded" />
+      <div className="flex min-h-8 items-start px-3 pt-3">
+        <div className="bg-muted h-5 w-20 animate-pulse rounded-full" />
       </div>
-      <div className="mt-auto pt-3">
-        <div className="bg-muted h-3.5 w-24 animate-pulse rounded" />
-        <div className="mt-1.5">
+      <div className="bg-muted mx-3 aspect-square animate-pulse rounded" />
+      <div className="flex flex-1 flex-col px-3 pb-3">
+        <div className="bg-muted mt-3 h-3 w-16 animate-pulse rounded" />
+        <div className="bg-muted mt-1 h-5 w-5/6 animate-pulse rounded" />
+        <div className="mt-1.5 space-y-1">
+          <div className="bg-muted h-3 w-2/3 animate-pulse rounded" />
+          <div className="bg-muted h-3 w-1/3 animate-pulse rounded" />
+          <div className="bg-muted h-3 w-1/4 animate-pulse rounded" />
+        </div>
+        <div className="mt-auto pt-3">
           <div className="bg-muted h-6 w-28 animate-pulse rounded" />
           <div className="bg-muted mt-1 h-3 w-36 animate-pulse rounded" />
+          {withAction && (
+            <div className="bg-muted mt-3 h-9 w-full animate-pulse rounded-md" />
+          )}
         </div>
       </div>
     </div>

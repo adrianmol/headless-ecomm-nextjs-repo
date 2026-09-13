@@ -25,11 +25,26 @@ export type Category = {
   name: string;
   /** One line of intent for the category landing page and its meta description. */
   description: string;
+  /**
+   * Two letters for the header's circular chip.
+   *
+   * Stored, not derived. The first version computed initials from the name and
+   * produced two identical `UC` chips for "Unitati cilindru" and "Unitati
+   * cuptor" — two different categories, indistinguishable in the nav. No
+   * derivation rule fixes that in general, because uniqueness is a property of
+   * the whole set rather than of any one name, and the design's own choices
+   * (`CI` for Cilindri, `RO` for Role) are editorial anyway.
+   *
+   * A stale abbreviation is visible on every page; a colliding one is not. That
+   * trade is why this is a field.
+   */
+  abbr: string;
 };
 
 export const CATEGORIES: readonly Category[] = [
   {
     slug: "tonere",
+    abbr: "TO",
     kind: "toner",
     name: "Tonere",
     description:
@@ -37,6 +52,7 @@ export const CATEGORIES: readonly Category[] = [
   },
   {
     slug: "cartuse-cerneala",
+    abbr: "CC",
     kind: "inkjet",
     name: "Cartuse cerneala",
     description:
@@ -44,6 +60,7 @@ export const CATEGORIES: readonly Category[] = [
   },
   {
     slug: "unitati-cilindru",
+    abbr: "CI",
     kind: "drum",
     name: "Unitati cilindru",
     description:
@@ -51,6 +68,7 @@ export const CATEGORIES: readonly Category[] = [
   },
   {
     slug: "unitati-cuptor",
+    abbr: "CU",
     kind: "fuser",
     name: "Unitati cuptor",
     description:
@@ -58,6 +76,7 @@ export const CATEGORIES: readonly Category[] = [
   },
   {
     slug: "recipiente-toner",
+    abbr: "RT",
     kind: "waste",
     name: "Recipiente toner",
     description:
@@ -65,6 +84,7 @@ export const CATEGORIES: readonly Category[] = [
   },
   {
     slug: "role",
+    abbr: "RO",
     kind: "roller",
     name: "Role",
     description:

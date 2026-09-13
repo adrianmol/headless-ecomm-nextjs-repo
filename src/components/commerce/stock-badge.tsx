@@ -23,16 +23,16 @@ const LABEL: Record<StockState, string> = {
   out: "Stoc epuizat",
 };
 
-const DOT: Record<StockState, string> = {
-  in: "bg-stock-in",
-  low: "bg-stock-low",
-  out: "bg-stock-out",
-};
-
-const TEXT: Record<StockState, string> = {
-  in: "text-stock-in",
-  low: "text-stock-low",
-  out: "text-stock-out",
+/**
+ * Filled pills, as in the design, and each foreground is paired with the ground
+ * it sits on rather than reused from a white background. That pairing is the
+ * whole point of the token split: the design's amber measured 2.69:1 on its own
+ * amber pill while looking fine on white.
+ */
+const PILL: Record<StockState, string> = {
+  in: "bg-stock-in-surface text-stock-in",
+  low: "bg-stock-low-surface text-stock-low",
+  out: "bg-stock-out-surface text-stock-out",
 };
 
 /**
@@ -60,14 +60,17 @@ export function StockBadge({
   const state = stockState(inStock, quantity);
 
   return (
-    <p className={cn("flex items-center gap-1.5 text-sm", className)}>
+    <p className={cn("flex flex-wrap items-center gap-1.5", className)}>
       <span
-        className={cn("size-2 shrink-0 rounded-full", DOT[state])}
-        aria-hidden
-      />
-      <span className={cn("font-medium", TEXT[state])}>{LABEL[state]}</span>
+        className={cn(
+          "rounded-full px-2 py-0.5 text-[11px] font-bold tracking-wide uppercase",
+          PILL[state],
+        )}
+      >
+        {LABEL[state]}
+      </span>
       {showQuantity && state !== "out" && (
-        <span className="text-muted-foreground">
+        <span className="text-muted-foreground text-sm">
           ({quantity} {quantity === 1 ? "bucata" : "bucati"})
         </span>
       )}
@@ -75,11 +78,11 @@ export function StockBadge({
   );
 }
 
-/** Matches StockBadge's line box so the streamed swap costs no layout shift. */
+/** Matches StockBadge's pill box so the streamed swap costs no layout shift. */
 export function StockBadgeSkeleton({ className }: { className?: string }) {
   return (
     <p className={cn("flex h-5 items-center", className)} aria-hidden>
-      <span className="bg-muted h-3.5 w-24 animate-pulse rounded" />
+      <span className="bg-muted h-5 w-20 animate-pulse rounded-full" />
     </p>
   );
 }

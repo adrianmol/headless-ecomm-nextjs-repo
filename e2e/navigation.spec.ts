@@ -8,12 +8,16 @@ test.describe("landing page", () => {
   test("leads with the printer finder", async ({ page }) => {
     await page.goto("/");
 
+    // Heading copy is quoted from the owner's design file, so the assertion is
+    // too — loosely, on the distinctive part, so a punctuation edit in supplied
+    // copy does not fail the build.
     await expect(
-      page.getByRole("heading", { level: 1, name: /consumabile compatibile/i }),
+      page.getByRole("heading", { level: 1, name: /toner si cartuse/i }),
     ).toBeVisible();
 
     // The finder is the primary entry point for this catalog: shoppers arrive
-    // knowing a printer, not a product.
+    // knowing a printer, not a product. It sits on a card breaking out of the
+    // hero, which is a layout change — it must still be the thing you land on.
     await expect(page.getByLabel("Marca imprimantei")).toBeVisible();
     await expect(page.getByRole("button", { name: "Cauta" })).toBeVisible();
   });
@@ -57,9 +61,13 @@ test.describe("landing page", () => {
     ).toBeVisible();
   });
 
-  test("category tiles reach a category listing", async ({ page }) => {
+  test("a category is reachable from the landing page", async ({ page }) => {
     await page.goto("/");
 
+    // Renamed from "category tiles": the design moves categories out of a
+    // homepage grid and into the header's chip strip, so this now exercises the
+    // chips. It kept passing through the rename only because of `.first()`,
+    // which is precisely the kind of quiet drift worth naming.
     await page
       .getByRole("link", { name: "Tonere", exact: true })
       .first()
