@@ -252,11 +252,17 @@ describe("product detail mapping", () => {
   });
 
   it("distinguishes an absent bundle/variant list from an empty one", () => {
-    // Absent means "not requested"; empty means "requested, none exist".
+    // Absent means "not requested"; empty means "requested, none exist". The
+    // distinction now travels through the second argument rather than the product
+    // object, because the API returns `related` and `components` as siblings of
+    // `product` rather than fields of it.
     expect(toProductDetail(detail()).bundleContents).toBeNull();
-    expect(toProductDetail(detail({ components: [] })).bundleContents).toEqual(
-      [],
-    );
+    expect(toProductDetail(detail(), {}).variants).toBeNull();
+
+    expect(
+      toProductDetail(detail(), { bundleContents: [] }).bundleContents,
+    ).toEqual([]);
+    expect(toProductDetail(detail(), { variants: [] }).variants).toEqual([]);
   });
 
   it("requires a sku, which the contract calls the stable key", () => {

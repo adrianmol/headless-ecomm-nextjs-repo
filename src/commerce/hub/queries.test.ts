@@ -10,6 +10,7 @@ import {
   getHubCategoryPage,
   getHubLiveOffers,
   getHubProduct,
+  hubPing,
 } from "./queries";
 
 const BASE = "https://hub.test";
@@ -106,7 +107,9 @@ describe("getHubCategories", () => {
     expect(requested[0]).not.toContain("numara");
 
     await getHubCategories({ withCounts: true });
-    expect(requested[1]).toContain("numara=1");
+    // `count`, not `numara`: verified on 2026-09-13 that the Romanian name
+    // produced no count at all, silently.
+    expect(requested[1]).toContain("count=1");
   });
 });
 
@@ -154,15 +157,22 @@ describe("getHubCategoryPage", () => {
     await getHubCategoryPage(1727, {
       page: 2,
       perPage: 50,
-      sort: "pret_desc",
+      sort: "price_desc",
       deep: true,
     });
 
+    /*
+      Every one of these names was verified against the live API. The Romanian
+      spellings this code originally sent are accepted and ignored, so the
+      request succeeded while the option did nothing: `pe_pagina=3` left per_page
+      at 24, `pagina=2` left page at 1, and `adanc=1` returned a category's direct
+      products only — 10 instead of 1541 for category 1878.
+    */
     const url = new URL(requested[0]);
-    expect(url.searchParams.get("pagina")).toBe("2");
-    expect(url.searchParams.get("pe_pagina")).toBe("50");
-    expect(url.searchParams.get("sort")).toBe("pret_desc");
-    expect(url.searchParams.get("adanc")).toBe("1");
+    expect(url.searchParams.get("page")).toBe("2");
+    expect(url.searchParams.get("per_page")).toBe("50");
+    expect(url.searchParams.get("sort")).toBe("price_desc");
+    expect(url.searchParams.get("deep")).toBe("1");
   });
 
   it("clamps perPage to the documented maximum instead of earning a bad_request", async () => {
@@ -178,7 +188,7 @@ describe("getHubCategoryPage", () => {
     });
 
     await getHubCategoryPage(1727, { perPage: 5000 });
-    expect(new URL(requested[0]).searchParams.get("pe_pagina")).toBe("100");
+    expect(new URL(requested[0]).searchParams.get("per_page")).toBe("100");
   });
 
   it("refuses a non-positive id locally", async () => {
@@ -248,6 +258,28 @@ describe("getHubProduct", () => {
     });
   });
 
+  it("reads siblings from beside the product, not from inside it", async () => {
+    // The envelope is { shop, product, related } — `related` is a sibling. An
+    // earlier schema looked for it nested and, being optional, silently reported
+    // every product as having none.
+    reply("/hub-api/v1/product/12679", {
+      ok: true,
+      data: {
+        shop: null,
+        product: SUMMARY,
+        related: [{ ...SUMMARY, id: 999, sku: "SIBLING-1" }],
+      },
+    });
+
+    const product = await getHubProduct(
+      { by: "id", value: 12679 },
+      { withVariants: true },
+    );
+
+    expect(product?.variants).toHaveLength(1);
+    expect(product?.variants?.[0].sku).toBe("SIBLING-1");
+  });
+
   it("asks for variants only when requested", async () => {
     reply("/hub-api/v1/product/12679", {
       ok: true,
@@ -255,7 +287,9 @@ describe("getHubProduct", () => {
     });
 
     await getHubProduct({ by: "id", value: 12679 }, { withVariants: true });
-    expect(new URL(requested[0]).searchParams.get("rude")).toBe("1");
+    // `related=1`, not `rude=1`: verified against DEV-EC3800Y, where the former
+    // returns six siblings and the latter returns none.
+    expect(new URL(requested[0]).searchParams.get("related")).toBe("1");
   });
 });
 
@@ -331,5 +365,41 @@ describe("getHubLiveOffers", () => {
 
     const result = await getHubLiveOffers({ ids: [12679] });
     expect(result.missing).toEqual(["12679", "EOL-1"]);
+  });
+});
+
+describe("hubPing", () => {
+  it("confirms the signature chain and reports the key's scope", async () => {
+    reply("/hub-api/v1/ping", {
+      ok: true,
+      data: {
+        pong: true,
+        time: "2026-09-13T18:32:13+00:00",
+        shop_id: 0,
+        scope: "read",
+        mode: "http",
+      },
+    });
+
+    await expect(hubPing()).resolves.toEqual({
+      time: "2026-09-13T18:32:13+00:00",
+      shopId: 0,
+      scope: "read",
+    });
+  });
+
+  it("is never cached, because a cached probe reports the past", async () => {
+    reply("/hub-api/v1/ping", {
+      ok: true,
+      data: { pong: true, time: "t", shop_id: 0, scope: "read" },
+    });
+
+    await hubPing();
+    expect(appliedTags).toEqual([]);
+  });
+
+  it("rejects a response that is not a successful pong", async () => {
+    reply("/hub-api/v1/ping", { ok: true, data: { pong: false } });
+    await expect(hubPing()).rejects.toBeInstanceOf(CommerceErrorException);
   });
 });

@@ -100,13 +100,17 @@ const ROMANIAN_TO_ENGLISH: Readonly<Record<string, string>> = {
   cantitate: "quantity",
 
   /*
-   * Unverified, and marked so deliberately. No product encountered so far is a
-   * bundle or has offer-code siblings, so the English spelling of these two has
-   * never been observed — these are the plausible guesses. If a bundle ever fails
-   * to parse, this pair is the first place to look.
+   * `variante` is `related`, confirmed against a product that actually has
+   * siblings (DEV-EC3800Y returns six). It was worth checking rather than
+   * assuming "variants": the guess would have been wrong, and the field arrives
+   * as a *sibling of* `product` rather than inside it — see queries.ts.
+   *
+   * `componente` remains unverified. No bundle has turned up in any sample, so
+   * its English spelling has never been observed and this is a guess. If a bundle
+   * ever fails to parse, start here.
    */
   componente: "components",
-  variante: "variants",
+  variante: "related",
 };
 
 /**

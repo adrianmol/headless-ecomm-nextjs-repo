@@ -278,9 +278,21 @@ export const hubProductDetailSchema = hubProductSummarySchema.extend({
   summary: z.string().default(""),
   features: z.array(hubSpecSchema).default([]),
   categories: z.array(z.number().int()).default([]),
-  components: z.array(hubProductSummarySchema).optional(),
-  variants: z.array(hubProductSummarySchema).optional(),
+  // Note the absence of `related` and `components`: see below.
 });
+
+/**
+ * Bundle contents and offer-code siblings arrive **beside** `product` in the
+ * envelope, not inside it:
+ *
+ *   { shop, product: {…}, related: [ … ] }
+ *
+ * Verified against DEV-EC3800Y, which has six siblings. An earlier version of this
+ * schema expected them nested and, because the field was optional, would have
+ * silently reported every product as having none — the worst way for a mapping
+ * error to behave.
+ */
+export const hubRelatedSchema = z.array(hubProductSummarySchema).default([]);
 
 export type HubProductDetail = HubProductSummary & {
   offerCode: string;
@@ -306,7 +318,12 @@ export type HubProductDetail = HubProductSummary & {
 
 export function toProductDetail(
   raw: z.infer<typeof hubProductDetailSchema>,
+  envelope?: {
+    variants?: readonly HubProductSummary[];
+    bundleContents?: readonly HubProductSummary[];
+  },
 ): HubProductDetail {
+  const { variants, bundleContents } = envelope ?? {};
   return {
     ...toProductSummary(raw),
     offerCode: raw.offer_code,
@@ -319,8 +336,9 @@ export function toProductDetail(
     summary: raw.summary,
     specs: raw.features.map((s) => ({ name: s.name, value: s.value })),
     categoryIds: raw.categories,
-    bundleContents: raw.components?.map(toProductSummary) ?? null,
-    variants: raw.variants?.map(toProductSummary) ?? null,
+    // From the envelope, because that is where the API puts them.
+    bundleContents: bundleContents ?? null,
+    variants: variants ?? null,
   };
 }
 

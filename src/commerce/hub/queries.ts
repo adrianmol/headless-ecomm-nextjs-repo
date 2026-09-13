@@ -7,6 +7,7 @@ import {
   hubPaginationSchema,
   hubProductDetailSchema,
   hubProductSummarySchema,
+  hubRelatedSchema,
   toCategory,
   toOffer,
   toPagination,
@@ -40,6 +41,37 @@ import { z } from "zod";
  * prices it believes are live and are not. That is the failure this whole
  * arrangement exists to make impossible.
  */
+
+/**
+ * Credential and signature check. Cheapest possible proof that the whole chain
+ * works: key → signature → handler → data.
+ *
+ * **Never cached**, and no `use cache` here: a readiness probe answered from cache
+ * reports the state of the last successful call rather than the current one, which
+ * is the one failure mode a probe must not have.
+ *
+ * Returns the scope so a misconfigured key is distinguishable from an unreachable
+ * host — a read-only key is exactly what this storefront wants, and a key with
+ * write scope would be worth noticing.
+ */
+export async function hubPing(): Promise<{
+  time: string;
+  shopId: number;
+  scope: string;
+}> {
+  const data = await hubFetch<unknown>("/hub-api/v1/ping");
+  const parsed = parseOrThrow(
+    z.object({
+      pong: z.literal(true),
+      time: z.string(),
+      shop_id: z.number().int(),
+      scope: z.string(),
+    }),
+    data,
+  );
+
+  return { time: parsed.time, shopId: parsed.shop_id, scope: parsed.scope };
+}
 
 export const hubCatalogTag = "hub-catalog";
 export const hubCategoryTag = (id: number) => `hub-category:${id}`;
@@ -86,8 +118,14 @@ export async function getHubCategories(options?: {
 
   // Query assembled once, here, and handed to the client as a finished string:
   // the signature covers the path exactly as sent.
+  /*
+    English parameter names, because the Romanian ones are no longer read.
+    Verified on 2026-09-13: `numara=1` produced no product count at all while
+    `count=1` did. An ignored parameter is worse than a rejected one — nothing
+    fails, the option simply stops working.
+  */
   const path = options?.withCounts
-    ? "/hub-api/v1/category?numara=1"
+    ? "/hub-api/v1/category?count=1"
     : "/hub-api/v1/category";
 
   const data = await hubFetch<unknown>(path);
@@ -112,7 +150,12 @@ export type HubCategoryPage = {
   pagination: HubPagination;
 };
 
-export type HubSort = "nume" | "pret" | "pret_desc" | "nou";
+/**
+ * Measured, not translated. `price`, `price_desc` and `new` demonstrably reorder
+ * the response; `pret`, `pret_desc` and `nou` leave it untouched. `name` is the
+ * default, so it reorders nothing — which is correct rather than broken.
+ */
+export type HubSort = "name" | "price" | "price_desc" | "new";
 
 /**
  * One category: itself, its direct children, and a page of products.
@@ -141,12 +184,31 @@ export async function getHubCategoryPage(
   }
 
   const params = new URLSearchParams();
-  if (options?.page !== undefined) params.set("pagina", String(options.page));
+  if (options?.page !== undefined) params.set("page", String(options.page));
   if (options?.perPage !== undefined) {
-    params.set("pe_pagina", String(Math.min(options.perPage, MAX_PER_PAGE)));
+    params.set("per_page", String(Math.min(options.perPage, MAX_PER_PAGE)));
   }
   if (options?.sort) params.set("sort", options.sort);
-  if (options?.deep) params.set("adanc", "1");
+  /*
+    `deep`, not `adanc`. With the old name the request silently returned only a
+    category's direct products — 10 instead of 1541 for category 1878 — so a brand
+    page showed a fraction of its subtree and looked sparse rather than broken.
+
+    **`deep` is expensive and its cost scales with the subtree.** Measured
+    2026-09-13, one request each:
+
+      children     shallow      deep
+             0       347ms      145ms   (id 29382)
+           105       157ms     3329ms   (id 1727, 326 products)
+         1,277       149ms   timeout    (id 1878, >25s, twice)
+         1,559       321ms   timeout    (id 535,  >25s)
+
+    So this cannot be used to render a page for a category with a large subtree —
+    the client's 8s cap will abort it, and that cap is doing its job. Any
+    navigation that needs a whole subtree needs either a backend index or a
+    precomputed listing; walking children from the storefront would be worse.
+  */
+  if (options?.deep) params.set("deep", "1");
 
   const query = params.toString();
   const data = await hubFetch<unknown>(
@@ -188,9 +250,13 @@ function productPath(
   options?: { withComponents?: boolean; withVariants?: boolean },
 ): string {
   const params = new URLSearchParams();
-  // `componente` defaults to 1 upstream, so it is only sent to switch it off.
-  if (options?.withComponents === false) params.set("componente", "0");
-  if (options?.withVariants) params.set("rude", "1");
+  // Defaults to on upstream, so it is only sent to switch it off. The English
+  // spelling of this one is still unconfirmed: no bundle has appeared in any
+  // sample, so there has been nothing to observe it against.
+  if (options?.withComponents === false) params.set("components", "0");
+  // `related`, not `rude`: verified against DEV-EC3800Y, where `related=1`
+  // returns six siblings and `rude=1` returns none.
+  if (options?.withVariants) params.set("related", "1");
 
   if (ref.by === "slug") params.set("url", ref.value);
   const query = params.toString();
@@ -232,11 +298,22 @@ export async function getHubProduct(
     z.object({
       shop: z.string().nullable().default(null),
       product: hubProductDetailSchema,
+      // Siblings and bundle contents sit beside `product`, not inside it.
+      related: hubRelatedSchema,
+      components: hubRelatedSchema,
     }),
     data,
   );
 
-  return toProductDetail(parsed.product);
+  return toProductDetail(parsed.product, {
+    variants: options?.withVariants
+      ? parsed.related.map(toProductSummary)
+      : undefined,
+    bundleContents:
+      options?.withComponents === false
+        ? undefined
+        : parsed.components.map(toProductSummary),
+  });
 }
 
 export type HubLiveEntry = {
