@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import Link from "next/link";
+import { addToCartAction } from "@/commerce/cart/actions";
 import {
   listOffers,
   listProducts,
@@ -11,6 +12,7 @@ import {
   ProductCard,
   ProductCardSkeleton,
 } from "@/components/commerce/product-card";
+import { AddToCart } from "@/components/commerce/add-to-cart";
 import { Price, PriceSkeleton } from "@/components/commerce/price";
 import {
   StockBadge,
@@ -76,6 +78,72 @@ async function CardPrice({
   );
 }
 
+/**
+ * The discount pill, from the same batched offers request as the price.
+ *
+ * Derived here rather than passed as a number so it cannot disagree with the
+ * price beneath it: both read one offer. Rounded down, because a 9.6% reduction
+ * advertised as "-10%" overstates the saving, and the direction of that rounding
+ * error is the one that matters legally.
+ */
+async function CardDiscount({
+  slug,
+  offers,
+}: {
+  slug: string;
+  offers: Promise<Map<string, Offer>>;
+}) {
+  const offer = (await offers).get(slug);
+  const compareAt = offer?.compareAtPrice;
+  if (!offer || !compareAt) return null;
+  if (compareAt.currency !== offer.price.currency) return null;
+  if (compareAt.amountMinor <= offer.price.amountMinor) return null;
+
+  const percent = Math.floor(
+    ((compareAt.amountMinor - offer.price.amountMinor) /
+      compareAt.amountMinor) *
+      100,
+  );
+  // A sub-1% reduction rounds to zero, and "-0%" is worse than no badge.
+  if (percent < 1) return null;
+
+  return (
+    <span className="bg-promo text-promo-foreground rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums">
+      −{percent}%
+    </span>
+  );
+}
+
+/**
+ * Add-to-cart on a listing card.
+ *
+ * Inside the streamed offer for the same reason as on the PDP: the button must
+ * reflect live stock. In the cached shell it would cache an enabled state and let
+ * shoppers add sold-out items.
+ *
+ * `variantId` comes from the offer, which is the only place it exists — a card
+ * cannot add to the basket from cached catalogue data alone.
+ */
+async function CardAction({
+  slug,
+  offers,
+}: {
+  slug: string;
+  offers: Promise<Map<string, Offer>>;
+}) {
+  const offer = (await offers).get(slug);
+  if (!offer) return null;
+
+  return (
+    <AddToCart
+      variantId={offer.variantId}
+      inStock={offer.availability.inStock}
+      action={addToCartAction}
+      wrapperClassName=""
+    />
+  );
+}
+
 async function CardStock({
   slug,
   offers,
@@ -124,6 +192,26 @@ function ProductGrid({
             priceSlot={
               <Suspense fallback={<PriceSkeleton size="sm" />}>
                 <CardPrice slug={product.slug} offers={offers} />
+              </Suspense>
+            }
+            discountSlot={
+              // No fallback: the badge band already reserves its height, so an
+              // empty right-hand side costs nothing and a skeleton pill that
+              // resolves to nothing would be a flash of false information.
+              <Suspense fallback={null}>
+                <CardDiscount slug={product.slug} offers={offers} />
+              </Suspense>
+            }
+            actionSlot={
+              <Suspense
+                fallback={
+                  <div
+                    className="bg-muted h-9 w-full animate-pulse rounded-md"
+                    aria-hidden
+                  />
+                }
+              >
+                <CardAction slug={product.slug} offers={offers} />
               </Suspense>
             }
           />
@@ -181,7 +269,7 @@ export function ProductGridSkeleton({ count = PAGE_SIZE }: { count?: number }) {
     <ul className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
       {Array.from({ length: count }, (_, i) => (
         <li key={i}>
-          <ProductCardSkeleton />
+          <ProductCardSkeleton withAction />
         </li>
       ))}
     </ul>

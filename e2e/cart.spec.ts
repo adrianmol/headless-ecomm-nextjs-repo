@@ -9,6 +9,30 @@ import { test, expect } from "./fixtures";
  * the real mock catches that class of bug.
  */
 test.describe("cart", () => {
+  test("adds from a listing card, past the stretched card link", async ({
+    page,
+  }) => {
+    // The design puts add-to-cart on every card, and the whole card is already a
+    // link via a stretched ::after overlay. Without `relative z-10` on the action
+    // the overlay swallows the press and the click silently navigates to the PDP
+    // instead of adding — a failure that looks like nothing happening. This is
+    // the test that distinguishes the two.
+    await page.goto("/produse");
+
+    // Scoped to the card's <article>, not `getByRole("listitem").first()` —
+    // that matched the header's category chip, which is also an <li>.
+    const firstCard = page.getByRole("article").first();
+    await expect(
+      firstCard.getByRole("button", { name: "Adauga in cos" }),
+    ).toBeEnabled();
+
+    await firstCard.getByRole("button", { name: "Adauga in cos" }).click();
+
+    // Still on the listing, and the basket took it.
+    await expect(page).toHaveURL(/\/produse$/);
+    await expect(firstCard.getByText("Adaugat in cos.")).toBeVisible();
+  });
+
   test("adds a product and shows it in the basket", async ({ page }) => {
     await page.goto("/produse/toner-compatibil-hp-35a-black-cb435a");
 

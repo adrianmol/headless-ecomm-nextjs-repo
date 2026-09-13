@@ -42,11 +42,14 @@ export type ProductCardProps = {
    */
   actionSlot?: React.ReactNode;
   /**
-   * Percentage off, for the pill in the card's top-right corner. Supplied by
-   * the caller from real compare-at pricing rather than computed here, so a card
-   * cannot advertise a discount the price block does not show.
+   * The discount pill in the card's top-right corner.
+   *
+   * A slot rather than a number, because the percentage is derived from
+   * compare-at pricing that streams in with the offer — the same data the price
+   * block uses. Computing it from a separate source would let a card advertise a
+   * discount the price beneath it does not show.
    */
-  discountPercent?: number;
+  discountSlot?: React.ReactNode;
   /** Equipment brand — HP, Brother — set above the title as in the design. */
   brand?: string;
 };
@@ -89,7 +92,7 @@ export function ProductCard({
   stockSlot,
   priority,
   actionSlot,
-  discountPercent,
+  discountSlot,
   brand,
 }: ProductCardProps) {
   return (
@@ -105,11 +108,7 @@ export function ProductCard({
       */}
       <div className="flex min-h-8 items-start justify-between gap-2 px-3 pt-3">
         <div className="min-w-0">{stockSlot}</div>
-        {discountPercent !== undefined && discountPercent > 0 && (
-          <span className="bg-promo text-promo-foreground shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums">
-            −{discountPercent}%
-          </span>
-        )}
+        {discountSlot && <div className="shrink-0">{discountSlot}</div>}
       </div>
 
       <div className="bg-muted relative mx-3 aspect-square overflow-hidden rounded">

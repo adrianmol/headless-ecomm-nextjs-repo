@@ -16,10 +16,20 @@ export function AddToCart({
   variantId,
   inStock,
   action,
+  /**
+   * Wrapper spacing. Defaults to the PDP's, because that was the only caller
+   * when this was written; a listing card supplies its own, since `mt-6` inside
+   * a card doubles up with the card's own padding.
+   *
+   * A plain replacement rather than a merge: `cn` would pull tailwind-merge into
+   * this client leaf and undo part of the 10.4 kB it was rewritten to save.
+   */
+  wrapperClassName = "mt-6",
 }: {
   variantId: string;
   inStock: boolean;
   action: CartAction;
+  wrapperClassName?: string;
 }) {
   /**
    * Stable for the lifetime of this button, which is exactly the property the
@@ -39,7 +49,7 @@ export function AddToCart({
   }
 
   return (
-    <div className="mt-6">
+    <div className={wrapperClassName}>
       <button
         type="button"
         onClick={add}
