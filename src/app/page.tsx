@@ -2,10 +2,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { listPrinterBrands } from "@/commerce/catalog/queries";
 import { PrinterFinder } from "@/components/commerce/printer-finder";
-import {
-  ProductGridSkeleton,
-  ProductStrip,
-} from "./(catalog)/_listing/product-listing";
+import { HubFeaturedBand } from "./(catalog)/_hub/hub-featured";
+import { HubProductGridSkeleton } from "./(catalog)/_hub/hub-product-grid";
 
 /**
  * Homepage, following the owner's REPrint design file: a dark green hero, the
@@ -267,16 +265,14 @@ export default function Home() {
       <section className="bg-surface border-border border-y">
         <div className="max-w-page mx-auto px-4 py-12">
           {/*
-            Named for what it is. The design's "Produse HOT" would need a
-            popularity signal the contract does not have.
+            Real products from the HUB catalogue, which is where they actually are.
+            The band names the printer model it is showing consumables for, because
+            that is what the selection rule produces — see hub-featured.tsx. The
+            design's "Produse HOT" would need a popularity signal no contract here
+            exposes.
           */}
-          <SectionHeading
-            title="Din catalog"
-            href="/produse"
-            linkLabel="Vezi tot catalogul"
-          />
-          <Suspense fallback={<ProductGridSkeleton count={4} />}>
-            <ProductStrip count={4} />
+          <Suspense fallback={<HubProductGridSkeleton count={4} />}>
+            <HubFeaturedBand count={4} />
           </Suspense>
         </div>
       </section>

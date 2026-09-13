@@ -33,8 +33,21 @@ export function Price({
   showDiscountBadge = true,
 }: {
   price: Money;
-  priceExVat: Money;
-  vatRate: number;
+  /**
+   * Both optional, and only because of what the HUB catalogue supplies.
+   *
+   * That API returns a VAT-inclusive price and nothing else — no ex-VAT figure and
+   * no rate. ADR-0004 forbids deriving one here, and hardcoding Romania's rate
+   * would be worse: a tax rate is a business fact with legal weight, and a
+   * storefront that invents one puts a wrong number on an invoice.
+   *
+   * So the second line is omitted when the data is absent, rather than fabricated.
+   * That is a real regression for the B2B buyers the line exists for, and the fix
+   * is a backend field — `tax_rate`, or the ex-VAT figure itself. Until then, a
+   * missing line is honest and a computed one is not.
+   */
+  priceExVat?: Money;
+  vatRate?: number;
   compareAtPrice?: Money;
   size?: "sm" | "lg";
   locale?: string;
@@ -76,13 +89,16 @@ export function Price({
         )}
       </p>
       {/*
-        The ex-VAT line is secondary but always present. B2B buyers price
-        against it, and a shop that shows it only sometimes forces them to do
-        the arithmetic themselves on the pages that omit it.
+        The ex-VAT line is secondary but shown wherever the backend supplies it.
+        B2B buyers price against it, and a shop that shows it only sometimes makes
+        them do the arithmetic on the pages that omit it — which is exactly the
+        cost of the HUB catalogue not returning it. See the prop docs.
       */}
-      <p className="text-muted-foreground text-xs tabular-nums">
-        {formatMoney(priceExVat, locale)} fara TVA ({formatVatRate(vatRate)})
-      </p>
+      {priceExVat !== undefined && vatRate !== undefined && (
+        <p className="text-muted-foreground text-xs tabular-nums">
+          {formatMoney(priceExVat, locale)} fara TVA ({formatVatRate(vatRate)})
+        </p>
+      )}
     </div>
   );
 }

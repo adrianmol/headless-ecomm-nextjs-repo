@@ -86,3 +86,51 @@ export function StockBadgeSkeleton({ className }: { className?: string }) {
     </p>
   );
 }
+
+/**
+ * Stock as the HUB catalogue describes it.
+ *
+ * Separate from {@link StockBadge} because the inputs are different in kind, not
+ * just in shape. That component derives a state from a boolean and a quantity;
+ * HUB sends the state *and* the text to show for it — the contract calls
+ * `eticheta`/`label` "text de afisat". Re-deriving a label from the state would
+ * mean overriding the backend's own wording, and HUB draws distinctions this
+ * storefront does not: `furnizor` ("La comanda") is orderable with zero on hand,
+ * which is neither "in stock" nor "out of stock".
+ *
+ * So the label is upstream's and only the colour is ours.
+ */
+const HUB_PILL: Record<string, string> = {
+  stoc: "bg-stock-in-surface text-stock-in",
+  limitat: "bg-stock-low-surface text-stock-low",
+  // Orderable but not held: amber rather than green, because promising immediate
+  // availability for a supplier-backed item is the expensive kind of wrong.
+  furnizor: "bg-stock-low-surface text-stock-low",
+  soon: "bg-stock-low-surface text-stock-low",
+  nostoc: "bg-stock-out-surface text-stock-out",
+};
+
+export function HubStockBadge({
+  state,
+  label,
+  className,
+}: {
+  state: string;
+  label: string;
+  className?: string;
+}) {
+  return (
+    <p className={cn("flex flex-wrap items-center gap-1.5", className)}>
+      <span
+        className={cn(
+          "rounded-full px-2 py-0.5 text-[11px] font-bold tracking-wide uppercase",
+          // An unrecognised state is still labelled, just neutrally: the contract
+          // permits adding values and a new one must not blank the badge.
+          HUB_PILL[state] ?? "bg-stock-out-surface text-stock-out",
+        )}
+      >
+        {label}
+      </span>
+    </p>
+  );
+}

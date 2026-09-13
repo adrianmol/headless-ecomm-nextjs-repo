@@ -52,6 +52,14 @@ export type ProductCardProps = {
   discountSlot?: React.ReactNode;
   /** Equipment brand — HP, Brother — set above the title as in the design. */
   brand?: string;
+  /**
+   * Overrides the product link. Defaults to `/produse/{slug}`.
+   *
+   * Exists because HUB products are not guaranteed a slug: a handful have an empty
+   * `url`, and `/produse/` with nothing after it is a link to the listing rather
+   * than to the product. The caller knows what identifier is usable.
+   */
+  href?: string;
 };
 
 /**
@@ -94,6 +102,7 @@ export function ProductCard({
   actionSlot,
   discountSlot,
   brand,
+  href,
 }: ProductCardProps) {
   return (
     <article className="group border-border bg-card focus-within:ring-ring relative flex h-full flex-col overflow-hidden rounded-lg border transition-colors focus-within:ring-2 hover:border-neutral-400">
@@ -149,7 +158,7 @@ export function ProductCard({
             press and every add-to-cart silently navigates instead.
           */}
           <Link
-            href={`/produse/${slug}`}
+            href={href ?? `/produse/${slug}`}
             className="after:absolute after:inset-0 focus-visible:outline-none"
           >
             {title}

@@ -92,7 +92,20 @@ const nextConfig: NextConfig = {
   images: {
     // Explicit dimensions are required on every product image (the API models
     // them as required) so PLP/PDP do not pay CLS for late-loading art.
-    remotePatterns: [{ protocol: "https", hostname: "cdn.test" }],
+    //
+    // The allowlist is a security control, not configuration noise: without it
+    // `next/image` would proxy and cache any URL a backend response named, which
+    // turns the image optimiser into an open relay for arbitrary hosts.
+    remotePatterns: [
+      { protocol: "https", hostname: "cdn.test" },
+      /*
+        HUB serves product images from its own domain
+        (https://hub.reprint.ro/media/imagine/produs/…). Added after every card in
+        the HUB band rendered a broken image: the URLs were correct and the host
+        was simply not permitted, which `next/image` reports only in the browser.
+      */
+      { protocol: "https", hostname: "hub.reprint.ro", pathname: "/media/**" },
+    ],
   },
 };
 
