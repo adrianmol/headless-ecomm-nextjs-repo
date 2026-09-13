@@ -1,5 +1,6 @@
 import "server-only";
 import { createHmac } from "node:crypto";
+import { normaliseHubKeys } from "./field-names";
 import { hubConfig } from "@/lib/env";
 
 /**
@@ -166,7 +167,12 @@ export async function hubFetch<T>(
     });
   }
 
-  if (envelope.ok === true) return envelope.data;
+  if (envelope.ok === true) {
+    // Single point where a HUB payload enters the application, so a single point
+    // to settle which spelling of its field names the rest of the code sees. See
+    // field-names.ts for why that is necessary at all.
+    return normaliseHubKeys(envelope.data) as T;
+  }
 
   const code = isErrorCode(envelope.error?.code)
     ? envelope.error.code

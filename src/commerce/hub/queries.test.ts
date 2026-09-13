@@ -15,41 +15,41 @@ import {
 const BASE = "https://hub.test";
 
 const PRICE = {
-  valoare: 66,
-  promo: null,
-  moneda: "RON",
-  cu_tva: true,
-  se_arata: true,
+  value: 66,
+  special: null,
+  currency: "RON",
+  tax_included: true,
+  show: true,
 };
 const STOCK = {
-  stare: "limitat",
-  eticheta: "Stoc limitat",
-  se_comanda: true,
-  cantitate: 30,
+  state: "limitat",
+  label: "Stoc limitat",
+  orderable: true,
+  quantity: 30,
 };
 const SUMMARY = {
   id: 12679,
   sku: "DEV-D3130C",
   url: "dev-d3130c",
-  nume: "Carrier / Developer",
+  name: "Carrier / Developer",
   brand: "Dell",
-  producator: "SCC",
-  tip: "drefill",
-  pachet: false,
-  pret: PRICE,
-  stoc: STOCK,
-  imagine: null,
-  meta: { titlu: "t", descriere: "d" },
+  manufacturer: "SCC",
+  type: "drefill",
+  is_pack: false,
+  price: PRICE,
+  stock: STOCK,
+  image: null,
+  meta: { title: "t", description: "d" },
 };
 const CATEGORY = {
   id: 1727,
-  parinte: 5431,
-  nume: "Kyocera TK-7300",
+  parent: 5431,
+  name: "Kyocera TK-7300",
   url: "",
-  fel: "family",
-  titlu: "kyocera_tk7300",
-  imagine: null,
-  meta: { titlu: "", descriere: "" },
+  kind: "family",
+  title: "kyocera_tk7300",
+  image: null,
+  meta: { title: "", description: "" },
 };
 
 /** Records the URL each call actually requested. */
@@ -84,7 +84,7 @@ describe("getHubCategories", () => {
   it("returns the tree flat, with parent pointers intact", async () => {
     reply("/hub-api/v1/category", {
       ok: true,
-      data: { shop: null, categorii: [CATEGORY] },
+      data: { shop: null, categories: [CATEGORY] },
     });
 
     const categories = await getHubCategories();
@@ -99,7 +99,7 @@ describe("getHubCategories", () => {
   it("only asks for counts when requested, because counting costs a catalog pass", async () => {
     reply("/hub-api/v1/category", {
       ok: true,
-      data: { shop: null, categorii: [] },
+      data: { shop: null, categories: [] },
     });
 
     await getHubCategories();
@@ -116,10 +116,10 @@ describe("getHubCategoryPage", () => {
       ok: true,
       data: {
         shop: null,
-        categorie: { ...CATEGORY, produse: 326 },
-        copii: [{ ...CATEGORY, id: 21724, parinte: 1727 }],
-        produse: [SUMMARY],
-        paginare: { pagina: 1, pe_pagina: 24, total: 326, pagini: 14 },
+        category: { ...CATEGORY, products: 326 },
+        children: [{ ...CATEGORY, id: 21724, parent: 1727 }],
+        products: [SUMMARY],
+        pagination: { page: 1, per_page: 24, total: 326, pages: 14 },
       },
     });
 
@@ -144,10 +144,10 @@ describe("getHubCategoryPage", () => {
       ok: true,
       data: {
         shop: null,
-        categorie: CATEGORY,
-        copii: [],
-        produse: [],
-        paginare: { pagina: 2, pe_pagina: 50, total: 0, pagini: 0 },
+        category: CATEGORY,
+        children: [],
+        products: [],
+        pagination: { page: 2, per_page: 50, total: 0, pages: 0 },
       },
     });
 
@@ -170,10 +170,10 @@ describe("getHubCategoryPage", () => {
       ok: true,
       data: {
         shop: null,
-        categorie: CATEGORY,
-        copii: [],
-        produse: [],
-        paginare: { pagina: 1, pe_pagina: 100, total: 0, pagini: 0 },
+        category: CATEGORY,
+        children: [],
+        products: [],
+        pagination: { page: 1, per_page: 100, total: 0, pages: 0 },
       },
     });
 
@@ -190,7 +190,7 @@ describe("getHubCategoryPage", () => {
   it("treats a malformed payload as an infrastructure fault", async () => {
     reply("/hub-api/v1/category/1727", {
       ok: true,
-      data: { categorie: CATEGORY, paginare: { pagina: "one" } },
+      data: { category: CATEGORY, pagination: { page: "one" } },
     });
 
     await expect(getHubCategoryPage(1727)).rejects.toBeInstanceOf(
@@ -206,7 +206,7 @@ describe("getHubProduct", () => {
       "/hub-api/v1/product/DEV-D3130C",
       "/hub-api/v1/product",
     ]) {
-      reply(path, { ok: true, data: { shop: null, produs: SUMMARY } });
+      reply(path, { ok: true, data: { shop: null, product: SUMMARY } });
     }
 
     const byId = await getHubProduct({ by: "id", value: 12679 });
@@ -251,7 +251,7 @@ describe("getHubProduct", () => {
   it("asks for variants only when requested", async () => {
     reply("/hub-api/v1/product/12679", {
       ok: true,
-      data: { shop: null, produs: SUMMARY },
+      data: { shop: null, product: SUMMARY },
     });
 
     await getHubProduct({ by: "id", value: 12679 }, { withVariants: true });
@@ -263,14 +263,14 @@ describe("getHubLiveOffers", () => {
   const live = (over: Record<string, unknown> = {}) => ({
     ok: true,
     data: {
-      produse: [{ id: 12679, sku: "DEV-D3130C", pret: PRICE, stoc: STOCK }],
-      lipsa: [],
+      products: [{ id: 12679, sku: "DEV-D3130C", price: PRICE, stock: STOCK }],
+      missing: [],
       ...over,
     },
   });
 
   it("returns fresh price and stock, and what went missing", async () => {
-    reply("/hub-api/v1/live", live({ lipsa: ["EOL-1", "EOL-2"] }));
+    reply("/hub-api/v1/live", live({ missing: ["EOL-1", "EOL-2"] }));
 
     const result = await getHubLiveOffers({ skus: ["DEV-D3130C", "EOL-1"] });
 
@@ -286,7 +286,7 @@ describe("getHubLiveOffers", () => {
     // records its tags, and this one must record none.
     reply("/hub-api/v1/product/12679", {
       ok: true,
-      data: { shop: null, produs: SUMMARY },
+      data: { shop: null, product: SUMMARY },
     });
     await getHubProduct({ by: "id", value: 12679 });
     const tagsAfterCachedRead = [...appliedTags];
@@ -327,7 +327,7 @@ describe("getHubLiveOffers", () => {
   });
 
   it("normalises numeric entries in the missing list to strings", async () => {
-    reply("/hub-api/v1/live", live({ lipsa: [12679, "EOL-1"] }));
+    reply("/hub-api/v1/live", live({ missing: [12679, "EOL-1"] }));
 
     const result = await getHubLiveOffers({ ids: [12679] });
     expect(result.missing).toEqual(["12679", "EOL-1"]);

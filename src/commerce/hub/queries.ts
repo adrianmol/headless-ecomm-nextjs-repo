@@ -94,12 +94,12 @@ export async function getHubCategories(options?: {
   const parsed = parseOrThrow(
     z.object({
       shop: z.string().nullable().optional(),
-      categorii: z.array(hubCategorySchema),
+      categories: z.array(hubCategorySchema),
     }),
     data,
   );
 
-  return parsed.categorii.map(toCategory);
+  return parsed.categories.map(toCategory);
 }
 
 export type HubCategoryPage = {
@@ -156,20 +156,20 @@ export async function getHubCategoryPage(
   const parsed = parseOrThrow(
     z.object({
       shop: z.string().nullable().default(null),
-      categorie: hubCategorySchema,
-      copii: z.array(hubCategorySchema).default([]),
-      produse: z.array(hubProductSummarySchema).default([]),
-      paginare: hubPaginationSchema,
+      category: hubCategorySchema,
+      children: z.array(hubCategorySchema).default([]),
+      products: z.array(hubProductSummarySchema).default([]),
+      pagination: hubPaginationSchema,
     }),
     data,
   );
 
   return {
     shop: parsed.shop,
-    category: toCategory(parsed.categorie),
-    children: parsed.copii.map(toCategory),
-    products: parsed.produse.map(toProductSummary),
-    pagination: toPagination(parsed.paginare),
+    category: toCategory(parsed.category),
+    children: parsed.children.map(toCategory),
+    products: parsed.products.map(toProductSummary),
+    pagination: toPagination(parsed.pagination),
   };
 }
 
@@ -231,12 +231,12 @@ export async function getHubProduct(
   const parsed = parseOrThrow(
     z.object({
       shop: z.string().nullable().default(null),
-      produs: hubProductDetailSchema,
+      product: hubProductDetailSchema,
     }),
     data,
   );
 
-  return toProductDetail(parsed.produs);
+  return toProductDetail(parsed.product);
 }
 
 export type HubLiveEntry = {
@@ -262,8 +262,8 @@ export type HubLiveResult = {
 const hubLiveEntrySchema = z.object({
   id: z.number().int(),
   sku: z.string(),
-  pret: hubPriceSchema,
-  stoc: hubStockSchema,
+  price: hubPriceSchema,
+  stock: hubStockSchema,
 });
 
 /**
@@ -294,19 +294,19 @@ export async function getHubLiveOffers(
 
   const parsed = parseOrThrow(
     z.object({
-      produse: z.array(hubLiveEntrySchema).default([]),
-      lipsa: z.array(z.union([z.string(), z.number()])).default([]),
+      products: z.array(hubLiveEntrySchema).default([]),
+      missing: z.array(z.union([z.string(), z.number()])).default([]),
     }),
     data,
   );
 
   return {
-    entries: parsed.produse.map((raw) => ({
+    entries: parsed.products.map((raw) => ({
       id: raw.id,
       sku: raw.sku,
-      offer: toOffer(raw.pret),
-      stock: toStock(raw.stoc),
+      offer: toOffer(raw.price),
+      stock: toStock(raw.stock),
     })),
-    missing: parsed.lipsa.map(String),
+    missing: parsed.missing.map(String),
   };
 }

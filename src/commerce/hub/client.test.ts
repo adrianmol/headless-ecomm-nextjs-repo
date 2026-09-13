@@ -137,10 +137,32 @@ describe("hubFetch signing", () => {
 
 describe("hubFetch envelope and errors", () => {
   it("unwraps ok:true to data", async () => {
-    capture({ ok: true, data: { categorii: [{ id: 1 }] } });
+    capture({ ok: true, data: { categories: [{ id: 1 }] } });
     await expect(hubFetch("/hub-api/v1/category")).resolves.toEqual({
-      categorii: [{ id: 1 }],
+      categories: [{ id: 1 }],
     });
+  });
+
+  it("normalises Romanian field names to the canonical English ones", async () => {
+    // The API served Romanian names in the morning of 2026-09-13 and English ones
+    // hours later, so both have to parse. Everything below this boundary is
+    // written against one spelling because of this step.
+    capture({
+      ok: true,
+      data: {
+        categorii: [{ id: 1, parinte: 0, nume: "Brother", fel: "brand" }],
+      },
+    });
+
+    await expect(hubFetch("/hub-api/v1/category")).resolves.toEqual({
+      categories: [{ id: 1, parent: 0, name: "Brother", kind: "brand" }],
+    });
+  });
+
+  it("prefers the English key when a payload somehow carries both", async () => {
+    // Otherwise key order would decide, which is not a decision anyone made.
+    capture({ ok: true, data: { nume: "romanian", name: "english" } });
+    await expect(hubFetch("/x")).resolves.toEqual({ name: "english" });
   });
 
   it.each([

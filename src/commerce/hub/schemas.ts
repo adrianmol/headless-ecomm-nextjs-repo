@@ -31,7 +31,7 @@ import { LOCALE } from "@/lib/locale";
  * float arithmetic, so 66.7 * 100 is 6670.000000000001. Rounding at the boundary
  * is what keeps every later operation in integers.
  *
- * Prices are VAT-inclusive (`cu_tva: true`). Nothing here strips VAT — a
+ * Prices are VAT-inclusive (`tax_included: true`). Nothing here strips VAT — a
  * VAT-exclusive display would need the rate, which the contract does not supply.
  */
 const MAX_MINOR_UNITS = 100_000_000; // 1,000,000 RON — implausible, so a signal.
@@ -99,19 +99,19 @@ const priceValue = z
 
 export const hubPriceSchema = z
   .object({
-    valoare: priceValue.nullable(),
-    promo: priceValue.nullable().optional(),
-    moneda: z.string().min(3),
-    cu_tva: z.boolean(),
-    se_arata: z.boolean(),
+    value: priceValue.nullable(),
+    special: priceValue.nullable().optional(),
+    currency: z.string().min(3),
+    tax_included: z.boolean(),
+    show: z.boolean(),
   })
   .superRefine((raw, ctx) => {
     // Now that the currency is known, hold each price to that currency's
     // precision: 2 decimals for RON, 0 for JPY, 3 for KWD.
-    const allowed = minorUnitExponent(raw.moneda, LOCALE);
+    const allowed = minorUnitExponent(raw.currency, LOCALE);
     for (const [field, value] of [
-      ["valoare", raw.valoare],
-      ["promo", raw.promo ?? null],
+      ["valoare", raw.value],
+      ["promo", raw.special ?? null],
     ] as const) {
       if (value === null) continue;
       const places = decimalPlaces(value);
@@ -119,7 +119,7 @@ export const hubPriceSchema = z
         ctx.addIssue({
           code: "custom",
           path: [field],
-          message: `${raw.moneda} has ${allowed} minor digits, price has ${places}`,
+          message: `${raw.currency} has ${allowed} minor digits, price has ${places}`,
         });
       }
       if (Math.round(value * 10 ** allowed) > MAX_MINOR_UNITS) {
@@ -138,20 +138,20 @@ export type HubOffer = {
   /** Only ever a real reduction; the contract sends null otherwise. */
   promoPrice: Money | null;
   vatIncluded: boolean;
-  /** `se_arata: false` means the price exists but must not be displayed. */
+  /** `show: false` means the price exists but must not be displayed. */
   displayable: boolean;
 };
 
 export function toOffer(raw: z.infer<typeof hubPriceSchema>): HubOffer {
   return {
     price:
-      raw.valoare === null ? null : majorUnitsToMoney(raw.valoare, raw.moneda),
+      raw.value === null ? null : majorUnitsToMoney(raw.value, raw.currency),
     promoPrice:
-      raw.promo === null || raw.promo === undefined
+      raw.special === null || raw.special === undefined
         ? null
-        : majorUnitsToMoney(raw.promo, raw.moneda),
-    vatIncluded: raw.cu_tva,
-    displayable: raw.se_arata,
+        : majorUnitsToMoney(raw.special, raw.currency),
+    vatIncluded: raw.tax_included,
+    displayable: raw.show,
   };
 }
 
@@ -170,10 +170,10 @@ export const HUB_STOCK_STATES = [
 ] as const;
 
 export const hubStockSchema = z.object({
-  stare: z.string(),
-  eticheta: z.string(),
-  se_comanda: z.boolean(),
-  cantitate: z.number().int().nonnegative().nullable().optional(),
+  state: z.string(),
+  label: z.string(),
+  orderable: z.boolean(),
+  quantity: z.number().int().nonnegative().nullable().optional(),
 });
 
 export type HubStock = {
@@ -185,17 +185,20 @@ export type HubStock = {
 };
 
 export function toStock(raw: z.infer<typeof hubStockSchema>): HubStock {
-  const known = (HUB_STOCK_STATES as readonly string[]).includes(raw.stare);
+  const known = (HUB_STOCK_STATES as readonly string[]).includes(raw.state);
   return {
-    state: known ? (raw.stare as HubStock["state"]) : "unknown",
-    label: raw.eticheta,
-    orderable: raw.se_comanda,
-    quantity: raw.cantitate ?? null,
+    state: known ? (raw.state as HubStock["state"]) : "unknown",
+    label: raw.label,
+    orderable: raw.orderable,
+    quantity: raw.quantity ?? null,
   };
 }
 
 const metaSchema = z
-  .object({ titlu: z.string().default(""), descriere: z.string().default("") })
+  .object({
+    title: z.string().default(""),
+    description: z.string().default(""),
+  })
   .partial()
   .default({});
 
@@ -204,14 +207,14 @@ export const hubProductSummarySchema = z.object({
   id: z.number().int(),
   sku: z.string().min(1),
   url: z.string(),
-  nume: z.string(),
+  name: z.string(),
   brand: z.string().default(""),
-  producator: z.string().default(""),
-  tip: z.string().default(""),
-  pachet: z.boolean().default(false),
-  pret: hubPriceSchema,
-  stoc: hubStockSchema,
-  imagine: z.string().nullable().default(null),
+  manufacturer: z.string().default(""),
+  type: z.string().default(""),
+  is_pack: z.boolean().default(false),
+  price: hubPriceSchema,
+  stock: hubStockSchema,
+  image: z.string().nullable().default(null),
   meta: metaSchema,
 });
 
@@ -241,16 +244,16 @@ export function toProductSummary(
     id: raw.id,
     sku: raw.sku,
     slug: raw.url,
-    name: raw.nume,
+    name: raw.name,
     brand: raw.brand,
-    manufacturer: raw.producator,
-    type: raw.tip,
-    isBundle: raw.pachet,
-    offer: toOffer(raw.pret),
-    stock: toStock(raw.stoc),
-    imageUrl: raw.imagine,
-    metaTitle: raw.meta?.titlu ?? "",
-    metaDescription: raw.meta?.descriere ?? "",
+    manufacturer: raw.manufacturer,
+    type: raw.type,
+    isBundle: raw.is_pack,
+    offer: toOffer(raw.price),
+    stock: toStock(raw.stock),
+    imageUrl: raw.image,
+    metaTitle: raw.meta?.title ?? "",
+    metaDescription: raw.meta?.description ?? "",
   };
 }
 
@@ -260,23 +263,23 @@ export function toProductSummary(
  * of values — so keying by name would silently keep only the last.
  */
 export const hubSpecSchema = z.object({
-  nume: z.string(),
-  valoare: z.string(),
+  name: z.string(),
+  value: z.string(),
 });
 
 export const hubProductDetailSchema = hubProductSummarySchema.extend({
-  cod_oferta: z.string().default(""),
-  familie: z.string().default(""),
-  capacitate: z.string().default(""),
-  culoare: z.string().default(""),
+  offer_code: z.string().default(""),
+  family: z.string().default(""),
+  capacity: z.string().default(""),
+  color: z.string().default(""),
   ean: z.string().default(""),
   oem: z.string().default(""),
-  descriere: z.string().default(""),
-  sumar: z.string().default(""),
-  caracteristici: z.array(hubSpecSchema).default([]),
-  categorii: z.array(z.number().int()).default([]),
-  componente: z.array(hubProductSummarySchema).optional(),
-  variante: z.array(hubProductSummarySchema).optional(),
+  description: z.string().default(""),
+  summary: z.string().default(""),
+  features: z.array(hubSpecSchema).default([]),
+  categories: z.array(z.number().int()).default([]),
+  components: z.array(hubProductSummarySchema).optional(),
+  variants: z.array(hubProductSummarySchema).optional(),
 });
 
 export type HubProductDetail = HubProductSummary & {
@@ -306,18 +309,18 @@ export function toProductDetail(
 ): HubProductDetail {
   return {
     ...toProductSummary(raw),
-    offerCode: raw.cod_oferta,
-    family: raw.familie,
-    capacity: raw.capacitate,
-    colour: raw.culoare,
+    offerCode: raw.offer_code,
+    family: raw.family,
+    capacity: raw.capacity,
+    colour: raw.color,
     ean: raw.ean,
     oem: raw.oem,
-    descriptionHtml: raw.descriere,
-    summary: raw.sumar,
-    specs: raw.caracteristici.map((s) => ({ name: s.nume, value: s.valoare })),
-    categoryIds: raw.categorii,
-    bundleContents: raw.componente?.map(toProductSummary) ?? null,
-    variants: raw.variante?.map(toProductSummary) ?? null,
+    descriptionHtml: raw.description,
+    summary: raw.summary,
+    specs: raw.features.map((s) => ({ name: s.name, value: s.value })),
+    categoryIds: raw.categories,
+    bundleContents: raw.components?.map(toProductSummary) ?? null,
+    variants: raw.variants?.map(toProductSummary) ?? null,
   };
 }
 
@@ -325,19 +328,19 @@ export const HUB_CATEGORY_KINDS = ["brand", "family", "prn"] as const;
 
 export const hubCategorySchema = z.object({
   id: z.number().int(),
-  parinte: z.number().int(),
-  nume: z.string(),
+  parent: z.number().int(),
+  name: z.string(),
   url: z.string().default(""),
-  fel: z.string().default(""),
-  titlu: z.string().default(""),
-  imagine: z.string().nullable().default(null),
+  kind: z.string().default(""),
+  title: z.string().default(""),
+  image: z.string().nullable().default(null),
   meta: metaSchema,
   /**
    * Present only when counting was requested. The contract is explicit that
    * absent is not zero — a client hiding empty categories would otherwise hide
    * the entire tree — so this stays `undefined`, never defaulted to 0.
    */
-  produse: z.number().int().nonnegative().optional(),
+  products: z.number().int().nonnegative().optional(),
 });
 
 export type HubCategory = {
@@ -359,28 +362,28 @@ export type HubCategory = {
 export function toCategory(
   raw: z.infer<typeof hubCategorySchema>,
 ): HubCategory {
-  const known = (HUB_CATEGORY_KINDS as readonly string[]).includes(raw.fel);
+  const known = (HUB_CATEGORY_KINDS as readonly string[]).includes(raw.kind);
   return {
     id: raw.id,
-    parentId: raw.parinte,
-    name: raw.nume,
+    parentId: raw.parent,
+    name: raw.name,
     slug: raw.url,
-    kind: known ? (raw.fel as HubCategory["kind"]) : "unknown",
-    title: raw.titlu,
-    imageUrl: raw.imagine,
-    metaTitle: raw.meta?.titlu ?? "",
-    metaDescription: raw.meta?.descriere ?? "",
+    kind: known ? (raw.kind as HubCategory["kind"]) : "unknown",
+    title: raw.title,
+    imageUrl: raw.image,
+    metaTitle: raw.meta?.title ?? "",
+    metaDescription: raw.meta?.description ?? "",
     // `?? null` and not `?? 0`: absent means "not counted", and the contract
     // warns that treating it as zero would hide the whole tree.
-    productCount: raw.produse ?? null,
+    productCount: raw.products ?? null,
   };
 }
 
 export const hubPaginationSchema = z.object({
-  pagina: z.number().int().positive(),
-  pe_pagina: z.number().int().positive(),
+  page: z.number().int().positive(),
+  per_page: z.number().int().positive(),
   total: z.number().int().nonnegative(),
-  pagini: z.number().int().nonnegative(),
+  pages: z.number().int().nonnegative(),
 });
 
 export type HubPagination = {
@@ -394,9 +397,9 @@ export function toPagination(
   raw: z.infer<typeof hubPaginationSchema>,
 ): HubPagination {
   return {
-    page: raw.pagina,
-    perPage: raw.pe_pagina,
+    page: raw.page,
+    perPage: raw.per_page,
     total: raw.total,
-    pages: raw.pagini,
+    pages: raw.pages,
   };
 }
