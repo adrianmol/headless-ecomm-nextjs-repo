@@ -19,6 +19,74 @@ const envSchema = z.object({
   ),
 });
 
+/**
+ * HUB catalog API credentials.
+ *
+ * Separate from `envSchema` for the same reason as `revalidateSecret()`: values
+ * in that schema are validated by `serverEnv()`, which the commerce client calls
+ * on every request, so a missing HUB credential would throw on ordinary cart and
+ * checkout reads that have nothing to do with HUB. A catalog feed being
+ * unconfigured must not take the storefront down.
+ *
+ * The key and secret are server-only and must never be prefixed
+ * `NEXT_PUBLIC_`: the secret signs requests and never leaves this process.
+ */
+const hubSchema = z.object({
+  HUB_API_URL: z.url(),
+  HUB_API_KEY: z.string().min(8),
+  HUB_API_SECRET: z.string().min(32),
+});
+
+export type HubCredentials = z.infer<typeof hubSchema>;
+
+export type HubConfig =
+  | { state: "configured"; credentials: HubCredentials }
+  | { state: "missing"; fields: string[] }
+  | { state: "invalid"; fields: string[] };
+
+let cachedHub: HubConfig | null = null;
+
+/**
+ * Returns a state rather than throwing, so a caller can degrade rather than
+ * fail, and so "not configured yet" stays distinguishable from "configured
+ * wrongly" — the second is an operator error worth surfacing differently.
+ *
+ * Field *names* are reported; values never are.
+ */
+export function hubConfig(): HubConfig {
+  if (cachedHub) return cachedHub;
+
+  const raw = {
+    HUB_API_URL: process.env.HUB_API_URL,
+    HUB_API_KEY: process.env.HUB_API_KEY,
+    HUB_API_SECRET: process.env.HUB_API_SECRET,
+  };
+
+  const absent = Object.entries(raw)
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
+  if (absent.length > 0) {
+    cachedHub = { state: "missing", fields: absent };
+    return cachedHub;
+  }
+
+  const parsed = hubSchema.safeParse(raw);
+  cachedHub = parsed.success
+    ? { state: "configured", credentials: parsed.data }
+    : {
+        state: "invalid",
+        fields: [
+          ...new Set(parsed.error.issues.map((i) => String(i.path[0] ?? "?"))),
+        ],
+      };
+  return cachedHub;
+}
+
+/** Test seam, matching `resetServerEnvCache`. */
+export function resetHubConfigCache(): void {
+  cachedHub = null;
+}
+
 let cached: z.infer<typeof envSchema> | null = null;
 
 export function serverEnv(): z.infer<typeof envSchema> {

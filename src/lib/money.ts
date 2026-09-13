@@ -22,8 +22,12 @@ export class CurrencyMismatchError extends Error {
 /**
  * Minor-unit exponent for a currency: 2 for EUR/USD, 0 for JPY, 3 for KWD.
  * Derived from Intl rather than a hardcoded table so it stays correct.
+ *
+ * Exported because an upstream feed that quotes prices in major units has to
+ * scale by exactly this factor, and a second hardcoded `* 100` elsewhere would
+ * be wrong for JPY and KWD without anything failing loudly.
  */
-function minorUnitExponent(currency: string, locale: string): number {
+export function minorUnitExponent(currency: string, locale: string): number {
   const resolved = new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
