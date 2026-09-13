@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  hubCategoryIdFromSlug,
-  hubCategorySlug,
-  isCanonicalHubCategorySlug,
-} from "./hub-slug";
+import { hubCategoryIdFromSlug, hubCategorySlug } from "./hub-slug";
 
 describe("hubCategorySlug", () => {
   it("builds a readable segment with the id trailing", () => {
@@ -81,34 +77,23 @@ describe("hubCategoryIdFromSlug", () => {
   it.each([
     ["a doubled hyphen", "cx510de--5", 5],
     ["a zero-padded id", "cx510de-007", 7],
-  ])("resolves %s and leaves it to the canonical check", (_label, slug, id) => {
+  ])("resolves %s rather than 404ing on it", (_label, slug, id) => {
     /*
-      These were originally asserted as null. That was over-strict on my part:
-      the id is recoverable, so the friendly outcome is to resolve it and redirect
-      to the canonical URL. A 404 would punish a visitor for a malformed link that
-      still identifies the right page.
+      These were originally asserted as null. That was over-strict: the id is
+      recoverable, so resolving it is friendlier than punishing a visitor for a
+      malformed link that still identifies the right page. The canonical URL is
+      declared in the page's metadata either way.
     */
     expect(hubCategoryIdFromSlug(slug)).toBe(id);
-    expect(isCanonicalHubCategorySlug(slug, { id, name: "CX510de" })).toBe(
-      false,
-    );
   });
 });
 
-describe("isCanonicalHubCategorySlug", () => {
-  const category = { id: 25968, name: "CX510de (28E0512)" };
-
-  it("recognises the canonical form", () => {
-    expect(isCanonicalHubCategorySlug("cx510de-28e0512-25968", category)).toBe(
-      true,
-    );
-  });
-
-  it("rejects a stale readable part, so it can be redirected", () => {
-    // The id still resolves, which is the point: a renamed category keeps working
-    // on its old URL and the page can send the visitor to the current one rather
-    // than accumulating two indexable URLs for one page.
-    expect(isCanonicalHubCategorySlug("old-name-25968", category)).toBe(false);
+describe("stale readable parts", () => {
+  it("still resolve, so a renamed category keeps working", () => {
+    // The whole point of trailing the id: the readable half is free to change.
     expect(hubCategoryIdFromSlug("old-name-25968")).toBe(25968);
+    expect(hubCategorySlug({ id: 25968, name: "CX510de (28E0512)" })).toBe(
+      "cx510de-28e0512-25968",
+    );
   });
 });

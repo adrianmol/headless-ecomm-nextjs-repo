@@ -30,11 +30,20 @@ import { discountPercent } from "@/lib/money";
  * now would mean a component with two mutually exclusive halves.
  */
 
-/** HUB has no cart, so the whole card is a link to the product. */
+/**
+ * HUB has no cart, so the whole card is a link to the product.
+ *
+ * `/produse-hub/`, not `/produse/`. The first version pointed here at `/produse/`,
+ * which is backed by the *provisional* API — so every card was a dead link that
+ * failed with `CommerceErrorException: Unavailable` the moment anyone clicked it.
+ * The cards themselves rendered perfectly, which is why a screenshot review did not
+ * catch it.
+ *
+ * Products *do* have real slugs upstream, unlike categories. The sku fallback keeps
+ * the link working for the few whose `url` is empty, and the page resolves either.
+ */
 function hubProductHref(product: HubProductSummary): string {
-  // Products *do* have real slugs from upstream, unlike categories. Falling back
-  // to the sku keeps the link working for the few that do not.
-  return `/produse/${product.slug || encodeURIComponent(product.sku)}`;
+  return `/produse-hub/${encodeURIComponent(product.slug || product.sku)}`;
 }
 
 export function HubProductGrid({

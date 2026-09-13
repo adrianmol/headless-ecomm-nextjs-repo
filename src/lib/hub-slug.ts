@@ -90,16 +90,12 @@ export function hubCategoryIdFromSlug(slug: string): number | null {
   return id;
 }
 
-/**
- * True when `slug` is exactly what {@link hubCategorySlug} would produce.
- *
- * Lets a page serve the canonical URL and redirect everything else to it, so a
- * renamed category does not quietly accumulate several indexable URLs for one
- * page.
- */
-export function isCanonicalHubCategorySlug(
-  slug: string,
-  category: { id: number; name: string },
-): boolean {
-  return slug === hubCategorySlug(category);
-}
+/*
+  There was an `isCanonicalHubCategorySlug` here, for redirecting non-canonical
+  URLs to the canonical one. Removed rather than left unreferenced: the redirect it
+  existed for cannot be issued from where the category name becomes known — the
+  response has already begun — so the canonical URL is declared in
+  `generateMetadata` instead, which needs no comparison. Middleware is the place a
+  redirect could still work, and this is easy enough to reinstate there if that is
+  ever wanted.
+*/

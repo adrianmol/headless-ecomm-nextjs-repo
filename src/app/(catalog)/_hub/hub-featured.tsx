@@ -64,7 +64,8 @@ export async function HubFeaturedBand({ count = 4 }: { count?: number }) {
     return null;
   }
 
-  if (page.products.length === 0) return null;
+  // Null when the category vanished between the tree read and this one.
+  if (!page || page.products.length === 0) return null;
 
   const href = `/categorii-hub/${hubCategorySlug(best)}`;
 

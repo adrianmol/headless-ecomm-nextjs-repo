@@ -174,7 +174,7 @@ export async function getHubCategoryPage(
     /** Include products from subcategories at any depth. */
     deep?: boolean;
   },
-): Promise<HubCategoryPage> {
+): Promise<HubCategoryPage | null> {
   "use cache";
   cacheLife("hours");
   cacheTag(hubCatalogTag, hubCategoryTag(id));
@@ -211,9 +211,27 @@ export async function getHubCategoryPage(
   if (options?.deep) params.set("deep", "1");
 
   const query = params.toString();
-  const data = await hubFetch<unknown>(
-    `/hub-api/v1/category/${id}${query ? `?${query}` : ""}`,
-  );
+
+  /*
+    `null` for a missing category, and the not_found check lives *inside* this
+    cached function on purpose.
+
+    A HubError thrown here does not survive as a HubError once it crosses the
+    `use cache` boundary, so `error instanceof HubError` in a caller silently never
+    matches — measured: an unknown category id reached the page as an anonymous
+    error, so `notFound()` was never called and the response carried no `noindex`.
+    Returning null keeps the decision on this side of the boundary, which is what
+    `getHubProduct` already does.
+  */
+  let data: unknown;
+  try {
+    data = await hubFetch<unknown>(
+      `/hub-api/v1/category/${id}${query ? `?${query}` : ""}`,
+    );
+  } catch (error) {
+    if (error instanceof HubError && error.code === "not_found") return null;
+    throw error;
+  }
 
   const parsed = parseOrThrow(
     z.object({

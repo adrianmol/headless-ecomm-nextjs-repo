@@ -159,3 +159,21 @@ test.describe("sitemap.xml", () => {
     expect(body).not.toContain("cursor=");
   });
 });
+
+/*
+  No E2E for the HUB routes, deliberately.
+
+  They reach the live catalogue, and CI has neither HUB credentials nor a HUB mock.
+  A first attempt asserted "a missing HUB product is noindex" and passed or failed
+  on the *unconfigured-credentials* path instead — a test whose name described one
+  thing while it measured another, which is worse than no test.
+
+  What was verified, by curl against the standalone production build with real
+  credentials: exactly one `<meta name="robots" content="noindex">` on a missing
+  product and a missing category, none on a real page, and canonical URLs pointing
+  at the slug form for products and the canonical name-id form for categories,
+  including from a stale readable segment.
+
+  Covering this properly needs a HUB mock — worth building when the migration moves
+  past a vertical slice, and not worth faking before then.
+*/

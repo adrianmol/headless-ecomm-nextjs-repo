@@ -128,13 +128,14 @@ describe("getHubCategoryPage", () => {
 
     const page = await getHubCategoryPage(1727);
 
-    expect(page.category.productCount).toBe(326);
-    expect(page.children).toHaveLength(1);
-    expect(page.products[0].offer.price).toEqual({
+    expect(page).not.toBeNull();
+    expect(page!.category.productCount).toBe(326);
+    expect(page!.children).toHaveLength(1);
+    expect(page!.products[0].offer.price).toEqual({
       amountMinor: 6600,
       currency: "RON",
     });
-    expect(page.pagination).toEqual({
+    expect(page!.pagination).toEqual({
       page: 1,
       perPage: 24,
       total: 326,
@@ -189,6 +190,34 @@ describe("getHubCategoryPage", () => {
 
     await getHubCategoryPage(1727, { perPage: 5000 });
     expect(new URL(requested[0]).searchParams.get("per_page")).toBe("100");
+  });
+
+  it("returns null for a category that does not exist", async () => {
+    /*
+      Null rather than a throw, and decided inside the cached function: a HubError
+      does not survive the `use cache` boundary as itself, so an `instanceof` check
+      in a caller silently never matched — an unknown category reached the page as an
+      anonymous error and the response carried no `noindex`.
+    */
+    reply(
+      "/hub-api/v1/category/99999999",
+      { ok: false, error: { code: "not_found" } },
+      404,
+    );
+
+    await expect(getHubCategoryPage(99999999)).resolves.toBeNull();
+  });
+
+  it("still propagates a real failure rather than reporting it as missing", async () => {
+    reply(
+      "/hub-api/v1/category/1727",
+      { ok: false, error: { code: "server_error" } },
+      500,
+    );
+
+    await expect(getHubCategoryPage(1727)).rejects.toMatchObject({
+      code: "server_error",
+    });
   });
 
   it("refuses a non-positive id locally", async () => {

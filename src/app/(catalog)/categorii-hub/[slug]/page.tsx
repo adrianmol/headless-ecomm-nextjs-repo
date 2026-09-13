@@ -1,14 +1,10 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { notFound, permanentRedirect } from "next/navigation";
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { getHubCategoryPage } from "@/commerce/hub/queries";
-import { HubError } from "@/commerce/hub/client";
-import {
-  hubCategoryIdFromSlug,
-  hubCategorySlug,
-  isCanonicalHubCategorySlug,
-} from "@/lib/hub-slug";
+import { hubCategoryIdFromSlug, hubCategorySlug } from "@/lib/hub-slug";
 import {
   HubEmptyCategory,
   HubProductGrid,
@@ -51,6 +47,55 @@ import {
 
 const PER_PAGE = 100;
 
+/**
+ * Canonical URL, and the reason it is a `<link>` rather than a redirect.
+ *
+ * The id is what resolves, so a renamed category keeps working on its old URL —
+ * good for visitors, bad for crawlers, because one page then has several indexable
+ * URLs. The obvious fix is `permanentRedirect`, and it was the first attempt: it
+ * does nothing. By the time the category name is known the fetch has resolved
+ * inside a `<Suspense>` boundary, the response has already begun with a 200, and a
+ * redirect can no longer be issued. Verified against the built server — a
+ * non-canonical URL returned 200 with no Location header.
+ *
+ * `generateMetadata` runs *before* the body streams, so this is where the decision
+ * still belongs. It costs no extra upstream request: the arguments match the page's
+ * own call, so `use cache` serves both from one entry.
+ */
+export async function generateMetadata({
+  params,
+}: PageProps<"/categorii-hub/[slug]">): Promise<Metadata> {
+  const { slug } = await params;
+  const id = hubCategoryIdFromSlug(slug);
+  if (id === null) return {};
+
+  try {
+    const page = await getHubCategoryPage(id, {
+      perPage: PER_PAGE,
+      sort: "price",
+    });
+    /*
+      `notFound()` rather than empty metadata. Returning `{}` suppressed the
+      not-found page's `noindex` — measured, an unknown category served 200 with no
+      robots directive at all, which is a soft 404 a crawler will index. Aborting
+      metadata generation lets the not-found segment supply its own, which is what
+      the existing PDP does for the same reason.
+    */
+    if (!page) notFound();
+
+    return {
+      title: page.category.name,
+      alternates: {
+        canonical: `/categorii-hub/${hubCategorySlug(page.category)}`,
+      },
+    };
+  } catch {
+    // A transient fault; the body handles it and the page still renders rather
+    // than 404ing on a network blip.
+    return {};
+  }
+}
+
 async function CategoryView({
   params,
 }: {
@@ -81,24 +126,14 @@ async function CategoryView({
   // A URL with no recoverable id is a bad link, not a fault.
   if (id === null) notFound();
 
-  let page;
-  try {
-    page = await getHubCategoryPage(id, { perPage: PER_PAGE, sort: "price" });
-  } catch (error) {
-    // A missing category is an ordinary outcome — a stale link, an id that no
-    // longer exists — so it belongs in the 404 surface, not the error boundary.
-    if (error instanceof HubError && error.code === "not_found") notFound();
-    throw error;
-  }
-
-  /*
-    Canonical URL enforcement. The id is what resolves, so a renamed category keeps
-    working on its old URL; without this it would also keep being indexable, giving
-    one page several URLs. A permanent redirect tells a crawler which to keep.
-  */
-  if (!isCanonicalHubCategorySlug(slug, page.category)) {
-    permanentRedirect(`/categorii-hub/${hubCategorySlug(page.category)}`);
-  }
+  // A missing category is an ordinary outcome — a stale link, an id that no longer
+  // exists — so it belongs in the 404 surface rather than the error boundary. Any
+  // other failure still propagates.
+  const page = await getHubCategoryPage(id, {
+    perPage: PER_PAGE,
+    sort: "price",
+  });
+  if (!page) notFound();
 
   const { total } = page.pagination;
   const shown = page.products.length;
