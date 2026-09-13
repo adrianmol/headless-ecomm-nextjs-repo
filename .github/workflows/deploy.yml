@@ -1,0 +1,244 @@
+name: Deploy
+
+# Continuous delivery, replacing the Jenkinsfile. Correctness stays in ci.yml;
+# this workflow turns an already-green commit on main into a running container on
+# Hetzner.
+#
+# ## Why a separate workflow rather than a job in ci.yml
+#
+# ci.yml sets `concurrency.cancel-in-progress: true`, which is right for test
+# runs and wrong for deploys: a second push would cancel the first deploy
+# mid-flight, quite possibly after the image was pushed and before the health
+# check that decides whether to keep it. `workflow_run` gives the same
+# green-before-deploy guarantee without inheriting that cancellation.
+#
+# ## Why GHCR
+#
+# The image registry is free for private packages and needs no credential
+# infrastructure of its own: the run's own GITHUB_TOKEN can both push from the
+# runner and authenticate the pull on the server, so no long-lived registry
+# password is stored anywhere or left on the host.
+#
+# ## Why the build can run on a GitHub runner at all
+#
+# `next build` prerenders the `use cache` catalog scopes, so it performs real
+# catalog requests and needs a reachable API. That is only possible off-network
+# because the commerce API is public HTTPS. If it ever moves behind a private
+# network, this workflow stops working and the build has to move to a runner that
+# can reach it — that is the constraint to check first when this fails.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      rollback_tag:
+        description: "Existing image tag to redeploy (a previous commit SHA). Leave empty to deploy the current main."
+        required: false
+        type: string
+
+concurrency:
+  # No cancel-in-progress: a half-applied deploy is worse than a queued one.
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+  APP_NAME: headless-ecomm-flow
+  APP_PORT: "3000"
+  REMOTE_DIR: /opt/headless-ecomm-flow
+  ENV_FILE: /opt/headless-ecomm-flow/app.env
+  # Used by the post-deploy smoke test. Must exist in the live catalogue.
+  SMOKE_SLUG: toner-compatibil-hp-35a-black-cb435a
+
+jobs:
+  deploy:
+    name: Build, push and deploy
+    runs-on: ubuntu-latest
+
+    # Only a successful CI run deploys. Without this, a red build reaches
+    # production whenever someone pushes past a failing test.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    # Scope the secrets and allow a manual approval gate to be added later
+    # without touching this file.
+    environment: production
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Check out the commit CI verified
+        uses: actions/checkout@v4
+        with:
+          # `workflow_run` runs against the default branch, so the SHA has to be
+          # named explicitly. Without this the workflow could deploy a different
+          # commit than the one that passed.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Resolve the image tag
+        id: version
+        env:
+          ROLLBACK_TAG: ${{ inputs.rollback_tag }}
+        run: |
+          set -euo pipefail
+          if [ -n "${ROLLBACK_TAG:-}" ]; then
+            echo "tag=${ROLLBACK_TAG}" >>"$GITHUB_OUTPUT"
+            echo "rollback=true" >>"$GITHUB_OUTPUT"
+          else
+            # Immutable, content-addressed tags. `latest` is never deployed: it
+            # makes "what is running right now?" unanswerable during an incident
+            # and turns rollback into guesswork.
+            echo "tag=$(git rev-parse --short=12 HEAD)" >>"$GITHUB_OUTPUT"
+            echo "rollback=false" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to GHCR
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      - name: Build the production image
+        if: steps.version.outputs.rollback == 'false'
+        env:
+          COMMERCE_API_URL: ${{ secrets.COMMERCE_API_URL }}
+        run: |
+          set -euo pipefail
+          # BUILD_SCRIPT is deliberately not parameterised. `build:ci` bakes
+          # fixture products into the prerendered catalogue, and an image built
+          # that way must never reach customers — the safest way to enforce that
+          # is to give this workflow no way to produce one.
+          #
+          # --pull so a cached node:22 base does not outlive its security updates.
+          DOCKER_BUILDKIT=1 docker build \
+            --pull \
+            --build-arg BUILD_SCRIPT=build \
+            --build-arg "COMMERCE_API_URL=${COMMERCE_API_URL}" \
+            --tag "${IMAGE_NAME}:${{ steps.version.outputs.tag }}" \
+            .
+
+      - name: Push the image
+        if: steps.version.outputs.rollback == 'false'
+        run: docker push "${IMAGE_NAME}:${{ steps.version.outputs.tag }}"
+
+      - name: Set up SSH
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          # Written with a restrictive umask rather than chmod-after: between
+          # creation and chmod the key is world-readable on a shared runner.
+          (umask 077; printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_deploy)
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          cat >~/.ssh/config <<'CFG'
+          Host deploy-target
+            HostName ${{ secrets.DEPLOY_HOST }}
+            User ${{ secrets.DEPLOY_USER }}
+            IdentityFile ~/.ssh/id_deploy
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          CFG
+          chmod 600 ~/.ssh/config
+
+      - name: Write runtime configuration
+        env:
+          COMMERCE_API_URL: ${{ secrets.COMMERCE_API_URL }}
+          REVALIDATE_SECRET: ${{ secrets.REVALIDATE_SECRET }}
+          STOREFRONT_URL: ${{ vars.STOREFRONT_URL }}
+          HUB_API_URL: ${{ vars.HUB_API_URL }}
+          HUB_API_KEY: ${{ secrets.HUB_API_KEY }}
+          HUB_API_SECRET: ${{ secrets.HUB_API_SECRET }}
+        run: |
+          set -euo pipefail
+          # STOREFRONT_URL is required, and its absence used to be silent: the
+          # product page threw inside generateMetadata, Next swallowed it, and
+          # every PDP served 200 with no canonical URL or Open Graph tags while
+          # the sitemap came back empty. src/instrumentation.ts now refuses to
+          # start without it, so a missing value fails the health check below
+          # instead of the shop's search visibility. Checked here too, because a
+          # failed deploy is cheaper than a rolled-back one.
+          : "${STOREFRONT_URL:?must be set as an Actions *variable* (it is a public URL, not a secret)}"
+          : "${COMMERCE_API_URL:?must be set as an Actions secret}"
+
+          # Secrets travel over stdin, never argv: anything on a remote command
+          # line is visible to every user on that host through `ps`.
+          ssh deploy-target "mkdir -p '${REMOTE_DIR}' && umask 077 && cat > '${ENV_FILE}'" <<EOF
+          NODE_ENV=production
+          COMMERCE_API_URL=${COMMERCE_API_URL}
+          STOREFRONT_URL=${STOREFRONT_URL}
+          REVALIDATE_SECRET=${REVALIDATE_SECRET}
+          HUB_API_URL=${HUB_API_URL}
+          HUB_API_KEY=${HUB_API_KEY}
+          HUB_API_SECRET=${HUB_API_SECRET}
+          EOF
+          ssh deploy-target "chmod 600 '${ENV_FILE}'"
+
+      - name: Deploy
+        run: |
+          set -euo pipefail
+          scp deploy/deploy.sh "deploy-target:${REMOTE_DIR}/deploy.sh"
+          ssh deploy-target "chmod +x '${REMOTE_DIR}/deploy.sh'"
+
+          # The run's own token authenticates the pull, so no long-lived registry
+          # credential is ever stored on the host. It expires with this job.
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | ssh deploy-target "docker login ghcr.io --username '${{ github.actor }}' --password-stdin"
+
+          # deploy.sh health-checks the new container and rolls back to the
+          # previously running image by itself if it does not come up.
+          ssh deploy-target \
+            "'${REMOTE_DIR}/deploy.sh' '${IMAGE_NAME}:${{ steps.version.outputs.tag }}' '${APP_NAME}' '${ENV_FILE}' '${APP_PORT}'"
+
+          ssh deploy-target "docker logout ghcr.io"
+
+      - name: Smoke test through the reverse proxy
+        env:
+          STOREFRONT_URL: ${{ vars.STOREFRONT_URL }}
+        run: |
+          set -euo pipefail
+
+          # Through the public origin, not the container port, so a broken vhost
+          # or an expired certificate fails here rather than for the first
+          # customer. The app binds to 127.0.0.1 only and its session cookie is
+          # Secure, so TLS termination is not optional.
+
+          # A PDP, deliberately, and not `/`. The homepage and /produse are
+          # prerendered into the image and return 200 even when the commerce API
+          # is unreachable, so a smoke test against them passes while every real
+          # page is broken. The PDP streams availability at request time, which
+          # makes it the cheapest proof that the running container can reach the
+          # backend.
+          body="$(curl -fsS --max-time 20 "${STOREFRONT_URL}/produse/${SMOKE_SLUG}")"
+
+          if ! printf '%s' "$body" | grep -Eq 'In stoc|Stoc limitat|Stoc epuizat'; then
+            echo "SMOKE FAILED: the PDP rendered no availability." >&2
+            echo "The container is up but cannot reach the commerce API." >&2
+            exit 1
+          fi
+
+          # Both of these were silently absent in a container with no
+          # STOREFRONT_URL, and nothing in the old pipeline noticed.
+          if ! printf '%s' "$body" | grep -q '<link rel="canonical"'; then
+            echo "SMOKE FAILED: the PDP has no canonical URL." >&2
+            exit 1
+          fi
+
+          if ! curl -fsS --max-time 20 "${STOREFRONT_URL}/sitemap.xml" | grep -q "<loc>"; then
+            echo "SMOKE FAILED: the sitemap is empty." >&2
+            exit 1
+          fi
+
+          echo "smoke ok: live availability, canonical URL and a non-empty sitemap"
+
+      - name: Report
+        if: failure()
+        run: |
+          echo "::error::Deploy of ${{ steps.version.outputs.tag }} failed." \
+            "deploy.sh attempts an automatic rollback; if it could not, rerun this" \
+            "workflow manually with rollback_tag set to the last known good SHA."

@@ -1,3 +1,16 @@
+// SUPERSEDED by .github/workflows/deploy.yml (2026-09-13).
+//
+// Delivery moved to GitHub Actions because the commerce API is public HTTPS, so
+// the build no longer needs an agent inside a private network — which was the
+// only reason this pipeline needed its own Docker host and container registry.
+// GHCR is free for private packages and the deploy authenticates its pull with
+// the workflow run's own token, so no long-lived registry credential exists.
+//
+// Kept for reference, not for use. Do NOT run both: two pipelines deploying the
+// same host will fight over the container and over app.env. This one also writes
+// an app.env with no STOREFRONT_URL, which silently strips canonical URLs and Open
+// Graph tags from every product page and empties the sitemap.
+//
 // Continuous *delivery* only.
 //
 // Correctness gates (lint, contract drift, typecheck, tests, Lighthouse

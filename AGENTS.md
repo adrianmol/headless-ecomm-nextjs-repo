@@ -54,9 +54,36 @@ Available review subagents: `commerce-reviewer` (architecture-invariant review),
 
 ## Deployment
 
-GitHub Actions owns correctness; Jenkins owns delivery only (`Jenkinsfile`). It builds the
-`Dockerfile`, pushes an image tagged with the git SHA, and runs `deploy/deploy.sh` over SSH
-on the Hetzner host, which health-checks the new container and rolls back automatically.
+GitHub Actions owns both correctness (`ci.yml`) and delivery (`deploy.yml`). Delivery builds the
+`Dockerfile`, pushes an image tagged with the git SHA to GHCR, and runs `deploy/deploy.sh` over
+SSH on the Hetzner host, which health-checks the new container and rolls back automatically.
+
+`deploy.yml` is a separate workflow rather than a job in `ci.yml`, and triggers on
+`workflow_run` after CI succeeds. `ci.yml` sets `cancel-in-progress: true`, which would cancel
+a deploy mid-flight — possibly after the image was pushed and before the health check.
+
+The build runs on a GitHub runner, which is only possible because the commerce API is
+public HTTPS: `next build` prerenders the `use cache` catalog scopes and performs real catalog
+requests. **If the API ever moves behind a private network, this breaks** and the build must
+move to a runner that can reach it. Check that first when a deploy fails at the build step.
+
+The image pull on the host is authenticated with the run's own `GITHUB_TOKEN`, so no
+long-lived registry credential is stored on the server.
+
+Required Actions configuration (names must match):
+
+| Kind     | Name                                                                 |
+| -------- | -------------------------------------------------------------------- |
+| Variable | `STOREFRONT_URL`, `HUB_API_URL`                                      |
+| Secret   | `COMMERCE_API_URL`, `REVALIDATE_SECRET`                              |
+| Secret   | `HUB_API_KEY`, `HUB_API_SECRET`                                      |
+| Secret   | `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS` |
+
+`STOREFRONT_URL` is a **variable, not a secret** — it is a public URL, and making it a secret
+only means Actions redacts it from logs where you need to read it.
+
+`Jenkinsfile` is superseded and kept for reference only. Do not run both: two pipelines
+deploying the same host will fight over the container and the env file.
 
 - `output: 'standalone'` in `next.config.ts` exists for the runtime image stage. Do not remove it.
 - **A production image must be built where the commerce API is reachable**, because `use cache`
@@ -66,10 +93,15 @@ on the Hetzner host, which health-checks the new container and rolls back automa
 - The container binds to `127.0.0.1` only. A TLS-terminating reverse proxy on the host is
   mandatory: the session cookie is `Secure`, so the app is broken over plain HTTP.
 - Runtime config lives in `/opt/headless-ecomm-flow/app.env` (mode 600), written by the
-  pipeline from Jenkins credentials. Never bake it into the image.
-
-Jenkins credential IDs: `hetzner-registry`, `hetzner-deploy-key`, `commerce-api-url`,
-`revalidate-secret`. Registry/host placeholders at the top of the `Jenkinsfile` need real values.
+  pipeline from Actions secrets and variables. Never bake it into the image.
+- **`STOREFRONT_URL` must be in `app.env`.** Its absence used to be silent: the product page
+  threw inside `generateMetadata`, Next swallowed it, and every PDP served 200 with no canonical
+  URL and no Open Graph tags while `/sitemap.xml` returned an empty `<urlset>`. The smoke test
+  still passed. `src/instrumentation.ts` now refuses to start without it, which makes every route
+  return 500 so the health check fails and `deploy.sh` rolls back.
+- `robots.txt` and `sitemap.xml` read `STOREFRONT_URL` at **request** time, deliberately. As
+  prerendered routes they captured the build-time value, and `build:ci` defaults it to
+  `http://localhost:3000` — which shipped a sitemap claiming the shop lives on localhost.
 
 ## Observability
 
