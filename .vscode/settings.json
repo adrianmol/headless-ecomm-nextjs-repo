@@ -1,0 +1,6 @@
+{
+  "// css.lint.unknownAtRules": "Tailwind v4 puts its configuration in CSS: @theme, @custom-variant, @utility, @apply and @plugin are all real at-rules that the editor's built-in CSS validator does not know, so it reports every one as 'Unknown at rule'. src/app/globals.css is entirely built from them. The project has no stylelint; correctness is enforced by eslint, tsc and the build, none of which complain. Ignoring this is what makes a genuine CSS mistake visible again instead of buried in false positives.",
+  "css.lint.unknownAtRules": "ignore",
+  "scss.lint.unknownAtRules": "ignore",
+  "less.lint.unknownAtRules": "ignore"
+}
