@@ -252,7 +252,33 @@ export async function ProductStrip({ count = 4 }: { count?: number }) {
   */
   await connection();
 
-  const { items } = await listProducts({ limit: count });
+  /*
+    Degrades to nothing rather than throwing, and this is a correctness fix
+    rather than caution.
+
+    Making this band request-time also made the landing page depend on a
+    reachable backend, which it previously did not: `/` was fully prerendered and
+    kept serving during an outage — a property this project measured deliberately
+    and relies on, to the point that the container health check was moved off `/`
+    because it stayed up when the API was down.
+
+    Without this catch, one unreachable catalog request takes the whole landing
+    page to the route error boundary, losing the header, the printer finder, the
+    brand links and every way back — for a band that is the least important thing
+    on the page. Observed as `getaddrinfo ENOTFOUND` bubbling up as "Switched to
+    client rendering because the server rendering errored".
+
+    The band disappearing is the right failure: the rest of the page is served
+    from cache and still works. Nothing about the error reaches the customer, and
+    onRequestError has already logged the digest.
+  */
+  let items;
+  try {
+    ({ items } = await listProducts({ limit: count }));
+  } catch {
+    return null;
+  }
+
   if (items.length === 0) return null;
 
   const offers = listOffers(items.map((item) => item.slug));

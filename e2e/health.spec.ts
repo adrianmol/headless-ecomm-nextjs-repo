@@ -63,6 +63,12 @@ test.describe("health endpoints", () => {
     // inference: with the commerce API stopped on 2026-09-04, `/`, `/produse`
     // and `/produse/toner-compatibil-hp-35a-black-cb435a` all still returned 200, which is why the
     // pipeline could not detect an unreachable backend.
+    //
+    // Re-measured on 2026-09-13, because `/` has since gained a request-time
+    // product band and is no longer fully static. Against a closed port it still
+    // served 200 with the hero, printer finder and brand chips intact, the band
+    // simply absent, and no client-side rendering error. The property that made
+    // this endpoint necessary therefore still holds.
     const live = await (await request.get("/health")).json();
     const ready = await (await request.get("/health/ready")).json();
 
