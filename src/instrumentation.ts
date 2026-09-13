@@ -24,6 +24,48 @@ export function register() {
 }
 
 /**
+ * Longest path we will log. A path is request-controlled, so it is also a way to
+ * fill the container's log ring buffer.
+ */
+const MAX_LOGGED_PATH_LENGTH = 256;
+
+/**
+ * Strips the query string before a path reaches the logs.
+ *
+ * Next hands `onRequestError` the **full** resource path including search
+ * params. Measured on 2026-09-13 by erroring on
+ * `/produse/force-error?session_token=…&email=…`, the log line contained the
+ * token and the email verbatim. Anything a visitor puts in a query string
+ * therefore reached container logs — and the sharpest case is
+ * `/checkout/return`, whose query string carries the order reference and payment
+ * status from the provider.
+ *
+ * This is the same rule `/api/vitals` already applies to client-supplied paths;
+ * it simply had not been applied here.
+ *
+ * The pathname is kept rather than reduced to `routePath`: it is what makes an
+ * error actionable, and `routePath` is logged alongside it for aggregation.
+ * Dynamic ids do survive in the pathname — an order reference among them — which
+ * is a deliberate difference from the vitals rule. That endpoint is public,
+ * unauthenticated and high-volume, so identifiers there are noise; here a
+ * reference is the thing support asks the customer to quote, and it is logged
+ * only when a request actually failed.
+ */
+function safePath(path: string | undefined): string | undefined {
+  if (path === undefined) return undefined;
+
+  const [pathname] = path.split(/[?#]/, 1);
+
+  // Control characters cannot appear in a legitimate path and are what would be
+  // used to forge an extra log line.
+  const clean = pathname.replace(/[\u0000-\u001f\u007f]/g, "");
+
+  return clean.length > MAX_LOGGED_PATH_LENGTH
+    ? `${clean.slice(0, MAX_LOGGED_PATH_LENGTH)}…`
+    : clean;
+}
+
+/**
  * Server-side error reporting hook.
  *
  * Logs a digest rather than a message: in production Next replaces the message
@@ -54,7 +96,7 @@ export async function onRequestError(
       kind,
       digest,
       method: request.method,
-      path: request.path,
+      path: safePath(request.path),
       routePath: context.routePath,
       routeType: context.routeType,
     }),
