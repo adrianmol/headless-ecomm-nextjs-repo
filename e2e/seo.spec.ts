@@ -89,3 +89,73 @@ test.describe("product detail metadata", () => {
     ).toBeVisible();
   });
 });
+
+test.describe("robots.txt", () => {
+  test("disallows the per-visitor and machine routes", async ({ request }) => {
+    const body = await (await request.get("/robots.txt")).text();
+
+    expect(body).toContain("User-Agent: *");
+    expect(body).toContain("Allow: /");
+    // Basket, checkout and order pages are per-visitor, and an order URL in a
+    // crawler's index is an order reference published to strangers.
+    for (const path of [
+      "/api/",
+      "/health",
+      "/cos",
+      "/finalizare-comanda",
+      "/comenzi/",
+    ]) {
+      expect(body).toContain(`Disallow: ${path}`);
+    }
+  });
+
+  test("points at the sitemap on the configured origin", async ({
+    request,
+  }) => {
+    const body = await (await request.get("/robots.txt")).text();
+
+    expect(body).toContain(`Sitemap: ${STOREFRONT_URL}/sitemap.xml`);
+    // The regression this guards: robots.txt was prerendered, so it captured
+    // whatever STOREFRONT_URL held at build time — and build:ci defaults it to
+    // localhost, which would have advertised a localhost sitemap in production.
+    expect(body).not.toContain("localhost");
+  });
+});
+
+test.describe("sitemap.xml", () => {
+  test("uses the configured origin rather than the build-time default", async ({
+    request,
+  }) => {
+    const body = await (await request.get("/sitemap.xml")).text();
+
+    const origins = [...body.matchAll(/<loc>(https?:\/\/[^/<]+)/g)].map(
+      (m) => m[1],
+    );
+    expect(origins.length).toBeGreaterThan(0);
+    // Exactly one origin, and it is the configured one. Before the sitemap was
+    // made request-time this asserted localhost, because the document was baked
+    // at build.
+    expect([...new Set(origins)]).toEqual([STOREFRONT_URL]);
+  });
+
+  test("lists the catalogue and omits everything per-visitor", async ({
+    request,
+  }) => {
+    const body = await (await request.get("/sitemap.xml")).text();
+
+    expect(body).toContain(`<loc>${STOREFRONT_URL}/</loc>`);
+    expect(body).toContain(`<loc>${STOREFRONT_URL}/produse</loc>`);
+    expect(body).toContain(`<loc>${STOREFRONT_URL}/categorii/tonere</loc>`);
+    expect(body).toContain(`<loc>${productUrl}</loc>`);
+    // The long tail worth indexing: "toner for HL-2130" is how this catalogue is
+    // actually searched.
+    expect(body).toMatch(/<loc>[^<]*\/compatibil\/brother\/[^<]+<\/loc>/);
+
+    // Nothing session-scoped, matching robots.txt.
+    expect(body).not.toContain("/cos");
+    expect(body).not.toContain("/finalizare-comanda");
+    expect(body).not.toContain("/comenzi");
+    // Cursors are opaque backend tokens that decay into soft-404s.
+    expect(body).not.toContain("cursor=");
+  });
+});
