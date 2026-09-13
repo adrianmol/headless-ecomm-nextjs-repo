@@ -2,24 +2,42 @@ import Link from "next/link";
 import { CATEGORIES } from "@/lib/catalog-taxonomy";
 
 /**
- * Site header. A Server Component, so it adds no client JavaScript.
+ * Site header, following the owner's REPrint design file: a white bar with the
+ * wordmark, a wide search field, an account link and a filled basket pill, over
+ * a strip of circular category chips.
  *
- * **No basket count, deliberately.** A count is per-visitor data, so rendering
- * it in a layout shared by every route would either drag the cart read into
- * every page — including the cached catalog pages, breaking the rule that
- * catalog responses carry no session — or require a client-side cart store
- * subscribed globally, which the handoff rules out. A plain Cos link instead.
+ * A Server Component, so it adds no client JavaScript.
+ *
+ * **No basket count, deliberately — and this is a departure from the design,
+ * which shows `Coș (0)`.** A count is per-visitor data, so rendering it in a
+ * layout shared by every route would either drag a cart read into every page,
+ * including the cached catalog pages that must carry no session, or need a
+ * globally subscribed client cart store. Both were rejected as a recorded
+ * decision. A hardcoded `(0)` was the other option and is worse: it is wrong the
+ * moment anything is in the basket.
  *
  * No `aria-current` either: knowing the active route needs `usePathname`, which
  * would make this a Client Component in the layout — the exact regression the
- * rsc-boundaries skill warns about. Not worth client JS on every route for a
- * styling cue.
+ * rsc-boundaries skill warns about.
  *
- * The category row is a flat list of consumable kinds rather than the mega-menu
- * the original site uses. A dropdown here would be either a client island in
- * the layout or a CSS-hover menu that is unusable on touch; six links cost
- * nothing and are reachable in one tab.
+ * The search field is a plain GET form, so it works without JavaScript and is a
+ * real form rather than a decorative box. It targets /produse, which validates
+ * its own query parameters.
  */
+
+/**
+ * Two-letter chips, as in the design. Derived from the category name rather than
+ * stored, so a taxonomy edit cannot leave a stale abbreviation behind.
+ */
+function initials(name: string): string {
+  const words = name.split(/\s+/).filter(Boolean);
+  const letters =
+    words.length > 1
+      ? `${words[0][0]}${words[1][0]}`
+      : name.replace(/[^\p{L}]/gu, "").slice(0, 2);
+  return letters.toLocaleUpperCase("ro-RO");
+}
+
 export function SiteHeader() {
   return (
     <header className="border-border bg-background sticky top-0 z-10 border-b">
@@ -32,30 +50,55 @@ export function SiteHeader() {
         Sari la continut
       </a>
 
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
+      <div className="max-w-page mx-auto flex h-16 items-center gap-4 px-4 sm:gap-8">
         <Link
           href="/"
-          className="focus-visible:ring-ring rounded text-lg font-bold tracking-tight focus-visible:ring-2 focus-visible:outline-none"
+          className="focus-visible:ring-ring shrink-0 rounded text-lg font-extrabold tracking-tight focus-visible:ring-2 focus-visible:outline-none"
         >
           RE<span className="text-primary">Print</span>
+          <span className="text-muted-foreground ml-1.5 hidden text-sm font-medium sm:inline">
+            Romania
+          </span>
         </Link>
 
-        <nav aria-label="Principal" className="flex items-center gap-5 text-sm">
+        {/*
+          The design puts a search field here. It is **deliberately absent**, and
+          this is the third time search has been declined in this project for the
+          same reason: nothing can answer it. `parseCatalogQuery` accepts no text
+          parameter, and the HUB catalog contract exposes category, product-by-key
+          and live-pricing endpoints with no search among them.
+
+          A `role="search"` box that discards what a buyer types is worse than no
+          box: someone pastes a part code, presses enter, and lands on the
+          unfiltered catalogue with no explanation.
+
+          There is a contract-supported path to most of it, which the design's own
+          placeholder points at — "sau cod produs". `GET /product/{sku}` resolves
+          an exact code, so a lookup that redirects to the product and otherwise
+          says so is buildable today. Full-text search over names is not, and
+          needs a backend endpoint. Left as an open decision rather than faked.
+        */}
+        <div className="min-w-0 flex-1" />
+
+        <nav
+          aria-label="Principal"
+          className="flex shrink-0 items-center gap-3 text-sm sm:gap-5"
+        >
+          {/*
+            The design has "Contul meu" here. Omitted: there is no account
+            feature in this storefront and none in any available contract — the
+            plan lists customer accounts as later scope. A header link to a 404
+            is worse than a missing link.
+          */}
           <Link
             href="/produse"
-            className="hover:text-foreground text-muted-foreground focus-visible:ring-ring hidden rounded focus-visible:ring-2 focus-visible:outline-none sm:inline"
+            className="text-primary focus-visible:ring-ring hidden rounded font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none sm:inline"
           >
             Toate produsele
           </Link>
           <Link
-            href="/info/seap"
-            className="hover:text-foreground text-muted-foreground focus-visible:ring-ring hidden rounded focus-visible:ring-2 focus-visible:outline-none sm:inline"
-          >
-            SEAP
-          </Link>
-          <Link
             href="/cos"
-            className="border-border hover:bg-muted focus-visible:ring-ring rounded-md border px-3 py-1.5 font-medium focus-visible:ring-2 focus-visible:outline-none"
+            className="bg-foreground text-background focus-visible:ring-ring rounded-full px-4 py-2 font-semibold hover:opacity-90 focus-visible:ring-2 focus-visible:outline-none"
           >
             Cos
           </Link>
@@ -71,16 +114,24 @@ export function SiteHeader() {
         */}
         <nav
           aria-label="Categorii de produse"
-          className="mx-auto max-w-6xl overflow-x-auto px-4"
+          className="max-w-page mx-auto overflow-x-auto px-4"
         >
-          <ul className="flex items-center gap-4 py-2 text-sm whitespace-nowrap">
+          <ul className="flex items-start gap-6 py-3 whitespace-nowrap sm:gap-9">
             {CATEGORIES.map((category) => (
-              <li key={category.slug}>
+              <li key={category.slug} className="shrink-0">
                 <Link
                   href={`/categorii/${category.slug}`}
-                  className="hover:text-foreground text-muted-foreground focus-visible:ring-ring rounded focus-visible:ring-2 focus-visible:outline-none"
+                  className="group focus-visible:ring-ring flex w-20 flex-col items-center gap-1.5 rounded focus-visible:ring-2 focus-visible:outline-none"
                 >
-                  {category.name}
+                  <span
+                    className="bg-accent text-accent-foreground flex size-9 items-center justify-center rounded-full text-xs font-bold group-hover:brightness-95"
+                    aria-hidden
+                  >
+                    {initials(category.name)}
+                  </span>
+                  <span className="text-muted-foreground group-hover:text-foreground text-center text-[11px] leading-tight whitespace-normal">
+                    {category.name}
+                  </span>
                 </Link>
               </li>
             ))}

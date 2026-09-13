@@ -2,42 +2,137 @@ import Link from "next/link";
 import { CATEGORIES } from "@/lib/catalog-taxonomy";
 
 /**
- * Site footer. A Server Component — no client JavaScript.
+ * Site footer, following the owner's design file: four columns on the dark green
+ * ground, with a thin copyright bar beneath. A Server Component — no client
+ * JavaScript.
  *
- * Deliberately carries no company address, phone number, registration number,
- * or bank details. Those are real-world facts about a real business and this
- * storefront has no source for them: inventing plausible ones would put false
- * contact and legal-entity information on every page of a shop. They belong in
- * owner-supplied content, read from a CMS field when one exists.
+ * The contact details here come from the owner's design file and are used as
+ * supplied. That distinction matters in this project: previous copy was rejected
+ * twice for asserting business facts the storefront had no source for. A phone
+ * number and a street address are exactly that kind of fact, so they are quoted
+ * from the owner's own design rather than invented, and anything the design does
+ * not state is still absent — no registration number, no bank details, no VAT id.
  *
- * The same applies to the newsletter form on the original site: there is no
- * subscription endpoint in the contract, and a form that silently discards an
- * email address is worse than no form.
+ * The newsletter block from the design is **not** implemented. There is no
+ * subscription endpoint in any contract available here, and a form that silently
+ * discards an email address is worse than no form.
+ *
+ * Text on this ground is `--brand-muted-foreground` (#CFE4D8), which measures
+ * 5.34:1 against the green — the muted grey used elsewhere would be unreadable
+ * here, which is the usual way a dark footer fails contrast.
  */
+
+/**
+ * Deliberately a constant, not `new Date().getFullYear()`.
+ *
+ * The footer is prerendered, so reading the clock during render is rejected
+ * outright by `cacheComponents` — and it would be wrong even if allowed: the
+ * value would freeze at build time and quietly show the wrong year from every
+ * January until the next deploy. A constant is at least honest about needing a
+ * human, and shows up in a diff.
+ */
+const COPYRIGHT_YEAR = 2026;
+
+const INFO_LINKS = [
+  { href: "/info/livrare", label: "Livrare" },
+  { href: "/info/termeni", label: "Termeni si conditii" },
+  { href: "/info/despre-noi", label: "Despre noi" },
+  { href: "/info/retur", label: "Politica de returnare" },
+] as const;
+
+const ABOUT_LINKS = [
+  { href: "/info/seap", label: "Achizitii SEAP / SICAP" },
+  { href: "/info/cash-back", label: "Cash back" },
+  { href: "/promotii", label: "Promotii" },
+  { href: "/produse", label: "Produse noi" },
+] as const;
+
+function FooterColumn({
+  id,
+  title,
+  links,
+}: {
+  id: string;
+  title: string;
+  links: ReadonlyArray<{ href: string; label: string }>;
+}) {
+  return (
+    <nav aria-labelledby={id}>
+      <h2 id={id} className="text-sm font-bold text-white">
+        {title}
+      </h2>
+      <ul className="mt-4 space-y-2 text-sm">
+        {links.map((link) => (
+          <li key={link.href}>
+            <Link
+              href={link.href}
+              className="text-brand-muted-foreground focus-visible:ring-ring rounded hover:text-white hover:underline focus-visible:ring-2 focus-visible:outline-none"
+            >
+              {link.label}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
 export function SiteFooter() {
   return (
-    <footer className="border-border bg-muted/40 mt-16 border-t">
-      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:grid-cols-3">
+    <footer className="bg-brand-dark mt-16 text-white">
+      <div className="max-w-page mx-auto grid gap-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <p className="text-lg font-bold tracking-tight">
-            RE<span className="text-primary">Print</span>
-          </p>
-          <p className="text-muted-foreground mt-2 text-sm">
-            Consumabile compatibile pentru imprimante: tonere, cartuse, unitati
-            de cilindru si piese de schimb.
+          <p className="text-lg font-extrabold tracking-tight">REPRINT</p>
+          <p className="text-brand-muted-foreground mt-3 text-sm">
+            Consumabile de calitate premium la pret de importator.
           </p>
         </div>
 
-        <nav aria-labelledby="footer-categories">
-          <h2 id="footer-categories" className="text-sm font-semibold">
+        <FooterColumn id="footer-info" title="Informatii" links={INFO_LINKS} />
+        <FooterColumn
+          id="footer-about"
+          title="Despre noi"
+          links={ABOUT_LINKS}
+        />
+
+        <div>
+          <h2 className="text-sm font-bold text-white">Contact</h2>
+          <ul className="text-brand-muted-foreground mt-4 space-y-2 text-sm">
+            <li>
+              {/* A real phone number is more useful as a link than as text. */}
+              <a
+                href="tel:+40762095550"
+                className="focus-visible:ring-ring rounded hover:text-white hover:underline focus-visible:ring-2 focus-visible:outline-none"
+              >
+                +40 762 095 550
+              </a>
+            </li>
+            <li>Str. Cuza Vodă 49, Târgu Frumos, Iași</li>
+          </ul>
+        </div>
+      </div>
+
+      {/*
+        Category links stay in the footer for crawlability, but below the
+        design's four columns rather than replacing one of them.
+      */}
+      <div className="border-t border-white/15">
+        <nav
+          aria-labelledby="footer-categories"
+          className="max-w-page mx-auto px-4 py-6"
+        >
+          <h2
+            id="footer-categories"
+            className="text-brand-muted-foreground text-xs font-semibold tracking-wide uppercase"
+          >
             Categorii
           </h2>
-          <ul className="mt-3 space-y-1.5 text-sm">
+          <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm">
             {CATEGORIES.map((category) => (
               <li key={category.slug}>
                 <Link
                   href={`/categorii/${category.slug}`}
-                  className="text-muted-foreground hover:text-foreground focus-visible:ring-ring rounded focus-visible:ring-2 focus-visible:outline-none"
+                  className="text-brand-muted-foreground focus-visible:ring-ring rounded hover:text-white hover:underline focus-visible:ring-2 focus-visible:outline-none"
                 >
                   {category.name}
                 </Link>
@@ -45,38 +140,12 @@ export function SiteFooter() {
             ))}
           </ul>
         </nav>
+      </div>
 
-        <nav aria-labelledby="footer-info">
-          <h2 id="footer-info" className="text-sm font-semibold">
-            Informatii
-          </h2>
-          <ul className="mt-3 space-y-1.5 text-sm">
-            <li>
-              <Link
-                href="/produse"
-                className="text-muted-foreground hover:text-foreground focus-visible:ring-ring rounded focus-visible:ring-2 focus-visible:outline-none"
-              >
-                Toate produsele
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/info/seap"
-                className="text-muted-foreground hover:text-foreground focus-visible:ring-ring rounded focus-visible:ring-2 focus-visible:outline-none"
-              >
-                Achizitii SEAP / SICAP
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/cos"
-                className="text-muted-foreground hover:text-foreground focus-visible:ring-ring rounded focus-visible:ring-2 focus-visible:outline-none"
-              >
-                Cosul meu
-              </Link>
-            </li>
-          </ul>
-        </nav>
+      <div className="border-t border-white/15">
+        <p className="text-brand-muted-foreground max-w-page mx-auto px-4 py-5 text-center text-xs">
+          © {COPYRIGHT_YEAR} REPrint Romania
+        </p>
       </div>
     </footer>
   );

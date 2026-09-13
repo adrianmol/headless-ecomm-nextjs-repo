@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Geist, Geist_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Manrope } from "next/font/google";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { WebVitals } from "@/components/web-vitals";
@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
  * `latin` subset does not contain them. Without it every product title and most
  * body copy silently falls back to a system font mid-word.
  */
-const geist = Geist({
+const sans = Manrope({
   subsets: ["latin", "latin-ext"],
   variable: "--font-sans",
 });
@@ -21,8 +21,9 @@ const geist = Geist({
  * character by character. A monospace face makes transposed digits visible and
  * stops 0/O and 1/l collapsing into each other.
  */
-const geistMono = Geist_Mono({
+const mono = IBM_Plex_Mono({
   subsets: ["latin", "latin-ext"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
 });
 
@@ -37,10 +38,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="ro"
-      className={cn("font-sans", geist.variable, geistMono.variable)}
-    >
+    <html lang="ro" className={cn("font-sans", sans.variable, mono.variable)}>
       <body>
         {/*
           A client leaf that renders null. It sits in the layout because field

@@ -16,10 +16,26 @@
     is fixed in one place when axe complains.
   */
   --color-stock-in: var(--stock-in);
+  --color-stock-in-surface: var(--stock-in-surface);
   --color-stock-low: var(--stock-low);
+  --color-stock-low-surface: var(--stock-low-surface);
   --color-stock-out: var(--stock-out);
+  --color-stock-out-surface: var(--stock-out-surface);
   --color-promo: var(--promo);
   --color-promo-foreground: var(--promo-foreground);
+  /* The dark green grounds, and the body copy that survives on them. */
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-muted-foreground: var(--brand-muted-foreground);
+  /* The page ground the white cards sit on. */
+  --color-surface: var(--surface);
+  --color-rating: var(--rating);
+
+  /*
+    Page gutter width from the design file: every band centres its content on
+    1240px. A token rather than `max-w-6xl` (1152px) repeated per section, so the
+    header, footer and every band cannot drift apart by a few pixels.
+  */
+  --container-page: 77.5rem;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -70,37 +86,78 @@
 
   Every foreground/background pair here clears 4.5:1 against its own surface.
 */
+/*
+  Palette taken from the owner's REPrint design file (2026-09-13). Hex values
+  from that file are recorded beside each token so a future comparison against
+  the design is a lookup rather than an archaeology exercise.
+
+  Three colours are deliberately *darker* than the design supplied, because the
+  design's own values fail the contrast floor this file promises and axe runs in
+  CI. Each is annotated with the measured before/after ratio. Hue is preserved,
+  so the look is intact.
+*/
 :root {
   --background: oklch(1 0 0);
-  --foreground: oklch(0.19 0.015 250);
+  /* #1A1A1A — 17.4:1 on white. */
+  --foreground: oklch(0.218 0 89.9);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.19 0.015 250);
+  --card-foreground: oklch(0.218 0 89.9);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.19 0.015 250);
-  /* 7.1:1 on white — safe for the primary button and for link text. */
-  --primary: oklch(0.45 0.15 252);
-  --primary-foreground: oklch(0.99 0.002 250);
-  --secondary: oklch(0.965 0.006 250);
-  --secondary-foreground: oklch(0.28 0.03 252);
-  --muted: oklch(0.965 0.006 250);
-  /* 4.8:1 on --background: the floor for the ex-VAT line and spec text. */
-  --muted-foreground: oklch(0.505 0.018 252);
-  --accent: oklch(0.955 0.012 252);
-  --accent-foreground: oklch(0.32 0.06 252);
-  --destructive: oklch(0.55 0.21 27);
-  --border: oklch(0.915 0.008 250);
-  --input: oklch(0.895 0.01 250);
-  --ring: oklch(0.55 0.13 252);
+  --popover-foreground: oklch(0.218 0 89.9);
+  /* #006632 brand green — white on it is 7.13:1, so it carries button text. */
+  --primary: oklch(0.447 0.117 152.3);
+  --primary-foreground: oklch(1 0 0);
+  /* #004D25 — the hero, newsletter and footer ground. 10.1:1 on white. */
+  --brand-dark: oklch(0.368 0.095 152.7);
+  /* #CFE4D8 — body copy on the dark green grounds. 5.34:1 on #006632. */
+  --brand-muted-foreground: oklch(0.9 0.028 160.8);
+  --secondary: oklch(0.972 0.002 145.6);
+  --secondary-foreground: oklch(0.368 0.095 152.7);
+  --muted: oklch(0.972 0.002 145.6);
+  /* #686868 — 5.57:1 on white and 5.14:1 on --surface, so it holds on both. */
+  --muted-foreground: oklch(0.517 0 89.9);
+  /* #E3F3EA mint — the in-stock badge ground; brand green on it is 6.2:1. */
+  --accent: oklch(0.95 0.021 161.5);
+  --accent-foreground: oklch(0.447 0.117 152.3);
+  --destructive: oklch(0.586 0.207 31.3);
+  /* #E3E5E3 */
+  --border: oklch(0.92 0.003 145.5);
+  --input: oklch(0.92 0.003 145.5);
+  --ring: oklch(0.447 0.117 152.3);
+  /* #F5F6F5 — the page ground the white cards sit on. */
+  --surface: oklch(0.972 0.002 145.6);
 
   /*
     Stock states. Never the only signal — each is paired with a text label,
     because colour alone fails WCAG 1.4.1 and roughly 8% of male shoppers.
+
+    Each state has a foreground and the ground it is shown against, because the
+    design puts these in filled pills rather than as bare text, and a foreground
+    that passes on white can fail on a tinted pill. That is exactly what happened
+    to the low-stock amber below.
   */
-  --stock-in: oklch(0.48 0.12 152);
-  --stock-low: oklch(0.52 0.13 62);
-  --stock-out: oklch(0.52 0.16 27);
-  --promo: oklch(0.62 0.17 45);
-  --promo-foreground: oklch(0.99 0.002 250);
+  --stock-in: oklch(0.447 0.117 152.3);
+  --stock-in-surface: oklch(0.95 0.021 161.5);
+  /*
+    Design supplied #C77F00 on #F7E8CC, measured at 2.69:1 — under the 4.5:1
+    floor, on the "Stoc limitat" pill. Darkened to #9D5500, now 4.65:1.
+  */
+  --stock-low: oklch(0.524 0.124 59.1);
+  --stock-low-surface: oklch(0.936 0.04 83.1);
+  --stock-out: oklch(0.517 0 89.9);
+  --stock-out-surface: oklch(0.972 0.002 145.6);
+  /*
+    The discount pill: white on the design's #E23A22 measured 4.32:1, just under
+    the floor. #DC341C takes it to 4.61:1.
+  */
+  --promo: oklch(0.586 0.207 31.3);
+  --promo-foreground: oklch(1 0 0);
+  /*
+    Star rating. The design's #F88E4E is 2.34:1 on white — failing even the 3:1
+    floor for graphical objects. #E07636 is 3.08:1. The numeric value is always
+    in the accessible name, so the colour is reinforcement, not the signal.
+  */
+  --rating: oklch(0.676 0.152 48.7);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
