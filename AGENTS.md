@@ -49,11 +49,11 @@ Available review subagents: `commerce-reviewer` (architecture-invariant review),
 
 ## Toolchain notes
 
-- **Local Node is 20.20.2, which is EOL (2026-04-30) and receives no security patches.**
-  Next 16 still supports it (`>=20.9.0`), so this is not blocking, but upgrade to Node 22
-  or 24 before production. CI already runs Node 22; see `.nvmrc`.
-- Homebrew's `node@20` is keg-only, so `node` is absent from non-interactive shells.
-  Prefix `PATH` with `/opt/homebrew/opt/node@20/bin` when scripting.
+- Local Node is Homebrew `node@22`, matching `.nvmrc`, CI and the `Dockerfile`. `node@20`
+  (EOL 2026-04-30) is still installed but no longer used.
+- `node@22` is keg-only, so `node` is absent from non-interactive shells. Prefix `PATH`
+  with `/opt/homebrew/opt/node@22/bin` when scripting. `pnpm` there is a corepack shim
+  (`corepack enable`); scripts call `pnpm` recursively, so it must be on `PATH`.
 
 ## Deployment
 
