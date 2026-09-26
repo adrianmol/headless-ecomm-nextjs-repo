@@ -110,7 +110,7 @@ async function CheckoutSummary() {
 
       <aside
         aria-labelledby="summary-heading"
-        className="border-border bg-card hidden rounded-xl border p-6 lg:sticky lg:top-44 lg:block"
+        className="border-border bg-card hidden rounded-xl border p-6 lg:sticky lg:top-8 lg:block"
       >
         <div className="mb-5 flex items-baseline justify-between gap-4">
           <h2 id="summary-heading" className="font-semibold">
@@ -172,7 +172,7 @@ export default function CheckoutPage({
   searchParams,
 }: PageProps<"/finalizare-comanda">) {
   return (
-    <main className="max-w-page mx-auto px-4 py-8 sm:py-10">
+    <main className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
       <CheckoutSteps current={1} />
       <h1 className="mb-6 text-2xl font-semibold sm:text-3xl">
         Finalizare comanda

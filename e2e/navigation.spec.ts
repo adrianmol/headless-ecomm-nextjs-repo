@@ -169,12 +169,32 @@ test.describe("site header", () => {
       "/compatibil/brother/hl-2130",
       "/info/seap",
       "/cos",
-      "/finalizare-comanda",
+      // The root 404 renders outside every route group; it adds the frame itself.
+      "/pagina-care-nu-exista",
     ]) {
       await page.goto(path);
       await expect(
         page.getByRole("navigation", { name: "Principal" }),
         `header missing on ${path}`,
+      ).toBeVisible();
+    }
+  });
+
+  test("is absent from checkout, which keeps only a logo and a phone", async ({
+    page,
+  }) => {
+    // Deliberate: every menu link in a checkout is an exit from the funnel.
+    // See src/app/(checkout)/layout.tsx.
+    for (const path of ["/finalizare-comanda", "/comenzi/DEADBEEF"]) {
+      await page.goto(path);
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await expect(
+        page.getByRole("navigation", { name: "Principal" }),
+        `site menu present on ${path}`,
+      ).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "REPrint" })).toBeVisible();
+      await expect(
+        page.getByRole("link", { name: /762 095 550/ }).first(),
       ).toBeVisible();
     }
   });

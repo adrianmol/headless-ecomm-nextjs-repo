@@ -54,8 +54,8 @@ function EmptyBasket() {
       </span>
       <p className="mt-5 text-lg font-semibold">Cosul tau este gol.</p>
       <p className="text-muted-foreground mt-2 max-w-sm text-sm">
-        Gaseste cartusul sau tonerul potrivit pornind de la modelul
-        imprimantei tale.
+        Gaseste cartusul sau tonerul potrivit pornind de la modelul imprimantei
+        tale.
       </p>
       <Button className="mt-6" asChild>
         <Link href="/modele">Cauta dupa model</Link>
@@ -94,11 +94,7 @@ async function CartContents() {
               {cart.lines.map((line) => (
                 <li key={line.sku} className="flex gap-4 py-5">
                   {/* Duplicate of the name link, so hidden from AT and tab order. */}
-                  <Link
-                    href={productHref(line.sku)}
-                    tabIndex={-1}
-                    aria-hidden
-                  >
+                  <Link href={productHref(line.sku)} tabIndex={-1} aria-hidden>
                     <LineThumbnail imageUrl={images.get(line.sku)} />
                   </Link>
 

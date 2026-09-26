@@ -33,10 +33,16 @@ export function CheckoutSteps({ current }: { current: 0 | 1 | 2 }) {
                 "flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
                 done && "bg-primary text-primary-foreground",
                 active && "bg-foreground text-background",
-                !done && !active && "bg-muted text-muted-foreground",
+                !done &&
+                  !active &&
+                  "border-border bg-background text-muted-foreground border",
               )}
             >
-              {done ? <Check className="size-3.5" strokeWidth={3} /> : index + 1}
+              {done ? (
+                <Check className="size-3.5" strokeWidth={3} />
+              ) : (
+                index + 1
+              )}
             </span>
           );
 
@@ -69,7 +75,9 @@ export function CheckoutSteps({ current }: { current: 0 | 1 | 2 }) {
                 >
                   {marker}
                   {/* The current step keeps its label on narrow screens. */}
-                  <span className={active ? undefined : "sr-only sm:not-sr-only"}>
+                  <span
+                    className={active ? undefined : "sr-only sm:not-sr-only"}
+                  >
                     {step.label}
                   </span>
                 </span>

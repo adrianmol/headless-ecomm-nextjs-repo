@@ -56,15 +56,18 @@ frontend availability. Rationale and rejected alternatives: [ADR-0001](adr/0001-
 ```
 src/
   app/                      # routing + composition ONLY, no business logic
-    (catalog)/
-      _listing/product-listing.tsx  # shared faceted listing (private folder)
-      produse/page.tsx              # PLP
-      produse/[slug]/page.tsx       # PDP
-      categorii/[slug]/page.tsx     # one consumable kind
-      compatibil/[brand]/[model]/   # consumables fitting one printer
-    (checkout)/
-      cos/page.tsx
+    layout.tsx              # <html>/<body> only — no header or footer
+    (shop)/                 # full header, menu and footer (shop/layout.tsx)
+      (catalog)/
+        _listing/product-listing.tsx  # shared faceted listing (private folder)
+        produse/page.tsx              # PLP
+        produse/[slug]/page.tsx       # PDP
+        categorii/[slug]/page.tsx     # one consumable kind
+        compatibil/[brand]/[model]/   # consumables fitting one printer
+      cos/page.tsx          # basket keeps the menu: "keep shopping" is valid
+    (checkout)/             # minimal frame: logo + help phone, no menu
       finalizare-comanda/page.tsx
+      comenzi/[id]/page.tsx # order confirmation
       finalizare-comanda/return/route.ts   # PSP return handler
   commerce/                 # the data layer
     client.ts               # typed client factory, `import 'server-only'`
