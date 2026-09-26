@@ -14,7 +14,7 @@ import {
   setHubLineQuantityAction,
 } from "@/commerce/session-cart/actions";
 import {
-  lineImages,
+  lineCatalog,
   priceCart,
   readCartLines,
 } from "@/commerce/session-cart/cart";
@@ -26,12 +26,20 @@ import { RemoveLineButton } from "@/components/commerce/remove-line-button";
 import { LOW_STOCK_THRESHOLD } from "@/components/commerce/stock-badge";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/money";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Cosul meu",
   // A basket is per-visitor and must never be indexed or cached.
   robots: { index: false, follow: false },
 };
+
+/*
+  Checkout waits for a quantity change to land. Leaving mid-save would render
+  checkout from the cookie before the write, i.e. with the old quantity.
+*/
+const PAUSE_WHILE_SAVING =
+  "group-has-data-pending/cart:pointer-events-none group-has-data-pending/cart:opacity-60";
 
 const productHref = (sku: string) => `/produse-hub/${encodeURIComponent(sku)}`;
 
@@ -75,15 +83,18 @@ async function CartContents() {
   const stored = await readCartLines();
   if (stored.length === 0) return <EmptyBasket />;
 
-  const [cart, images] = await Promise.all([
+  const [cart, catalog] = await Promise.all([
     priceCart(stored),
-    lineImages(stored.map((line) => line.sku)),
+    lineCatalog(stored.map((line) => line.sku)),
   ]);
   const itemCount = cart.lines.reduce((sum, line) => sum + line.quantity, 0);
 
   return (
-    // Bottom padding clears the fixed mobile checkout bar.
-    <div className="grid gap-8 pb-24 lg:grid-cols-[1fr_22rem] lg:items-start lg:pb-0">
+    // Bottom padding clears the fixed mobile checkout bar. `group/cart` lets
+    // every total below fade while any stepper is saving: the server figures
+    // are momentarily stale, and saying so beats showing the old number as if
+    // it were current.
+    <div className="group/cart grid gap-8 pb-24 lg:grid-cols-[1fr_22rem] lg:items-start lg:pb-0">
       <div className="space-y-6">
         {cart.lines.length > 0 && (
           <section
@@ -92,10 +103,10 @@ async function CartContents() {
           >
             <ul className="divide-border divide-y">
               {cart.lines.map((line) => (
-                <li key={line.sku} className="flex gap-4 py-5">
+                <li key={line.sku} className="group/line flex gap-4 py-5">
                   {/* Duplicate of the name link, so hidden from AT and tab order. */}
                   <Link href={productHref(line.sku)} tabIndex={-1} aria-hidden>
-                    <LineThumbnail imageUrl={images.get(line.sku)} />
+                    <LineThumbnail imageUrl={catalog.get(line.sku)?.imageUrl} />
                   </Link>
 
                   <div className="min-w-0 flex-1">
@@ -107,12 +118,12 @@ async function CartContents() {
                         >
                           {line.name}
                         </Link>
-                        <p className="text-muted-foreground mt-0.5 text-xs">
+                        <p className="text-muted-foreground mt-0.5 font-mono text-xs">
                           Cod: {line.sku}
                         </p>
                       </div>
                       {/* Server-rendered: the line total is money, never optimistic. */}
-                      <p className="shrink-0 font-semibold tabular-nums">
+                      <p className="shrink-0 font-semibold tabular-nums transition-opacity group-has-data-pending/line:opacity-40">
                         {formatMoney(line.lineTotal)}
                       </p>
                     </div>
@@ -171,7 +182,10 @@ async function CartContents() {
             <ul className="mt-4 space-y-3">
               {cart.unavailable.map((line) => (
                 <li key={line.sku} className="flex items-center gap-3 text-sm">
-                  <LineThumbnail imageUrl={images.get(line.sku)} size="sm" />
+                  <LineThumbnail
+                    imageUrl={catalog.get(line.sku)?.imageUrl}
+                    size="sm"
+                  />
                   <Link
                     href={productHref(line.sku)}
                     className="text-muted-foreground focus-visible:ring-ring line-clamp-2 min-w-0 flex-1 rounded hover:underline focus-visible:ring-2 focus-visible:outline-none"
@@ -215,7 +229,7 @@ async function CartContents() {
 
         {cart.total ? (
           <>
-            <div className="mt-4">
+            <div className="mt-4 transition-opacity group-has-data-pending/cart:opacity-40">
               <CartTotals
                 totals={{ subtotal: cart.total, total: cart.total }}
               />
@@ -224,7 +238,11 @@ async function CartContents() {
               Costul livrarii ti-l comunicam la confirmarea telefonica a
               comenzii.
             </p>
-            <Button size="xl" className="mt-5 w-full" asChild>
+            <Button
+              size="xl"
+              className={cn("mt-5 w-full", PAUSE_WHILE_SAVING)}
+              asChild
+            >
               <Link href="/finalizare-comanda">
                 Finalizeaza comanda
                 <ArrowRight aria-hidden />
@@ -259,11 +277,11 @@ async function CartContents() {
           <div className="mx-auto flex max-w-page items-center justify-between gap-4">
             <div>
               <p className="text-muted-foreground text-xs">Total</p>
-              <p className="text-lg font-semibold tabular-nums">
+              <p className="text-lg font-semibold tabular-nums transition-opacity group-has-data-pending/cart:opacity-40">
                 {formatMoney(cart.total)}
               </p>
             </div>
-            <Button size="xl" asChild>
+            <Button size="xl" className={PAUSE_WHILE_SAVING} asChild>
               <Link href="/finalizare-comanda">
                 Finalizeaza comanda
                 <ArrowRight aria-hidden />

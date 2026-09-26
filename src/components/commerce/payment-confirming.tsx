@@ -70,9 +70,7 @@ export function PaymentConfirming({
         <span className="bg-stock-low-surface text-stock-low mx-auto flex size-14 items-center justify-center rounded-full">
           <Clock aria-hidden className="size-7" />
         </span>
-        <h1 className="mt-5 text-2xl font-semibold">
-          Inca verificam plata
-        </h1>
+        <h1 className="mt-5 text-2xl font-semibold">Inca verificam plata</h1>
         <p className="text-muted-foreground mt-3">
           Dureaza mai mult decat de obicei. Plata poate sa fi fost deja
           procesata, asa ca te rugam sa nu platesti din nou.
@@ -102,8 +100,8 @@ export function PaymentConfirming({
       />
       <h1 className="mt-5 text-2xl font-semibold">Confirmam plata</h1>
       <p className="text-muted-foreground mt-3">
-        De obicei dureaza cateva secunde. Te rugam sa nu inchizi pagina si sa
-        nu platesti din nou.
+        De obicei dureaza cateva secunde. Te rugam sa nu inchizi pagina si sa nu
+        platesti din nou.
       </p>
     </div>
   );

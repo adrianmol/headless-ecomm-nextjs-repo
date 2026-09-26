@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AlertTriangle, ChevronDown, ShoppingBag } from "lucide-react";
 import { placeSessionOrderAction } from "@/commerce/session-cart/actions";
 import {
-  lineImages,
+  lineCatalog,
   priceCart,
   readCartLines,
 } from "@/commerce/session-cart/cart";
@@ -23,9 +23,9 @@ export const metadata: Metadata = {
 
 async function CheckoutSummary() {
   const stored = await readCartLines();
-  const [cart, images] = await Promise.all([
+  const [cart, catalog] = await Promise.all([
     priceCart(stored),
-    lineImages(stored.map((line) => line.sku)),
+    lineCatalog(stored.map((line) => line.sku)),
   ]);
 
   if (!cart.total) {
@@ -43,7 +43,7 @@ async function CheckoutSummary() {
 
   const lines = cart.lines.map((line) => ({
     ...line,
-    imageUrl: images.get(line.sku),
+    imageUrl: catalog.get(line.sku)?.imageUrl,
   }));
 
   // Rendered twice below — a collapsible panel on phones, a sticky column from
@@ -91,7 +91,15 @@ async function CheckoutSummary() {
             {formatMoney(cart.total)}
           </span>
         </summary>
-        <div className="border-border border-t p-4">{summary}</div>
+        <div className="border-border border-t p-4">
+          {summary}
+          <Link
+            href="/cos"
+            className="text-primary focus-visible:ring-ring mt-4 inline-block rounded text-sm font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none"
+          >
+            Modifica cosul
+          </Link>
+        </div>
       </details>
 
       <section aria-label="Date de livrare">
@@ -101,6 +109,7 @@ async function CheckoutSummary() {
         */}
         <CheckoutForm
           action={placeSessionOrderAction}
+          total={cart.total}
           hidden={{
             expectedTotal: String(cart.total.amountMinor),
             orderKey: randomUUID(),

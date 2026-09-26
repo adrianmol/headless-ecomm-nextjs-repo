@@ -6,11 +6,7 @@ import type { CartFeedback } from "@/lib/cart-feedback";
 import type { CheckoutFormState } from "@/lib/checkout-form";
 import { isSameOrigin } from "@/lib/request-origin";
 import { z } from "zod";
-import {
-  checkoutSchema,
-  fieldErrors,
-  submittedValues,
-} from "../checkout/form-schema";
+import { parseCheckout, submittedValues } from "../checkout/form-schema";
 import { getHubProduct } from "../hub/queries";
 import {
   MAX_LINES,
@@ -22,7 +18,7 @@ import {
   writeLastOrder,
   type SessionOrder,
 } from "./cart";
-import { sendOrderEmail } from "./order-email";
+import { sendCustomerConfirmation, sendOrderEmail } from "./order-email";
 
 /**
  * Write path for the session cart. Same contract as `cart/actions.ts` — same
@@ -122,8 +118,9 @@ export async function removeHubLineAction(input: {
 const orderKeySchema = z.uuid();
 
 /**
- * Places an order: emails it to the shop, then records it in the session. No
- * PSP and nothing is charged — the shop confirms by phone.
+ * Places an order: emails it to the shop, sends the customer their copy, then
+ * records it in the session. No PSP and nothing is charged — the shop confirms
+ * by phone.
  *
  * The cart is re-priced here, at submit, rather than trusting the figure the
  * page rendered. `expectedTotal` is what the customer was shown; if the live
@@ -143,13 +140,9 @@ export async function placeSessionOrderAction(
   if (!(await isSameOrigin())) return { status: "error" };
 
   const values = submittedValues(formData);
-  const parsed = checkoutSchema.safeParse(Object.fromEntries(formData));
+  const parsed = parseCheckout(Object.fromEntries(formData));
   if (!parsed.success) {
-    return {
-      status: "invalid",
-      fieldErrors: fieldErrors(parsed.error),
-      values,
-    };
+    return { status: "invalid", fieldErrors: parsed.fieldErrors, values };
   }
 
   const orderKey = orderKeySchema.safeParse(formData.get("orderKey"));
@@ -178,14 +171,24 @@ export async function placeSessionOrderAction(
     return { status: "price_changed", values };
   }
 
-  const { email, name, phone, line1, city, postcode, country } = parsed.data;
+  const { email, name, phone, line1, city, postcode, country, county } =
+    parsed.data;
+  const region = county ? `jud. ${county}, ` : "";
   const order: SessionOrder = {
     id: orderKey.data.slice(0, 8).toUpperCase(),
     createdAt: new Date().toISOString(),
     email,
     name,
     phone,
-    address: `${line1}, ${postcode} ${city}, ${country.toUpperCase()}`,
+    address: `${line1}, ${postcode} ${city}, ${region}${country}`,
+    billing:
+      parsed.data.customerType === "pj"
+        ? {
+            company: parsed.data.company,
+            cui: parsed.data.cui,
+            regCom: parsed.data.regCom,
+          }
+        : undefined,
     lines: cart.lines.map(({ sku, name, quantity, lineTotal }) => ({
       sku,
       name,
@@ -201,7 +204,13 @@ export async function placeSessionOrderAction(
     return { status: "error", values };
   }
 
-  await writeLastOrder(order);
+  // The order stands from here on; the customer's copy cannot un-place it.
+  const confirmationSent = await sendCustomerConfirmation(
+    order,
+    `order:${orderKey.data}:customer`,
+  );
+
+  await writeLastOrder({ ...order, confirmationSent });
   await writeCartLines([]);
 
   redirect(`/comenzi/${order.id}`);

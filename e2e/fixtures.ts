@@ -37,14 +37,15 @@ export async function fillCheckout(
   await page.getByLabel("Nume complet").fill("Ion Popescu");
   await page.getByLabel("Telefon").fill("+40 700 000 000");
   await page.getByLabel("Adresa").fill("Str. Test 1");
-  await page.getByLabel("Oras").fill("Cluj");
-  await page.getByLabel("Cod postal").fill("400000");
   await page.getByLabel("Tara").selectOption("RO");
+  await page.getByLabel("Oras").fill("Cluj");
+  await page.getByLabel("Judet").selectOption("Cluj");
+  await page.getByLabel("Cod postal").fill("400000");
 }
 
 /** Order emails the mock received since the last reset. */
 export async function sentEmails(
   request: import("@playwright/test").APIRequestContext,
-): Promise<{ subject: string; text: string }[]> {
+): Promise<{ to: string[]; subject: string; text: string }[]> {
   return (await request.get(`${MOCK_API_URL}/__email`)).json();
 }

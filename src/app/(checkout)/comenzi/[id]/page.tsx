@@ -1,8 +1,15 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CheckCircle2, MapPin, PhoneCall, Truck } from "lucide-react";
-import { lineImages, readLastOrder } from "@/commerce/session-cart/cart";
+import {
+  Building2,
+  CheckCircle2,
+  Mail,
+  MapPin,
+  PhoneCall,
+  Truck,
+} from "lucide-react";
+import { lineCatalog, readLastOrder } from "@/commerce/session-cart/cart";
 import { CheckoutSteps } from "@/components/commerce/checkout-steps";
 import { OrderLines } from "@/components/commerce/order-lines";
 import { Button } from "@/components/ui/button";
@@ -41,10 +48,12 @@ async function OrderDetail({ params }: { params: ParamsPromise }) {
     );
   }
 
-  const images = await lineImages(order.lines.map((line) => line.sku));
+  const catalog = await lineCatalog(order.lines.map((line) => line.sku));
   const lines = order.lines.map((line) => ({
     ...line,
-    imageUrl: images.get(line.sku),
+    // Stored in older cookies only; else the catalogue; else the code.
+    name: line.name ?? catalog.get(line.sku)?.name ?? line.sku,
+    imageUrl: catalog.get(line.sku)?.imageUrl,
   }));
 
   // Only what this flow actually does: the shop is emailed, then calls.
@@ -86,6 +95,16 @@ async function OrderDetail({ params }: { params: ParamsPromise }) {
         <p className="mt-2 text-sm">
           Te sunam la {order.phone} pentru confirmare. Nu ai platit nimic inca.
         </p>
+        {/*
+          Only claimed when the send succeeded. An order placed before this flag
+          existed reads as undefined and says nothing either way.
+        */}
+        {order.confirmationSent && (
+          <p className="text-muted-foreground mt-2 flex items-center justify-center gap-1.5 text-sm">
+            <Mail aria-hidden className="size-4 shrink-0" />
+            Ti-am trimis confirmarea pe email la {order.email}.
+          </p>
+        )}
       </div>
 
       <section
@@ -147,6 +166,25 @@ async function OrderDetail({ params }: { params: ParamsPromise }) {
             </span>
           </p>
         </div>
+
+        {order.billing && (
+          <div className="border-border mt-5 flex gap-3 border-t pt-5 text-sm">
+            <Building2
+              aria-hidden
+              className="text-muted-foreground mt-0.5 size-4 shrink-0"
+            />
+            <p>
+              <span className="font-medium">
+                Factura pe firma {order.billing.company}
+              </span>
+              <br />
+              <span className="text-muted-foreground">
+                CUI {order.billing.cui}
+                {order.billing.regCom && ` · ${order.billing.regCom}`}
+              </span>
+            </p>
+          </div>
+        )}
       </section>
 
       <div className="mt-8 text-center">
