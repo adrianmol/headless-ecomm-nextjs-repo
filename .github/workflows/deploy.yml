@@ -154,6 +154,9 @@ jobs:
           HUB_API_URL: ${{ vars.HUB_API_URL }}
           HUB_API_KEY: ${{ secrets.HUB_API_KEY }}
           HUB_API_SECRET: ${{ secrets.HUB_API_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ORDER_EMAIL_FROM: ${{ vars.ORDER_EMAIL_FROM }}
+          ORDER_EMAIL_TO: ${{ vars.ORDER_EMAIL_TO }}
         run: |
           set -euo pipefail
           # STOREFRONT_URL is required, and its absence used to be silent: the
@@ -165,6 +168,11 @@ jobs:
           # failed deploy is cheaper than a rolled-back one.
           : "${STOREFRONT_URL:?must be set as an Actions *variable* (it is a public URL, not a secret)}"
           : "${COMMERCE_API_URL:?must be set as an Actions secret}"
+          # Orders reach the shop only by email. Without these the site still
+          # browses, but every checkout is refused — loudly, not silently.
+          if [ -z "${RESEND_API_KEY}" ] || [ -z "${ORDER_EMAIL_FROM}" ] || [ -z "${ORDER_EMAIL_TO}" ]; then
+            echo "::warning::RESEND_API_KEY / ORDER_EMAIL_FROM / ORDER_EMAIL_TO unset: checkout will refuse every order"
+          fi
 
           # Secrets travel over stdin, never argv: anything on a remote command
           # line is visible to every user on that host through `ps`.
@@ -176,6 +184,9 @@ jobs:
           HUB_API_URL=${HUB_API_URL}
           HUB_API_KEY=${HUB_API_KEY}
           HUB_API_SECRET=${HUB_API_SECRET}
+          RESEND_API_KEY=${RESEND_API_KEY}
+          ORDER_EMAIL_FROM=${ORDER_EMAIL_FROM}
+          ORDER_EMAIL_TO=${ORDER_EMAIL_TO}
           EOF
           ssh deploy-target "chmod 600 '${ENV_FILE}'"
 

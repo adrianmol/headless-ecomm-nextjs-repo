@@ -1,5 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { test, expect } from "./fixtures";
+import { HUB_PRODUCT, HUB_PRODUCT_GONE, expect, test } from "./fixtures";
 
 const REQUIRED_TOKENS = [
   "h-8",
@@ -94,7 +94,8 @@ test.describe("AddToCart matches a default Button", () => {
   test("resolved size, colour and layout tokens are identical", async ({
     page,
   }) => {
-    await page.goto("/produse/toner-compatibil-hp-35a-black-cb435a");
+    // The HUB page, because /cos now shows the session cart it feeds.
+    await page.goto(HUB_PRODUCT);
     const add = page.getByRole("button", { name: "Adauga in cos" });
     await expect(add).toBeVisible();
     const addSnap = await snapshot(add);
@@ -130,9 +131,9 @@ test.describe("AddToCart matches a default Button", () => {
   test("the disabled state is really disabled and really dimmed", async ({
     page,
   }) => {
-    // toner-compatibil-hp-w1106a-black is out of stock in the mock, which is the only route to a
-    // genuinely disabled AddToCart.
-    await page.goto("/produse/toner-compatibil-hp-w1106a-black");
+    // Not orderable in the HUB mock, which is the only route to a genuinely
+    // disabled AddToCart.
+    await page.goto(HUB_PRODUCT_GONE);
 
     const add = page.getByRole("button", { name: "Stoc epuizat" });
     await expect(add).toBeVisible();
@@ -154,7 +155,8 @@ test.describe("AddToCart matches a default Button", () => {
   test("keyboard focus draws the same ring as a default Button", async ({
     page,
   }) => {
-    await page.goto("/produse/toner-compatibil-hp-35a-black-cb435a");
+    // The HUB page, because /cos now shows the session cart it feeds.
+    await page.goto(HUB_PRODUCT);
     const add = page.getByRole("button", { name: "Adauga in cos" });
     await expect(add).toBeVisible();
 

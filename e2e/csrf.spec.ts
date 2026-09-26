@@ -1,4 +1,10 @@
-import { test, expect } from "./fixtures";
+import {
+  addHubProduct,
+  expect,
+  fillCheckout,
+  sentEmails,
+  test,
+} from "./fixtures";
 
 /**
  * Cross-origin mutation attempts, replayed against the standalone production
@@ -15,21 +21,13 @@ import { test, expect } from "./fixtures";
  */
 
 async function checkoutFormFields(page: import("@playwright/test").Page) {
-  await page.goto("/produse/toner-compatibil-hp-35a-black-cb435a");
-  await page.getByRole("button", { name: "Adauga in cos" }).click();
-  await expect(page.getByText("Adaugat in cos.")).toBeVisible();
+  await addHubProduct(page);
 
   await page.goto("/finalizare-comanda");
   await expect(
-    page.getByRole("button", { name: "Continua spre plata" }),
+    page.getByRole("button", { name: "Plaseaza comanda" }),
   ).toBeVisible();
-
-  await page.getByLabel("Email").fill("shopper@example.test");
-  await page.getByLabel("Nume complet").fill("A Shopper");
-  await page.getByLabel("Adresa").fill("1 Test Street");
-  await page.getByLabel("Oras").fill("Dublin");
-  await page.getByLabel("Cod postal").fill("D01");
-  await page.getByLabel("Cod tara").fill("IE");
+  await fillCheckout(page);
 
   // The progressive-enhancement encoding: the action id travels in the body, so
   // a hidden auto-submitting form on another origin is a real CSRF vector.
@@ -48,6 +46,7 @@ async function checkoutFormFields(page: import("@playwright/test").Page) {
 test.describe("cross-origin mutation attempts", () => {
   test("a valid same-origin replay succeeds, which makes the rejections meaningful", async ({
     page,
+    request,
     baseURL,
   }) => {
     const fields = await checkoutFormFields(page);
@@ -59,9 +58,10 @@ test.describe("cross-origin mutation attempts", () => {
       failOnStatusCode: false,
     });
 
-    // 303 to the payment provider: the action ran and created an order.
+    // 303 to the confirmation: the action ran and the shop was emailed.
     expect(response.status()).toBe(303);
-    expect(response.headers()["location"]).toContain("/psp/pay?ref=");
+    expect(response.headers()["location"]).toContain("/comenzi/");
+    expect(await sentEmails(request)).toHaveLength(1);
   });
 
   for (const [label, headers] of [
@@ -70,7 +70,11 @@ test.describe("cross-origin mutation attempts", () => {
     ["a lookalike subdomain", { origin: "http://evil.localhost:3101" }],
     ["no Origin header at all", {}],
   ] as const) {
-    test(`checkout is refused with ${label}`, async ({ page, baseURL }) => {
+    test(`checkout is refused with ${label}`, async ({
+      page,
+      request,
+      baseURL,
+    }) => {
       const fields = await checkoutFormFields(page);
 
       const response = await page.request.post(
@@ -83,14 +87,14 @@ test.describe("cross-origin mutation attempts", () => {
         },
       );
 
-      // The security property is that no order was created, which shows up as
-      // the absence of a redirect to the payment provider. Asserted that way
-      // rather than on a status code, because Next answers a rejected action
-      // with a 500 while our own check returns a rendered error state — both are
-      // refusals, and the test should not care which layer refused.
+      // The security property is that no order was placed: nothing reached the
+      // shop's inbox. Asserted that way rather than on a status code, because
+      // Next answers a rejected action with a 500 while our own check returns a
+      // rendered error state — both are refusals, and the test should not care
+      // which layer refused.
       expect(response.status()).not.toBe(303);
-      expect(response.headers()["location"] ?? "").not.toContain("/psp/pay");
-      expect(await response.text()).not.toContain("/psp/pay");
+      expect(response.headers()["location"] ?? "").not.toContain("/comenzi/");
+      expect(await sentEmails(request)).toHaveLength(0);
     });
   }
 
@@ -99,21 +103,14 @@ test.describe("cross-origin mutation attempts", () => {
   }) => {
     // Guards against the obvious over-correction: a check so strict that the
     // real browser flow is blocked too.
-    await page.goto("/produse/toner-compatibil-hp-35a-black-cb435a");
-    await page.getByRole("button", { name: "Adauga in cos" }).click();
-    await expect(page.getByText("Adaugat in cos.")).toBeVisible();
+    await addHubProduct(page);
 
     await page.goto("/finalizare-comanda");
-    await page.getByLabel("Email").fill("shopper@example.test");
-    await page.getByLabel("Nume complet").fill("A Shopper");
-    await page.getByLabel("Adresa").fill("1 Test Street");
-    await page.getByLabel("Oras").fill("Dublin");
-    await page.getByLabel("Cod postal").fill("D01");
-    await page.getByLabel("Cod tara").fill("IE");
-    await page.getByRole("button", { name: "Continua spre plata" }).click();
+    await fillCheckout(page);
+    await page.getByRole("button", { name: "Plaseaza comanda" }).click();
 
     await expect(
-      page.getByRole("heading", { name: "Mock payment provider" }),
+      page.getByRole("heading", { name: /am primit comanda/i }),
     ).toBeVisible();
   });
 });

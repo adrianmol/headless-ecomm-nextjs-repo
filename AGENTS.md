@@ -18,6 +18,9 @@ delegated to a skill:
 - `<Suspense>` fallbacks must reserve the exact height of the loaded content (CLS budget).
 - Optimistic UI values are display-only; the server response is the only truth for anything charged.
 - Middleware is for routing only, never authorisation.
+- The session cart cookie (`src/commerce/session-cart`) never holds a price: every read
+  re-prices through HUB's uncached `live` endpoint. An order is placed only once the
+  shop email has been sent.
 
 ## Use these skills
 
@@ -77,6 +80,8 @@ Required Actions configuration (names must match):
 | Variable | `STOREFRONT_URL`, `HUB_API_URL`                                      |
 | Secret   | `COMMERCE_API_URL`, `REVALIDATE_SECRET`                              |
 | Secret   | `HUB_API_KEY`, `HUB_API_SECRET`                                      |
+| Secret   | `RESEND_API_KEY`                                                     |
+| Variable | `ORDER_EMAIL_FROM`, `ORDER_EMAIL_TO`                                 |
 | Secret   | `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS` |
 
 `STOREFRONT_URL` is a **variable, not a secret** — it is a public URL, and making it a secret

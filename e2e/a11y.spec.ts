@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { test, expect } from "./fixtures";
+import { addHubProduct, expect, test } from "./fixtures";
 
 /**
  * Accessibility carries real legal exposure on a storefront, and the risk
@@ -72,9 +72,7 @@ test.describe("accessibility", () => {
   });
 
   test("basket with a line in it", async ({ page }) => {
-    await page.goto("/produse/toner-compatibil-hp-35a-black-cb435a");
-    await page.getByRole("button", { name: "Adauga in cos" }).click();
-    await expect(page.getByText("Adaugat in cos.")).toBeVisible();
+    await addHubProduct(page);
 
     await page.goto("/cos");
     await expect(page.getByRole("status", { name: "Cantitate" })).toBeVisible();
@@ -82,9 +80,7 @@ test.describe("accessibility", () => {
   });
 
   test("checkout form", async ({ page }) => {
-    await page.goto("/produse/toner-compatibil-hp-35a-black-cb435a");
-    await page.getByRole("button", { name: "Adauga in cos" }).click();
-    await expect(page.getByText("Adaugat in cos.")).toBeVisible();
+    await addHubProduct(page);
 
     await page.goto("/finalizare-comanda");
     await expect(page.getByLabel("Email")).toBeVisible();
@@ -93,12 +89,10 @@ test.describe("accessibility", () => {
 
   test("checkout form with validation errors showing", async ({ page }) => {
     // Error states are where labelling and aria-describedby usually break.
-    await page.goto("/produse/toner-compatibil-hp-35a-black-cb435a");
-    await page.getByRole("button", { name: "Adauga in cos" }).click();
-    await expect(page.getByText("Adaugat in cos.")).toBeVisible();
+    await addHubProduct(page);
 
     await page.goto("/finalizare-comanda");
-    await page.getByRole("button", { name: "Continua spre plata" }).click();
+    await page.getByRole("button", { name: "Plaseaza comanda" }).click();
     await expect(
       page.getByText("Introdu o adresa de email valida"),
     ).toBeVisible();

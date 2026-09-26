@@ -37,7 +37,9 @@ DEPLOY_USER=${DEPLOY_USER:-deploy}
 # now refuses to start without it, which is why a missing value shows up here as a
 # failed health check rather than as lost search visibility.
 REQUIRED_ENV=(NODE_ENV COMMERCE_API_URL STOREFRONT_URL)
-OPTIONAL_ENV=(REVALIDATE_SECRET HUB_API_URL HUB_API_KEY HUB_API_SECRET OTEL_EXPORTER_OTLP_ENDPOINT)
+# RESEND_API_KEY and ORDER_EMAIL_*: without them the site browses but checkout
+# refuses every order, since email is how an order reaches the shop.
+OPTIONAL_ENV=(REVALIDATE_SECRET HUB_API_URL HUB_API_KEY HUB_API_SECRET RESEND_API_KEY ORDER_EMAIL_FROM ORDER_EMAIL_TO OTEL_EXPORTER_OTLP_ENDPOINT)
 
 log()  { printf '\n\033[1;36m▶ %s\033[0m\n' "$*"; }
 ok()   { printf '   \033[0;32m✓\033[0m %s\n' "$*"; }
@@ -282,7 +284,7 @@ create_app_dir() {
         # STOREFRONT_URL correctly stops the container from starting.
         umask 077
         { printf 'NODE_ENV=production\n'
-          for key in COMMERCE_API_URL STOREFRONT_URL REVALIDATE_SECRET HUB_API_URL HUB_API_KEY HUB_API_SECRET; do
+          for key in COMMERCE_API_URL STOREFRONT_URL REVALIDATE_SECRET HUB_API_URL HUB_API_KEY HUB_API_SECRET RESEND_API_KEY ORDER_EMAIL_FROM ORDER_EMAIL_TO; do
               printf '%s=\n' "$key"
           done
         } > "$ENV_FILE"
@@ -369,6 +371,9 @@ init() {
      Secret   HUB_API_SECRET      }
      Variable STOREFRONT_URL      https://${DOMAIN:-shop.example.com}
      Variable HUB_API_URL         https://hub.reprint.ro
+     Secret   RESEND_API_KEY      }  checkout refuses every order without these:
+     Variable ORDER_EMAIL_FROM    }  a sender on a domain verified in Resend,
+     Variable ORDER_EMAIL_TO      }  and the shop inbox (comma-separated)
 
    STOREFRONT_URL is a *variable*, not a secret. It is a public URL, and marking it
    secret only means Actions redacts it from the logs where you need to read it.

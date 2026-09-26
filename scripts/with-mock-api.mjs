@@ -55,6 +55,16 @@ try {
     env: {
       ...process.env,
       COMMERCE_API_URL: BASE,
+      // HUB and the order email point at the same mock (scripts/mock-hub.mjs).
+      // Set here, not left to .env, so a build never reaches the real HUB or
+      // mails the real shop from a test run.
+      HUB_API_URL: `http://127.0.0.1:${PORT}`,
+      HUB_API_KEY: "mock-hub-key",
+      HUB_API_SECRET: "mock-hub-secret-0123456789abcdef0123",
+      ORDER_EMAIL_API_URL: `http://127.0.0.1:${PORT}/__email`,
+      RESEND_API_KEY: "mock-resend-key",
+      ORDER_EMAIL_FROM: "REPrint <comenzi@storefront.test>",
+      ORDER_EMAIL_TO: "comenzi@storefront.test",
       STOREFRONT_URL:
         process.env.STOREFRONT_URL ||
         `http://localhost:${process.env.PORT ?? 3000}`,

@@ -55,7 +55,7 @@ function SubmitButton() {
       disabled={pending}
       aria-busy={pending}
     >
-      {pending ? "Se redirectioneaza…" : "Continua spre plata"}
+      {pending ? "Se trimite…" : "Plaseaza comanda"}
     </Button>
   );
 }
@@ -69,7 +69,10 @@ function SubmitButton() {
  */
 export function CheckoutForm({
   action,
+  hidden = {},
 }: {
+  /** Server-minted values the action checks, e.g. the total shown. */
+  hidden?: Record<string, string>;
   action: (
     state: CheckoutFormState,
     formData: FormData,
@@ -91,9 +94,9 @@ export function CheckoutForm({
           {state.status === "out_of_stock" &&
             "Un produs din cos tocmai s-a epuizat. Verifica cosul si incearca din nou."}
           {state.status === "price_changed" &&
-            "A price changed while you were checking out. Review your basket to see the new total before paying."}
+            "Pretul s-a schimbat intre timp. Verifica noul total si trimite din nou comanda."}
           {state.status === "error" &&
-            "Nu am putut incepe finalizarea comenzii. Incearca din nou."}
+            "Nu am putut trimite comanda. Incearca din nou sau suna-ne."}
         </p>
       )}
 
@@ -109,6 +112,13 @@ export function CheckoutForm({
         label="Nume complet"
         autoComplete="name"
         error={errors.name}
+      />
+      <Field
+        name="phone"
+        label="Telefon"
+        type="tel"
+        autoComplete="tel"
+        error={errors.phone}
       />
       <Field
         name="line1"
@@ -135,10 +145,11 @@ export function CheckoutForm({
         error={errors.country}
       />
 
+      {Object.entries(hidden).map(([name, value]) => (
+        <input key={name} type="hidden" name={name} value={value} />
+      ))}
+
       <SubmitButton />
-      <p className="text-muted-foreground text-xs">
-        You will be taken to our payment provider to complete your purchase.
-      </p>
     </form>
   );
 }

@@ -1,7 +1,6 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { z } from "zod";
 import type { CheckoutFormState } from "@/lib/checkout-form";
 import { checkPspRedirect } from "@/lib/psp-redirect";
 import { isSameOrigin } from "@/lib/request-origin";
@@ -9,22 +8,8 @@ import { getCart } from "../cart/queries";
 import { CommerceErrorException } from "../errors";
 import { getCartId } from "../session";
 import { createCheckoutSession } from "./mutations";
+import { checkoutSchema, fieldErrors } from "./form-schema";
 import { getOrder } from "./queries";
-
-/**
- * Client-side shape checking for UX only. The backend re-validates and is the
- * enforcement point; nothing here is a control. Kept deliberately loose —
- * over-strict address rules reject legitimate customers, and the payment
- * provider and carrier both validate properly downstream.
- */
-const checkoutSchema = z.object({
-  email: z.email("Introdu o adresa de email valida"),
-  name: z.string().trim().min(1, "Introdu numele"),
-  line1: z.string().trim().min(1, "Introdu adresa"),
-  city: z.string().trim().min(1, "Introdu orasul"),
-  postcode: z.string().trim().min(1, "Introdu codul postal"),
-  country: z.string().trim().length(2, "Alege tara"),
-});
 
 export async function startCheckoutAction(
   _previous: CheckoutFormState,
@@ -39,12 +24,7 @@ export async function startCheckoutAction(
   const parsed = checkoutSchema.safeParse(Object.fromEntries(formData));
 
   if (!parsed.success) {
-    const fieldErrors: Record<string, string> = {};
-    for (const issue of parsed.error.issues) {
-      const field = String(issue.path[0]);
-      fieldErrors[field] ??= issue.message;
-    }
-    return { status: "invalid", fieldErrors };
+    return { status: "invalid", fieldErrors: fieldErrors(parsed.error) };
   }
 
   const cartId = await getCartId();

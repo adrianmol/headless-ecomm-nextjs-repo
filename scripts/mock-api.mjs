@@ -22,6 +22,7 @@ import {
   ron,
   sortProducts,
 } from "./fixtures.mjs";
+import { handleHub, sentEmails } from "./mock-hub.mjs";
 
 const PORT = Number(process.env.MOCK_API_PORT ?? 4010);
 
@@ -162,7 +163,14 @@ const server = createServer(async (req, res) => {
     cartMutationsByKey.clear();
     sessionsByKey.clear();
     orders.clear();
+    sentEmails.length = 0;
     return json(res, 200, { reset: true });
+  }
+
+  if (url.pathname === "/__email" || url.pathname.startsWith("/hub-api/v1/")) {
+    const body = req.method === "POST" ? await readJsonBody(req) : null;
+    handleHub(req, url, body, (status, payload) => json(res, status, payload));
+    return;
   }
 
   if (req.method === "GET" && path === "/products") {

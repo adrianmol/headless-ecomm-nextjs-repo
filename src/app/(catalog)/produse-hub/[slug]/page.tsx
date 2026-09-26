@@ -5,7 +5,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { getHubProduct } from "@/commerce/hub/queries";
+import { addHubToCartAction } from "@/commerce/session-cart/actions";
 import type { HubProductDetail } from "@/commerce/hub/schemas";
+import { AddToCart } from "@/components/commerce/add-to-cart";
 import { Price } from "@/components/commerce/price";
 import { HubStockBadge } from "@/components/commerce/stock-badge";
 import { HubProductGrid } from "../../_hub/hub-product-grid";
@@ -25,12 +27,11 @@ import { discountPercent } from "@/lib/money";
  * cards rendered perfectly and the failure only appeared on click, which is why it
  * survived a screenshot review.
  *
- * ## No add-to-cart
+ * ## Add-to-cart
  *
- * HUB exposes no cart, checkout or order endpoints, so there is nothing to add to.
- * Rather than a dead button or a page with no way to act, it shows the phone number
- * from the owner's design file — the one purchase route that demonstrably exists.
- * When a cart backend is chosen, this is where the button goes.
+ * HUB exposes no cart, checkout or order endpoints, so the button writes to the
+ * session cart (src/commerce/session-cart) until a cart backend is chosen. The
+ * phone number from the owner's design file stays as the second purchase route.
  */
 
 /** From the owner's design file, the same number the footer and homepage use. */
@@ -191,12 +192,18 @@ async function ProductView({
             </div>
 
             {/*
-              No cart exists upstream, so this is the only purchase route that is
-              real. Stated plainly rather than dressed up as a button that would
-              have nothing behind it.
+              Stock and price shown here come from the cached product record; the
+              action re-checks both live before anything lands in the cart.
             */}
+            <AddToCart
+              variantId={product.sku}
+              inStock={stock.orderable && offer.displayable && payable !== null}
+              action={addHubToCartAction}
+              wrapperClassName="mt-5"
+            />
+
             <p className="mt-5 text-sm">
-              Comenzi telefonic:{" "}
+              Sau telefonic:{" "}
               <a
                 href={`tel:${ORDER_PHONE.replace(/\s/g, "")}`}
                 className="text-primary focus-visible:ring-ring rounded font-semibold hover:underline focus-visible:ring-2 focus-visible:outline-none"
