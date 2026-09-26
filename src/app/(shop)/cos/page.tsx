@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { ViewTransition } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
@@ -27,6 +27,7 @@ import { LOW_STOCK_THRESHOLD } from "@/components/commerce/stock-badge";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/money";
 import { cn } from "@/lib/utils";
+import { Reveal } from "@/components/reveal";
 
 export const metadata: Metadata = {
   title: "Cosul meu",
@@ -40,6 +41,14 @@ export const metadata: Metadata = {
 */
 const PAUSE_WHILE_SAVING =
   "group-has-data-pending/cart:pointer-events-none group-has-data-pending/cart:opacity-60";
+
+/**
+ * A `view-transition-name` must be a CSS identifier and unique on the page;
+ * a sku may contain anything. Collisions after replacement would only merge
+ * two lines' animations, never their data.
+ */
+const lineTransitionName = (sku: string) =>
+  `cart-line-${sku.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
 const productHref = (sku: string) => `/produse-hub/${encodeURIComponent(sku)}`;
 
@@ -103,58 +112,74 @@ async function CartContents() {
           >
             <ul className="divide-border divide-y">
               {cart.lines.map((line) => (
-                <li key={line.sku} className="group/line flex gap-4 py-5">
-                  {/* Duplicate of the name link, so hidden from AT and tab order. */}
-                  <Link href={productHref(line.sku)} tabIndex={-1} aria-hidden>
-                    <LineThumbnail imageUrl={catalog.get(line.sku)?.imageUrl} />
-                  </Link>
+                // Named per line so a removal animates: the removed line fades
+                // out and the ones below slide up, instead of the list jumping.
+                <ViewTransition
+                  key={line.sku}
+                  name={lineTransitionName(line.sku)}
+                  exit="line-out"
+                  update="line-move"
+                  default="none"
+                >
+                  <li className="group/line flex gap-4 py-5">
+                    {/* Duplicate of the name link, so hidden from AT and tab order. */}
+                    <Link
+                      href={productHref(line.sku)}
+                      tabIndex={-1}
+                      aria-hidden
+                    >
+                      <LineThumbnail
+                        imageUrl={catalog.get(line.sku)?.imageUrl}
+                      />
+                    </Link>
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <Link
-                          href={productHref(line.sku)}
-                          className="focus-visible:ring-ring line-clamp-2 rounded font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none"
-                        >
-                          {line.name}
-                        </Link>
-                        <p className="text-muted-foreground mt-0.5 font-mono text-xs">
-                          Cod: {line.sku}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <Link
+                            href={productHref(line.sku)}
+                            className="focus-visible:ring-ring line-clamp-2 rounded font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none"
+                          >
+                            {line.name}
+                          </Link>
+                          <p className="text-muted-foreground mt-0.5 font-mono text-xs">
+                            Cod: {line.sku}
+                          </p>
+                        </div>
+                        {/* Server-rendered: the line total is money, never optimistic. */}
+                        <p className="shrink-0 font-semibold tabular-nums transition-opacity group-has-data-pending/line:opacity-40">
+                          {formatMoney(line.lineTotal)}
                         </p>
                       </div>
-                      {/* Server-rendered: the line total is money, never optimistic. */}
-                      <p className="shrink-0 font-semibold tabular-nums transition-opacity group-has-data-pending/line:opacity-40">
-                        {formatMoney(line.lineTotal)}
+
+                      <p className="text-muted-foreground mt-1 text-sm tabular-nums">
+                        {formatMoney(line.unitPrice)} / buc.
                       </p>
+
+                      <div className="mt-3 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+                        <QuantityStepper
+                          lineId={line.sku}
+                          quantity={line.quantity}
+                          max={line.maxQuantity}
+                          onChange={setHubLineQuantityAction}
+                        />
+                        <RemoveLineButton
+                          lineId={line.sku}
+                          productName={line.name}
+                          onRemove={removeHubLineAction}
+                        />
+                      </div>
+
+                      {line.maxQuantity <= LOW_STOCK_THRESHOLD && (
+                        <p className="text-stock-low mt-2 text-xs font-medium">
+                          {line.maxQuantity === 1
+                            ? "Ultima bucata in stoc"
+                            : `Mai sunt doar ${line.maxQuantity} bucati in stoc`}
+                        </p>
+                      )}
                     </div>
-
-                    <p className="text-muted-foreground mt-1 text-sm tabular-nums">
-                      {formatMoney(line.unitPrice)} / buc.
-                    </p>
-
-                    <div className="mt-3 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-                      <QuantityStepper
-                        lineId={line.sku}
-                        quantity={line.quantity}
-                        max={line.maxQuantity}
-                        onChange={setHubLineQuantityAction}
-                      />
-                      <RemoveLineButton
-                        lineId={line.sku}
-                        productName={line.name}
-                        onRemove={removeHubLineAction}
-                      />
-                    </div>
-
-                    {line.maxQuantity <= LOW_STOCK_THRESHOLD && (
-                      <p className="text-stock-low mt-2 text-xs font-medium">
-                        {line.maxQuantity === 1
-                          ? "Ultima bucata in stoc"
-                          : `Mai sunt doar ${line.maxQuantity} bucati in stoc`}
-                      </p>
-                    )}
-                  </div>
-                </li>
+                  </li>
+                </ViewTransition>
               ))}
             </ul>
           </section>
@@ -327,9 +352,9 @@ export default function CartPage() {
     <main className="max-w-page mx-auto px-4 py-8 sm:py-10">
       <CheckoutSteps current={0} />
       <h1 className="mb-6 text-2xl font-semibold sm:text-3xl">Cosul meu</h1>
-      <Suspense fallback={<CartSkeleton />}>
+      <Reveal fallback={<CartSkeleton />}>
         <CartContents />
-      </Suspense>
+      </Reveal>
     </main>
   );
 }

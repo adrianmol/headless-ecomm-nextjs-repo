@@ -1,8 +1,8 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { listPrinterBrands } from "@/commerce/catalog/queries";
 import { PrinterFinder } from "@/components/commerce/printer-finder";
+import { Reveal } from "@/components/reveal";
 
 export const metadata: Metadata = {
   title: "Cauta dupa imprimanta",
@@ -49,9 +49,9 @@ export default function CompatibilityEntryPage() {
       </p>
 
       <div className="mt-6">
-        <Suspense fallback={<FinderSkeleton />}>
+        <Reveal fallback={<FinderSkeleton />}>
           <Finder />
-        </Suspense>
+        </Reveal>
       </div>
 
       <p className="text-muted-foreground mt-6 text-sm">

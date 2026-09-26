@@ -123,9 +123,13 @@ async function CardDiscount({
 async function CardAction({
   slug,
   offers,
+  name,
+  imageUrl,
 }: {
   slug: string;
   offers: Promise<Map<string, Offer>>;
+  name: string;
+  imageUrl?: string;
 }) {
   const offer = (await offers).get(slug);
   if (!offer) return null;
@@ -136,6 +140,8 @@ async function CardAction({
       inStock={offer.availability.inStock}
       action={addToCartAction}
       wrapperClassName=""
+      productName={name}
+      imageUrl={imageUrl}
     />
   );
 }
@@ -207,7 +213,12 @@ function ProductGrid({
                   />
                 }
               >
-                <CardAction slug={product.slug} offers={offers} />
+                <CardAction
+                  slug={product.slug}
+                  offers={offers}
+                  name={product.title}
+                  imageUrl={product.images[0]?.url}
+                />
               </Suspense>
             }
           />

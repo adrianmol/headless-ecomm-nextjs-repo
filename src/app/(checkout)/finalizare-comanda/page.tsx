@@ -13,6 +13,7 @@ import { CheckoutForm } from "@/components/commerce/checkout-form";
 import { CartTotals } from "@/components/commerce/cart-totals";
 import { CheckoutSteps } from "@/components/commerce/checkout-steps";
 import { OrderLines } from "@/components/commerce/order-lines";
+import { Reveal } from "@/components/reveal";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/money";
 
@@ -74,7 +75,7 @@ async function CheckoutSummary() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_24rem] lg:items-start lg:gap-10">
-      <details className="group border-border bg-card rounded-xl border lg:hidden">
+      <details className="group motion-details border-border bg-card rounded-xl border lg:hidden">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 [&::-webkit-details-marker]:hidden">
           <span className="flex items-center gap-2 text-sm font-medium">
             <ShoppingBag aria-hidden className="size-4" />
@@ -191,9 +192,9 @@ export default function CheckoutPage({
         <PaymentFailedNotice searchParams={searchParams} />
       </Suspense>
 
-      <Suspense fallback={<CheckoutSkeleton />}>
+      <Reveal fallback={<CheckoutSkeleton />}>
         <CheckoutSummary />
-      </Suspense>
+      </Reveal>
     </main>
   );
 }

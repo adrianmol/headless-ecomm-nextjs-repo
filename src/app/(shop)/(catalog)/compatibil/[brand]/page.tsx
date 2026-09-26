@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
@@ -11,6 +10,7 @@ import {
 } from "../../_listing/product-listing";
 import { PrinterFinder } from "@/components/commerce/printer-finder";
 import { parseCatalogQuery } from "@/lib/catalog-url";
+import { Reveal } from "@/components/reveal";
 
 /**
  * All consumables for one printer brand, plus the finder pre-filled with that
@@ -129,20 +129,20 @@ export default function BrandPage({
 }: PageProps<"/compatibil/[brand]">) {
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
-      <Suspense fallback={<BrandHeaderSkeleton />}>
+      <Reveal fallback={<BrandHeaderSkeleton />}>
         <BrandHeader params={params} />
-      </Suspense>
+      </Reveal>
 
       <div className="mt-5 max-w-3xl">
-        <Suspense fallback={<FinderSkeleton />}>
+        <Reveal fallback={<FinderSkeleton />}>
           <BrandFinder params={params} />
-        </Suspense>
+        </Reveal>
       </div>
 
       <div className="mt-8">
-        <Suspense fallback={<ProductListingSkeleton />}>
+        <Reveal fallback={<ProductListingSkeleton />}>
           <Listing params={params} searchParams={searchParams} />
-        </Suspense>
+        </Reveal>
       </div>
     </main>
   );

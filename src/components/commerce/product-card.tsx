@@ -105,7 +105,9 @@ export function ProductCard({
   href,
 }: ProductCardProps) {
   return (
-    <article className="group border-border bg-card focus-within:ring-ring relative flex h-full flex-col overflow-hidden rounded-lg border transition-colors focus-within:ring-2 hover:border-neutral-400">
+    // Hover raises a shadow but does not move the card: a lift shifts the
+    // add-to-cart button just as the pointer arrives, and clicks miss it.
+    <article className="group border-border bg-card focus-within:ring-ring relative flex h-full flex-col overflow-hidden rounded-lg border transition-[box-shadow,border-color] duration-200 focus-within:ring-2 hover:border-neutral-400 hover:shadow-md">
       {/*
         The design runs the badges in a band above the image rather than floating
         them over it. That is also the more robust arrangement: overlaid pills

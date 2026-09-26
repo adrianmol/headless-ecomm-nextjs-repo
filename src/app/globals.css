@@ -226,3 +226,119 @@
     @apply font-sans;
   }
 }
+
+/*
+  Motion.
+
+  React's <ViewTransition> (see node_modules/next/dist/docs/01-app/02-guides/
+  view-transitions.md) drives three effects, each opted into by class name:
+
+  - `page`: route changes, from (shop)/template.tsx and (checkout)/template.tsx.
+    A short fade and rise — "a new page arrived" — not a directional slide:
+    this shop has no strict forward/back hierarchy for a slide to encode.
+  - `skeleton-out` / `content-in`: a Suspense skeleton handing over to the real
+    content, from <Reveal>. The old leaves fast so the two never compete.
+  - `line-out`: a removed basket line, with its neighbours sliding into place.
+
+  Timings are short on purpose. This is a shop people use to reorder toner;
+  motion is there to explain what changed, never to be watched.
+
+  Browsers without the API swap instantly, which is the correct fallback.
+*/
+:root {
+  --motion-exit: 120ms;
+  --motion-enter: 220ms;
+  --motion-move: 280ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+  /* Lets <details> animate to and from `height: auto`. */
+  interpolate-size: allow-keywords;
+}
+
+@keyframes motion-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes motion-rise {
+  from {
+    transform: translateY(8px);
+  }
+}
+@keyframes motion-sink {
+  to {
+    transform: translateY(4px);
+  }
+}
+
+::view-transition-old(.page) {
+  animation: var(--motion-exit) ease-in both motion-fade reverse;
+}
+::view-transition-new(.page) {
+  animation:
+    var(--motion-enter) var(--motion-ease) var(--motion-exit) both motion-fade,
+    var(--motion-move) var(--motion-ease) both motion-rise;
+}
+
+::view-transition-old(.skeleton-out) {
+  animation: var(--motion-exit) ease-out both motion-fade reverse;
+}
+::view-transition-new(.content-in) {
+  animation:
+    var(--motion-enter) var(--motion-ease) both motion-fade,
+    var(--motion-move) var(--motion-ease) both motion-rise;
+}
+
+::view-transition-old(.line-out) {
+  animation:
+    var(--motion-enter) ease-in both motion-fade reverse,
+    var(--motion-enter) ease-in both motion-sink;
+}
+::view-transition-group(.line-move) {
+  animation-duration: var(--motion-move);
+  animation-timing-function: var(--motion-ease);
+}
+
+/*
+  The sticky header stays put while content transitions beneath it. Without
+  this the content's snapshot is painted above the page — including over the
+  header when the page is scrolled.
+*/
+::view-transition-group(site-header) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(site-header) {
+  display: none;
+}
+::view-transition-new(site-header) {
+  animation: none;
+}
+
+/* Clicks during a transition reach the live page instead of the overlay. */
+::view-transition {
+  pointer-events: none;
+}
+
+/* The mobile order summary in checkout opens rather than snapping. */
+details.motion-details::details-content {
+  block-size: 0;
+  overflow-y: clip;
+  transition:
+    block-size var(--motion-move) var(--motion-ease),
+    content-visibility var(--motion-move) allow-discrete;
+}
+details.motion-details[open]::details-content {
+  block-size: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+  details.motion-details::details-content {
+    transition: none;
+  }
+}

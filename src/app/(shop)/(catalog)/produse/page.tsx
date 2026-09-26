@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
@@ -6,6 +5,7 @@ import {
   ProductListingSkeleton,
 } from "../_listing/product-listing";
 import { parseCatalogQuery } from "@/lib/catalog-url";
+import { Reveal } from "@/components/reveal";
 
 export const metadata: Metadata = {
   title: "Toate produsele",
@@ -60,9 +60,9 @@ export default function ProductsPage({
 }) {
   return (
     <ListingFrame>
-      <Suspense fallback={<ProductListingSkeleton />}>
+      <Reveal fallback={<ProductListingSkeleton />}>
         <Listing searchParams={searchParams} />
-      </Suspense>
+      </Reveal>
     </ListingFrame>
   );
 }

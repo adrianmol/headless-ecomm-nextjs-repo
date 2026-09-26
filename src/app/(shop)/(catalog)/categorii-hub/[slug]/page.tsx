@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -10,6 +9,7 @@ import {
   HubProductGrid,
   HubProductGridSkeleton,
 } from "../../_hub/hub-product-grid";
+import { Reveal } from "@/components/reveal";
 
 /**
  * A HUB catalogue category — in practice a printer model — and its consumables.
@@ -166,7 +166,7 @@ export default function HubCategoryPage({
 }: PageProps<"/categorii-hub/[slug]">) {
   return (
     <main className="max-w-page mx-auto px-4 py-10">
-      <Suspense
+      <Reveal
         fallback={
           <>
             <div className="bg-muted h-9 w-72 animate-pulse rounded" />
@@ -176,7 +176,7 @@ export default function HubCategoryPage({
         }
       >
         <CategoryView params={params} />
-      </Suspense>
+      </Reveal>
 
       <p className="mt-10 text-sm">
         <Link

@@ -1,10 +1,10 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { getHubCategories } from "@/commerce/hub/queries";
 import type { HubCategory } from "@/commerce/hub/schemas";
 import { hubCategorySlug } from "@/lib/hub-slug";
+import { Reveal } from "@/components/reveal";
 
 /**
  * Browse the HUB catalogue by equipment.
@@ -201,9 +201,9 @@ export default function ModelIndexPage({ searchParams }: PageProps<"/modele">) {
       </p>
 
       <div className="mt-8">
-        <Suspense fallback={<ModelIndexSkeleton />}>
+        <Reveal fallback={<ModelIndexSkeleton />}>
           <ModelIndex searchParams={searchParams} />
-        </Suspense>
+        </Reveal>
       </div>
     </main>
   );

@@ -1,8 +1,8 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
-import Link from "next/link";
 import { defaultButtonClasses } from "@/lib/button-variants";
+import { announceCartAdded } from "@/lib/cart-events";
 import type { CartAction, CartFeedback } from "@/lib/cart-feedback";
 import { formatMoney } from "@/lib/money";
 
@@ -26,11 +26,16 @@ export function AddToCart({
    * this client leaf and undo part of the 10.4 kB it was rewritten to save.
    */
   wrapperClassName = "mt-6",
+  productName,
+  imageUrl,
 }: {
   variantId: string;
   inStock: boolean;
   action: CartAction;
   wrapperClassName?: string;
+  /** For the confirmation toast only; never sent to the action. */
+  productName?: string;
+  imageUrl?: string | null;
 }) {
   /**
    * Stable for the lifetime of this button, which is exactly the property the
@@ -45,7 +50,12 @@ export function AddToCart({
   function add() {
     startTransition(async () => {
       setFeedback(null);
-      setFeedback(await action({ variantId, quantity: 1, seed }));
+      const result = await action({ variantId, quantity: 1, seed });
+      // Success is announced by the site-wide toast (cart-toast.tsx), which
+      // also offers the next step; only problems stay beside the button.
+      if (result.status === "ok")
+        announceCartAdded({ name: productName, imageUrl });
+      else setFeedback(result);
     });
   }
 
@@ -70,27 +80,8 @@ export function AddToCart({
         {!inStock ? "Stoc epuizat" : pending ? "Se adauga…" : "Adauga in cos"}
       </button>
 
-      {feedback && (
-        <p
-          role="status"
-          className={
-            feedback.status === "ok"
-              ? "text-muted-foreground mt-2 text-sm"
-              : "text-destructive mt-2 text-sm"
-          }
-        >
-          {feedback.status === "ok" && (
-            <>
-              Adaugat in cos.{" "}
-              {/* The next step, one tap away, from a card or the PDP alike. */}
-              <Link
-                href="/cos"
-                className="text-primary focus-visible:ring-ring rounded font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:outline-none"
-              >
-                Vezi cosul
-              </Link>
-            </>
-          )}
+      {feedback && feedback.status !== "ok" && (
+        <p role="status" className="text-destructive mt-2 text-sm">
           {feedback.status === "out_of_stock" &&
             (feedback.available > 0
               ? `Au mai ramas doar ${feedback.available} bucati.`

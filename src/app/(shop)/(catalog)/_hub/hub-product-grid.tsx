@@ -135,6 +135,8 @@ function HubCardAction({ product }: { product: HubProductSummary }) {
       inStock={product.stock.orderable}
       action={addHubToCartAction}
       wrapperClassName=""
+      productName={product.name}
+      imageUrl={product.imageUrl}
     />
   );
 }

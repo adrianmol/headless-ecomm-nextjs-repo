@@ -23,7 +23,8 @@ test.describe("cart", () => {
     await firstCard.getByRole("button", { name: "Adauga in cos" }).click();
 
     await expect(page).toHaveURL(/\/produse$/);
-    await expect(firstCard.getByText("Adaugat in cos.")).toBeVisible();
+    // Confirmed by the site-wide toast, not inside the card.
+    await expect(page.getByText("Adaugat in cos.")).toBeVisible();
   });
 
   test("adds from a HUB product card, past the stretched card link", async ({
@@ -38,13 +39,56 @@ test.describe("cart", () => {
 
     // Still on the same page: the button, not the card link, took the press.
     await expect(page).toHaveURL(new RegExp(`${HUB_PRODUCT_GONE}$`));
-    await expect(card.getByText("Adaugat in cos.")).toBeVisible();
+    const toast = page
+      .getByRole("status")
+      .filter({ hasText: "Adaugat in cos." });
+    await expect(toast).toContainText("Toner HUB test negru");
 
-    await card.getByRole("link", { name: "Vezi cosul" }).click();
+    await toast.getByRole("link", { name: "Vezi cosul" }).click();
     await expect(page).toHaveURL(/\/cos$/);
     await expect(
       page.getByRole("link", { name: "Toner HUB test negru" }),
     ).toBeVisible();
+  });
+
+  test("the add-to-cart toast leads on to checkout", async ({ page }) => {
+    await page.goto(HUB_PRODUCT);
+    await page.getByRole("button", { name: "Adauga in cos" }).click();
+
+    const toast = page
+      .getByRole("status")
+      .filter({ hasText: "Adaugat in cos." });
+    await expect(toast).toContainText("Toner HUB test negru");
+    await toast.getByRole("link", { name: "Finalizeaza comanda" }).click();
+    await expect(page).toHaveURL(/\/finalizare-comanda$/);
+  });
+
+  test("the add-to-cart toast can be dismissed", async ({ page }) => {
+    await page.goto(HUB_PRODUCT);
+    const add = page.getByRole("button", { name: "Adauga in cos" });
+
+    await add.click();
+    await page.getByRole("button", { name: "Inchide notificarea" }).click();
+    await expect(page.getByText("Adaugat in cos.")).toHaveCount(0);
+
+    // Escape too, from anywhere on the page.
+    await add.click();
+    await expect(page.getByText("Adaugat in cos.")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByText("Adaugat in cos.")).toHaveCount(0);
+  });
+
+  test("the add-to-cart toast stays while it is being read", async ({
+    page,
+  }) => {
+    await page.goto(HUB_PRODUCT);
+    await page.getByRole("button", { name: "Adauga in cos" }).click();
+
+    const toast = page.getByText("Adaugat in cos.");
+    await toast.hover();
+    // Past the 6s auto-dismiss: hovering holds it open (WCAG 2.2.1).
+    await page.waitForTimeout(7000);
+    await expect(toast).toBeVisible();
   });
 
   test("a sold-out HUB card shows why it cannot be added", async ({ page }) => {

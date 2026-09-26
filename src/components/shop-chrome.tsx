@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { CartToast } from "@/components/commerce/cart-toast";
 
 /**
  * The full storefront frame: header, menu and footer around a page.
@@ -32,6 +33,16 @@ export function ShopChrome({ children }: { children: ReactNode }) {
       </div>
 
       <SiteFooter />
+
+      {/*
+        Client leaf, empty until something is added; see cart-toast.tsx. Behind
+        its own boundary because it reads the pathname, and URL data outside
+        Suspense stops dynamic routes prerendering their shell. It renders
+        nothing before hydration, which is also before anyone can add.
+      */}
+      <Suspense fallback={null}>
+        <CartToast />
+      </Suspense>
     </>
   );
 }

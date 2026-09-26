@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -12,6 +11,7 @@ import { Price } from "@/components/commerce/price";
 import { HubStockBadge } from "@/components/commerce/stock-badge";
 import { HubProductGrid } from "../../_hub/hub-product-grid";
 import { discountPercent } from "@/lib/money";
+import { Reveal } from "@/components/reveal";
 
 /**
  * A HUB catalogue product.
@@ -200,6 +200,8 @@ async function ProductView({
               inStock={stock.orderable && offer.displayable && payable !== null}
               action={addHubToCartAction}
               wrapperClassName="mt-5"
+              productName={product.name}
+              imageUrl={product.imageUrl}
             />
 
             <p className="mt-5 text-sm">
@@ -279,20 +281,28 @@ export default function HubProductPage({
 }: PageProps<"/produse-hub/[slug]">) {
   return (
     <main className="max-w-page mx-auto px-4 py-10">
-      <Suspense
+      <Reveal
         fallback={
-          <div className="grid gap-8 lg:grid-cols-2">
+          // ProductView's shape, band for band: image, brand, a two-line
+          // title, and the offer card with price, stock pill, button, phone.
+          <div className="grid gap-8 lg:grid-cols-2" aria-hidden>
             <div className="bg-muted aspect-square animate-pulse rounded-lg" />
             <div>
-              <div className="bg-muted h-3 w-20 animate-pulse rounded" />
-              <div className="bg-muted mt-2 h-9 w-4/5 animate-pulse rounded" />
-              <div className="bg-muted mt-6 h-40 animate-pulse rounded-lg" />
+              <div className="bg-muted h-4 w-20 animate-pulse rounded" />
+              <div className="bg-muted mt-2 h-8 w-4/5 animate-pulse rounded" />
+              <div className="bg-muted mt-2 h-8 w-3/5 animate-pulse rounded" />
+              <div className="border-border mt-6 rounded-lg border p-5">
+                <div className="bg-muted h-8 w-36 animate-pulse rounded" />
+                <div className="bg-muted mt-3 h-6 w-28 animate-pulse rounded-full" />
+                <div className="bg-muted mt-5 h-8 w-full animate-pulse rounded-lg" />
+                <div className="bg-muted mt-5 h-5 w-52 animate-pulse rounded" />
+              </div>
             </div>
           </div>
         }
       >
         <ProductView params={params} />
-      </Suspense>
+      </Reveal>
 
       <p className="mt-12 text-sm">
         <Link

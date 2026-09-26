@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
@@ -7,6 +6,7 @@ import {
 } from "../../_listing/product-listing";
 import { parseCatalogQuery } from "@/lib/catalog-url";
 import { CATEGORIES, categoryBySlug } from "@/lib/catalog-taxonomy";
+import { Reveal } from "@/components/reveal";
 
 /**
  * Category landing pages, one per consumable kind.
@@ -83,9 +83,9 @@ export default async function CategoryPage({
       </p>
 
       <div className="mt-6">
-        <Suspense fallback={<ProductListingSkeleton />}>
+        <Reveal fallback={<ProductListingSkeleton />}>
           <Listing slug={slug} searchParams={searchParams} />
-        </Suspense>
+        </Reveal>
       </div>
     </main>
   );

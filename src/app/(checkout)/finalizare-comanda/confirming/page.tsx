@@ -1,8 +1,8 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { pollOrderStatusAction } from "@/commerce/checkout/actions";
 import { PaymentConfirming } from "@/components/commerce/payment-confirming";
+import { Reveal } from "@/components/reveal";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true },
@@ -28,11 +28,19 @@ export default function ConfirmingPage({
 }: PageProps<"/finalizare-comanda/confirming">) {
   return (
     <main className="mx-auto max-w-xl px-4 py-20">
-      <Suspense
-        fallback={<div className="bg-muted h-40 animate-pulse rounded-lg" />}
+      <Reveal
+        fallback={
+          // PaymentConfirming's shape: spinner, heading, two lines of text.
+          <div className="flex flex-col items-center" aria-hidden>
+            <div className="bg-muted size-10 animate-pulse rounded-full" />
+            <div className="bg-muted mt-5 h-8 w-56 animate-pulse rounded" />
+            <div className="bg-muted mt-3 h-5 w-80 max-w-full animate-pulse rounded" />
+            <div className="bg-muted mt-2 h-5 w-64 max-w-full animate-pulse rounded" />
+          </div>
+        }
       >
         <Confirming searchParams={searchParams} />
-      </Suspense>
+      </Reveal>
     </main>
   );
 }

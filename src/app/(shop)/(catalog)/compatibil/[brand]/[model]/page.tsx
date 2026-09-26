@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -11,6 +10,7 @@ import {
   ProductListingSkeleton,
 } from "../../../_listing/product-listing";
 import { parseCatalogQuery } from "@/lib/catalog-url";
+import { Reveal } from "@/components/reveal";
 
 /**
  * Consumables that fit one specific printer — the page the whole shop exists to
@@ -114,14 +114,14 @@ export default function ModelPage({
 }: PageProps<"/compatibil/[brand]/[model]">) {
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
-      <Suspense fallback={<ModelHeaderSkeleton />}>
+      <Reveal fallback={<ModelHeaderSkeleton />}>
         <ModelHeader params={params} />
-      </Suspense>
+      </Reveal>
 
       <div className="mt-8">
-        <Suspense fallback={<ProductListingSkeleton />}>
+        <Reveal fallback={<ProductListingSkeleton />}>
           <Listing params={params} searchParams={searchParams} />
-        </Suspense>
+        </Reveal>
       </div>
     </main>
   );

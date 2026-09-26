@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
@@ -14,6 +13,7 @@ import { CheckoutSteps } from "@/components/commerce/checkout-steps";
 import { OrderLines } from "@/components/commerce/order-lines";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/money";
+import { Reveal } from "@/components/reveal";
 
 export const metadata: Metadata = {
   // An order confirmation must never be indexed, and must never be cached.
@@ -196,14 +196,55 @@ async function OrderDetail({ params }: { params: ParamsPromise }) {
   );
 }
 
+const bar = "bg-muted animate-pulse rounded";
+
+/** The confirmation's shape: steps, badge, heading, "Ce urmeaza", products. */
+function OrderSkeleton() {
+  return (
+    <div aria-hidden>
+      <div className="mb-8 flex items-center gap-2">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className={`${bar} h-6 w-24 rounded-full`} />
+        ))}
+      </div>
+      <div className="flex flex-col items-center">
+        <div className={`${bar} size-14 rounded-full`} />
+        <div className={`${bar} mt-5 h-8 w-80 max-w-full`} />
+        <div className={`${bar} mt-3 h-5 w-48`} />
+        <div className={`${bar} mt-2 h-5 w-96 max-w-full`} />
+      </div>
+      <div className="border-border mt-10 space-y-4 rounded-xl border p-5 sm:p-6">
+        <div className={`${bar} h-5 w-28`} />
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="flex gap-3">
+            <div className={`${bar} size-8 shrink-0 rounded-full`} />
+            <div className="flex-1 space-y-1.5">
+              <div className={`${bar} h-4 w-40`} />
+              <div className={`${bar} h-4 w-64 max-w-full`} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="border-border mt-6 space-y-5 rounded-xl border p-5 sm:p-6">
+        <div className={`${bar} h-5 w-40`} />
+        <div className="flex items-center gap-3">
+          <div className={`${bar} size-14 shrink-0 rounded-md`} />
+          <div className={`${bar} h-4 flex-1`} />
+          <div className={`${bar} h-4 w-20`} />
+        </div>
+        <div className={`${bar} h-7 w-full`} />
+      </div>
+      <span className="sr-only">Se incarca comanda</span>
+    </div>
+  );
+}
+
 export default function OrderPage({ params }: PageProps<"/comenzi/[id]">) {
   return (
     <main className="mx-auto max-w-2xl px-4 py-8 sm:py-10">
-      <Suspense
-        fallback={<div className="bg-muted h-160 animate-pulse rounded-xl" />}
-      >
+      <Reveal fallback={<OrderSkeleton />}>
         <OrderDetail params={params} />
-      </Suspense>
+      </Reveal>
     </main>
   );
 }

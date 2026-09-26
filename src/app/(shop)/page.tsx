@@ -1,9 +1,9 @@
-import { Suspense } from "react";
 import Link from "next/link";
 import { listPrinterBrands } from "@/commerce/catalog/queries";
 import { PrinterFinder } from "@/components/commerce/printer-finder";
 import { HubFeaturedBand } from "./(catalog)/_hub/hub-featured";
 import { HubProductGridSkeleton } from "./(catalog)/_hub/hub-product-grid";
+import { Reveal } from "@/components/reveal";
 
 /**
  * Homepage, following the owner's REPrint design file: a dark green hero, the
@@ -241,9 +241,9 @@ export default function Home() {
             Dupa modelul echipamentului
           </p>
           <div className="mt-4">
-            <Suspense fallback={<FinderSkeleton />}>
+            <Reveal fallback={<FinderSkeleton />}>
               <Finder />
-            </Suspense>
+            </Reveal>
           </div>
         </div>
       </div>
@@ -274,9 +274,9 @@ export default function Home() {
             design's "Produse HOT" would need a popularity signal no contract here
             exposes.
           */}
-          <Suspense fallback={<HubProductGridSkeleton count={4} />}>
+          <Reveal fallback={<HubProductGridSkeleton count={4} />}>
             <HubFeaturedBand count={4} />
-          </Suspense>
+          </Reveal>
         </div>
       </section>
 
@@ -291,9 +291,9 @@ export default function Home() {
           Heading lives inside the band so an unreachable catalogue removes the whole
           section rather than orphaning its title.
         */}
-        <Suspense fallback={<BrandLinksSkeleton />}>
+        <Reveal fallback={<BrandLinksSkeleton />}>
           <BrandLinks />
-        </Suspense>
+        </Reveal>
       </section>
     </main>
   );

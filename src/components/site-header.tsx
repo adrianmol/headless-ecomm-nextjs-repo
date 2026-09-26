@@ -52,7 +52,9 @@ const focusRing =
 
 export function SiteHeader() {
   return (
-    <header className="border-border bg-background/90 supports-[backdrop-filter]:bg-background/75 sticky top-0 z-10 border-b backdrop-blur">
+    // Named so page transitions leave it still; see the Motion block in
+    // globals.css. Without it, sliding content paints over the sticky header.
+    <header className="border-border bg-background/90 supports-[backdrop-filter]:bg-background/75 sticky top-0 z-10 border-b backdrop-blur [view-transition-name:site-header]">
       {/* First focusable element on the page: lets keyboard and screen reader
           users jump the nav instead of tabbing it on every navigation. */}
       <a
