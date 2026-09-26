@@ -6,7 +6,11 @@ import type { CartFeedback } from "@/lib/cart-feedback";
 import type { CheckoutFormState } from "@/lib/checkout-form";
 import { isSameOrigin } from "@/lib/request-origin";
 import { z } from "zod";
-import { checkoutSchema, fieldErrors } from "../checkout/form-schema";
+import {
+  checkoutSchema,
+  fieldErrors,
+  submittedValues,
+} from "../checkout/form-schema";
 import { getHubProduct } from "../hub/queries";
 import {
   MAX_LINES,
@@ -138,22 +142,27 @@ export async function placeSessionOrderAction(
 ): Promise<CheckoutFormState> {
   if (!(await isSameOrigin())) return { status: "error" };
 
+  const values = submittedValues(formData);
   const parsed = checkoutSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
-    return { status: "invalid", fieldErrors: fieldErrors(parsed.error) };
+    return {
+      status: "invalid",
+      fieldErrors: fieldErrors(parsed.error),
+      values,
+    };
   }
 
   const orderKey = orderKeySchema.safeParse(formData.get("orderKey"));
-  if (!orderKey.success) return { status: "error" };
+  if (!orderKey.success) return { status: "error", values };
 
   const lines = await readCartLines();
-  if (lines.length === 0) return { status: "empty" };
+  if (lines.length === 0) return { status: "empty", values };
 
   let cart;
   try {
     cart = await priceCart(lines);
   } catch {
-    return { status: "error" };
+    return { status: "error", values };
   }
 
   if (
@@ -161,12 +170,12 @@ export async function placeSessionOrderAction(
     cart.unavailable.length > 0 ||
     cart.lines.some((line) => line.quantity > line.maxQuantity)
   ) {
-    return { status: "out_of_stock" };
+    return { status: "out_of_stock", values };
   }
   if (formData.get("expectedTotal") !== String(cart.total.amountMinor)) {
     // Re-render the summary so the new total is on screen beside the message.
     refresh();
-    return { status: "price_changed" };
+    return { status: "price_changed", values };
   }
 
   const { email, name, phone, line1, city, postcode, country } = parsed.data;
@@ -189,7 +198,7 @@ export async function placeSessionOrderAction(
   // The shop hearing of it is the order. Until then the cart stays intact, so a
   // failed send can simply be retried.
   if (!(await sendOrderEmail(order, `order:${orderKey.data}`))) {
-    return { status: "error" };
+    return { status: "error", values };
   }
 
   await writeLastOrder(order);

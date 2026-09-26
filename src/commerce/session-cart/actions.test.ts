@@ -119,7 +119,7 @@ describe("placeSessionOrderAction", () => {
   it("stops on a price change, before anything is sent", async () => {
     server.use(liveHandler(70));
 
-    expect(await place()).toEqual({ status: "price_changed" });
+    expect(await place()).toMatchObject({ status: "price_changed" });
     expect(emails).toHaveLength(0);
     expect(await readCartLines()).toHaveLength(1);
   });
@@ -127,7 +127,7 @@ describe("placeSessionOrderAction", () => {
   it("keeps the cart when the email cannot be sent", async () => {
     server.use(http.post(EMAIL, () => new HttpResponse(null, { status: 500 })));
 
-    expect(await place()).toEqual({ status: "error" });
+    expect(await place()).toMatchObject({ status: "error" });
     expect(await readCartLines()).toHaveLength(1);
     expect(await readLastOrder()).toBeNull();
   });
@@ -135,7 +135,7 @@ describe("placeSessionOrderAction", () => {
   it("refuses to place an order when email is unconfigured", async () => {
     delete process.env.RESEND_API_KEY;
 
-    expect(await place()).toEqual({ status: "error" });
+    expect(await place()).toMatchObject({ status: "error" });
     expect(emails).toHaveLength(0);
     expect(await readCartLines()).toHaveLength(1);
   });
@@ -145,8 +145,20 @@ describe("placeSessionOrderAction", () => {
       status: "invalid",
       fieldErrors: { phone: "Introdu numarul de telefon" },
     });
-    expect(await place(form({ orderKey: "chosen" }))).toEqual({
+    expect(await place(form({ orderKey: "chosen" }))).toMatchObject({
       status: "error",
     });
+  });
+
+  it("echoes the customer's input back, but never the hidden fields", async () => {
+    // React resets the form after every action; these refill it.
+    const state = await place(form({ phone: "" }));
+    expect(state.values).toMatchObject({
+      email: "client@example.test",
+      city: "Cluj",
+      phone: "",
+    });
+    expect(state.values).not.toHaveProperty("orderKey");
+    expect(state.values).not.toHaveProperty("expectedTotal");
   });
 });

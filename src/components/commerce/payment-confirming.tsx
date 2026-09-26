@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Clock, Loader2 } from "lucide-react";
 
 type Status = "pending" | "paid" | "failed" | "cancelled" | "unknown";
 
@@ -66,22 +67,28 @@ export function PaymentConfirming({
   if (timedOut) {
     return (
       <div className="text-center">
-        <h1 className="text-2xl font-semibold">
-          Still confirming your payment
+        <span className="bg-stock-low-surface text-stock-low mx-auto flex size-14 items-center justify-center rounded-full">
+          <Clock aria-hidden className="size-7" />
+        </span>
+        <h1 className="mt-5 text-2xl font-semibold">
+          Inca verificam plata
         </h1>
         <p className="text-muted-foreground mt-3">
-          This is taking longer than usual. Your payment may still have gone
-          through, so please do not pay again.
+          Dureaza mai mult decat de obicei. Plata poate sa fi fost deja
+          procesata, asa ca te rugam sa nu platesti din nou.
         </p>
         <p className="text-muted-foreground mt-3 text-sm">
-          Quote reference <span className="font-mono">{orderRef}</span> when you
-          contact us.
+          Daca ne contactezi, mentioneaza referinta{" "}
+          <span className="text-foreground font-mono font-semibold">
+            {orderRef}
+          </span>
+          .
         </p>
         <Link
-          href="/products"
-          className="mt-6 inline-block underline underline-offset-4"
+          href="/modele"
+          className="focus-visible:ring-ring mt-6 inline-block rounded underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none"
         >
-          Continue shopping
+          Continua cumparaturile
         </Link>
       </div>
     );
@@ -89,17 +96,15 @@ export function PaymentConfirming({
 
   return (
     <div className="text-center" role="status" aria-live="polite">
-      <h1 className="text-2xl font-semibold">Confirmam plata</h1>
-      <p className="text-muted-foreground mt-3">
-        This usually takes a few seconds. Please do not close this page or pay
-        again.
-      </p>
-      <div
-        className="bg-muted mx-auto mt-8 h-1 w-40 overflow-hidden rounded"
+      <Loader2
         aria-hidden
-      >
-        <div className="bg-foreground/40 h-full w-1/3 animate-pulse" />
-      </div>
+        className="text-primary mx-auto size-10 animate-spin"
+      />
+      <h1 className="mt-5 text-2xl font-semibold">Confirmam plata</h1>
+      <p className="text-muted-foreground mt-3">
+        De obicei dureaza cateva secunde. Te rugam sa nu inchizi pagina si sa
+        nu platesti din nou.
+      </p>
     </div>
   );
 }

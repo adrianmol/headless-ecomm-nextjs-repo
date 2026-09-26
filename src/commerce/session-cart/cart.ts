@@ -2,7 +2,11 @@ import "server-only";
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { multiplyMoney, sumMoney, type Money } from "@/lib/money";
-import { getHubLiveOffers, type HubLiveResult } from "../hub/queries";
+import {
+  getHubLiveOffers,
+  getHubProduct,
+  type HubLiveResult,
+} from "../hub/queries";
 import { moneySchema } from "../schemas";
 
 /**
@@ -155,6 +159,32 @@ export async function priceCart(
   return priceLines(
     lines,
     await getHubLiveOffers({ skus: lines.map((line) => line.sku) }),
+  );
+}
+
+/**
+ * Thumbnails for the basket, sku → image URL.
+ *
+ * Not from the cookie (no room under its size cap) and not from the live
+ * endpoint (which returns no image). `getHubProduct` is the cached, sessionless
+ * catalog read, already warm from the add-to-cart that put the line here, so
+ * this costs no upstream call in the usual case. An image is decoration: a
+ * failed lookup yields no thumbnail, never a broken basket.
+ */
+export async function lineImages(
+  skus: readonly string[],
+): Promise<Map<string, string | null>> {
+  const results = await Promise.allSettled(
+    skus.map((sku) => getHubProduct({ by: "sku", value: sku })),
+  );
+  return new Map(
+    skus.map((sku, i) => {
+      const result = results[i];
+      return [
+        sku,
+        result.status === "fulfilled" ? (result.value?.imageUrl ?? null) : null,
+      ];
+    }),
   );
 }
 

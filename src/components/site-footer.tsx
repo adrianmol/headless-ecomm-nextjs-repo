@@ -31,7 +31,7 @@ import { CATEGORIES } from "@/lib/catalog-taxonomy";
  * January until the next deploy. A constant is at least honest about needing a
  * human, and shows up in a diff.
  */
-const COPYRIGHT_YEAR = 2026;
+export const COPYRIGHT_YEAR = 2026;
 
 const INFO_LINKS = [
   { href: "/info/livrare", label: "Livrare" },

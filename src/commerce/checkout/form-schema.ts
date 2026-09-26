@@ -29,3 +29,16 @@ export function fieldErrors(error: z.ZodError): Record<string, string> {
   }
   return errors;
 }
+
+/**
+ * The customer's own input, for re-filling the form after a failed submit.
+ * Only the schema's fields, so server-minted hidden values are never echoed.
+ */
+export function submittedValues(formData: FormData): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const name of Object.keys(checkoutSchema.shape)) {
+    const value = formData.get(name);
+    if (typeof value === "string") values[name] = value.slice(0, 200);
+  }
+  return values;
+}

@@ -29,7 +29,7 @@ export default function ConfirmingPage({
   return (
     <main className="mx-auto max-w-xl px-4 py-20">
       <Suspense
-        fallback={<div className="bg-muted h-32 animate-pulse rounded-lg" />}
+        fallback={<div className="bg-muted h-40 animate-pulse rounded-lg" />}
       >
         <Confirming searchParams={searchParams} />
       </Suspense>

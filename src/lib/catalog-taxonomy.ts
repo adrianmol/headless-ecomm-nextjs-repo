@@ -25,20 +25,6 @@ export type Category = {
   name: string;
   /** One line of intent for the category landing page and its meta description. */
   description: string;
-  /**
-   * Two letters for the header's circular chip.
-   *
-   * Stored, not derived. The first version computed initials from the name and
-   * produced two identical `UC` chips for "Unitati cilindru" and "Unitati
-   * cuptor" — two different categories, indistinguishable in the nav. No
-   * derivation rule fixes that in general, because uniqueness is a property of
-   * the whole set rather than of any one name, and the design's own choices
-   * (`CI` for Cilindri, `RO` for Role) are editorial anyway.
-   *
-   * A stale abbreviation is visible on every page; a colliding one is not. That
-   * trade is why this is a field.
-   */
-  abbr: string;
 };
 
 /**
@@ -73,7 +59,6 @@ export type Category = {
 export const CATEGORIES: readonly Category[] = [
   {
     slug: "tonere",
-    abbr: "TO",
     kind: "toner",
     name: "Toner",
     description:
@@ -81,7 +66,6 @@ export const CATEGORIES: readonly Category[] = [
   },
   {
     slug: "cartuse-cerneala",
-    abbr: "CA",
     kind: "inkjet",
     name: "Cartuse cerneala",
     description:
@@ -89,7 +73,6 @@ export const CATEGORIES: readonly Category[] = [
   },
   {
     slug: "piese-si-ansambluri",
-    abbr: "PI",
     kind: "fuser",
     name: "Piese si ansambluri",
     // Says what the page holds today, which is narrower than the label above.
@@ -98,7 +81,6 @@ export const CATEGORIES: readonly Category[] = [
   },
   {
     slug: "unitati-cilindru",
-    abbr: "CI",
     kind: "drum",
     name: "Cilindri",
     description:
@@ -106,7 +88,6 @@ export const CATEGORIES: readonly Category[] = [
   },
   {
     slug: "role",
-    abbr: "RO",
     kind: "roller",
     name: "Role si role de transfer",
     description:
@@ -114,7 +95,6 @@ export const CATEGORIES: readonly Category[] = [
   },
   {
     slug: "accesorii",
-    abbr: "AC",
     kind: "waste",
     name: "Accesorii",
     // Again narrower than the label; the page does not pretend otherwise.
