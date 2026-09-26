@@ -1,5 +1,30 @@
 import Link from "next/link";
+import {
+  Cylinder,
+  Droplets,
+  LayoutGrid,
+  type LucideIcon,
+  Package,
+  Printer,
+  Recycle,
+  ScrollText,
+  ShoppingBag,
+  Wrench,
+} from "lucide-react";
 import { CATEGORIES } from "@/lib/catalog-taxonomy";
+
+/** Keyed by slug; a category added without an icon falls back to a grid. */
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  tonere: Package,
+  "cartuse-cerneala": Droplets,
+  "piese-si-ansambluri": Wrench,
+  "unitati-cilindru": Cylinder,
+  role: ScrollText,
+  accesorii: Recycle,
+};
+
+const focusRing =
+  "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none";
 
 /**
  * Site header, following the owner's REPrint design file: a white bar with the
@@ -27,7 +52,7 @@ import { CATEGORIES } from "@/lib/catalog-taxonomy";
 
 export function SiteHeader() {
   return (
-    <header className="border-border bg-background sticky top-0 z-10 border-b">
+    <header className="border-border bg-background/90 supports-[backdrop-filter]:bg-background/75 sticky top-0 z-10 border-b backdrop-blur">
       {/* First focusable element on the page: lets keyboard and screen reader
           users jump the nav instead of tabbing it on every navigation. */}
       <a
@@ -40,10 +65,18 @@ export function SiteHeader() {
       <div className="max-w-page mx-auto flex h-16 items-center gap-4 px-4 sm:gap-8">
         <Link
           href="/"
-          className="focus-visible:ring-ring shrink-0 rounded text-lg font-extrabold tracking-tight focus-visible:ring-2 focus-visible:outline-none"
+          className={`flex shrink-0 items-center gap-2 rounded text-lg font-extrabold tracking-tight ${focusRing}`}
         >
-          RE<span className="text-primary">Print</span>
-          <span className="text-muted-foreground ml-1.5 hidden text-sm font-medium sm:inline">
+          <span
+            aria-hidden
+            className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-lg"
+          >
+            <Printer className="size-4.5" strokeWidth={2.25} />
+          </span>
+          <span>
+            RE<span className="text-primary">Print</span>
+          </span>
+          <span className="text-muted-foreground hidden text-sm font-medium sm:inline">
             Romania
           </span>
         </Link>
@@ -69,7 +102,7 @@ export function SiteHeader() {
 
         <nav
           aria-label="Principal"
-          className="flex shrink-0 items-center gap-3 text-sm sm:gap-5"
+          className="flex shrink-0 items-center gap-1 text-sm sm:gap-2"
         >
           {/*
             The design has "Contul meu" here. Omitted: there is no account
@@ -85,14 +118,17 @@ export function SiteHeader() {
           */}
           <Link
             href="/modele"
-            className="text-primary focus-visible:ring-ring hidden rounded font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none sm:inline"
+            className={`text-foreground hover:bg-muted flex h-11 min-w-11 items-center justify-center gap-2 rounded-full px-3 font-medium transition-colors ${focusRing}`}
           >
-            Echipamente
+            <LayoutGrid aria-hidden className="size-5" />
+            {/* Icon-only on phones, but the name stays for screen readers. */}
+            <span className="sr-only sm:not-sr-only">Echipamente</span>
           </Link>
           <Link
             href="/cos"
-            className="bg-foreground text-background focus-visible:ring-ring rounded-full px-4 py-2 font-semibold hover:opacity-90 focus-visible:ring-2 focus-visible:outline-none"
+            className={`bg-foreground text-background flex h-11 items-center gap-2 rounded-full pr-5 pl-4 font-semibold transition-opacity hover:opacity-90 ${focusRing} focus-visible:ring-offset-2`}
           >
+            <ShoppingBag aria-hidden className="size-5" />
             Cos
           </Link>
         </nav>
@@ -107,27 +143,32 @@ export function SiteHeader() {
         */}
         <nav
           aria-label="Categorii de produse"
-          className="max-w-page mx-auto overflow-x-auto px-4"
+          // Hidden scrollbar plus an edge fade on phones: the cut-off chip is the
+          // cue that the strip scrolls. Six chips fit from `sm` up, so no fade.
+          className="max-w-page mx-auto snap-x overflow-x-auto px-4 [scrollbar-width:none] [mask-image:linear-gradient(to_right,black_85%,transparent)] sm:[mask-image:none] [&::-webkit-scrollbar]:hidden"
         >
-          <ul className="flex items-start gap-6 py-3 whitespace-nowrap sm:gap-9">
-            {CATEGORIES.map((category) => (
-              <li key={category.slug} className="shrink-0">
-                <Link
-                  href={`/categorii/${category.slug}`}
-                  className="group focus-visible:ring-ring flex w-20 flex-col items-center gap-1.5 rounded focus-visible:ring-2 focus-visible:outline-none"
-                >
-                  <span
-                    className="bg-accent text-accent-foreground flex size-9 items-center justify-center rounded-full text-xs font-bold group-hover:brightness-95"
-                    aria-hidden
+          <ul className="flex items-start gap-2 py-3 whitespace-nowrap sm:justify-center sm:gap-8">
+            {CATEGORIES.map((category) => {
+              const Icon = CATEGORY_ICONS[category.slug] ?? LayoutGrid;
+              return (
+                <li key={category.slug} className="shrink-0 snap-start">
+                  <Link
+                    href={`/categorii/${category.slug}`}
+                    className={`group flex w-20 flex-col items-center gap-1.5 rounded-lg p-1 ${focusRing}`}
                   >
-                    {category.abbr}
-                  </span>
-                  <span className="text-muted-foreground group-hover:text-foreground text-center text-[11px] leading-tight whitespace-normal">
-                    {category.name}
-                  </span>
-                </Link>
-              </li>
-            ))}
+                    <span
+                      className="bg-accent text-accent-foreground group-hover:bg-primary group-hover:text-primary-foreground flex size-11 items-center justify-center rounded-full transition-colors"
+                      aria-hidden
+                    >
+                      <Icon className="size-5" />
+                    </span>
+                    <span className="text-muted-foreground group-hover:text-foreground text-center text-[11px] leading-tight whitespace-normal">
+                      {category.name}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </nav>
       </div>
