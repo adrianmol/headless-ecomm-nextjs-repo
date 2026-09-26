@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useRef, useState, useTransition } from "react";
-import { Minus, Plus } from "lucide-react";
+import { Loader2, Minus, Plus } from "lucide-react";
 import type { CartFeedback, QuantityAction } from "@/lib/cart-feedback";
 
 const DEBOUNCE_MS = 300;
@@ -88,7 +88,11 @@ export function QuantityStepper({
     "hover:bg-muted focus-visible:ring-ring flex size-9 items-center justify-center rounded-md disabled:opacity-40 focus-visible:ring-2 focus-visible:outline-none";
 
   return (
-    <div>
+    // `data-pending` lets the server-rendered money around this island mark
+    // itself stale with CSS alone (see /cos), without lifting state out of it.
+    // The transition spans the write *and* the refreshed render, so it clears
+    // exactly when the new figures are on screen.
+    <div data-pending={pending || undefined}>
       <div className="flex items-center gap-2">
         <div className="border-input inline-flex items-center rounded-lg border p-0.5">
           <button
@@ -121,11 +125,15 @@ export function QuantityStepper({
           </button>
         </div>
 
-        <span
-          className="text-muted-foreground text-xs"
-          aria-hidden={!pending}
-        >
-          {pending ? "Se salveaza…" : ""}
+        {/* Fixed width, so saving never reflows the row around it. */}
+        <span className="flex w-4 justify-center">
+          {pending && (
+            <Loader2
+              aria-hidden
+              className="text-muted-foreground size-4 animate-spin"
+            />
+          )}
+          <span className="sr-only">{pending ? "Se salveaza…" : ""}</span>
         </span>
       </div>
 

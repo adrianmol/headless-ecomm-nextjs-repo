@@ -45,6 +45,7 @@ function form(overrides: Record<string, string> = {}) {
     city: "Cluj",
     postcode: "400000",
     country: "RO",
+    county: "Cluj",
     expectedTotal: "13200",
     orderKey: ORDER_KEY,
     ...overrides,
@@ -103,17 +104,96 @@ describe("placeSessionOrderAction", () => {
       digest: expect.stringContaining("/comenzi/0F1E2D3C"),
     });
 
-    expect(emails).toHaveLength(1);
-    expect(emails[0].headers.get("idempotency-key")).toBe(`order:${ORDER_KEY}`);
-    expect(emails[0].body.reply_to).toBe("client@example.test");
-    expect(emails[0].body.text).toContain("2 x Toner A (A)");
-    expect(emails[0].body.text).toMatch(/Total: 132,00\sRON/);
+    // The shop's email first — that is the order — then the customer's copy.
+    expect(emails).toHaveLength(2);
+    const [shop, customer] = emails;
+    expect(shop.headers.get("idempotency-key")).toBe(`order:${ORDER_KEY}`);
+    expect(shop.body.to).toEqual(["orders@example.test"]);
+    expect(shop.body.reply_to).toBe("client@example.test");
+    expect(shop.body.text).toContain("2 x Toner A (A)");
+    expect(shop.body.text).toContain("400000 Cluj, jud. Cluj, RO");
+    expect(shop.body.text).toContain("Facturare: persoana fizica");
+    expect(shop.body.text).toMatch(/Total: 132,00\sRON/);
+
+    expect(customer.headers.get("idempotency-key")).toBe(
+      `order:${ORDER_KEY}:customer`,
+    );
+    expect(customer.body.to).toEqual(["client@example.test"]);
+    expect(customer.body.reply_to).toBe("orders@example.test");
+    expect(customer.body.subject).toBe("Am primit comanda 0F1E2D3C — REPrint");
+    expect(customer.body.text).toContain("te sunam la +40 700 000 000");
 
     expect(await readCartLines()).toEqual([]);
     expect(await readLastOrder()).toMatchObject({
       id: "0F1E2D3C",
       total: { amountMinor: 13200, currency: "RON" },
+      confirmationSent: true,
     });
+  });
+
+  it("invoices a company when asked, with the CUI normalised", async () => {
+    await expect(
+      place(
+        form({
+          customerType: "pj",
+          company: "Firma Test SRL",
+          cui: "ro 123 456",
+          regCom: "J12/345/2020",
+        }),
+      ),
+    ).rejects.toMatchObject({ digest: expect.stringContaining("/comenzi/") });
+
+    expect(emails[0].body.text).toContain("Firma:        Firma Test SRL");
+    expect(emails[0].body.text).toContain("CUI:          RO123456");
+    expect(await readLastOrder()).toMatchObject({
+      billing: { company: "Firma Test SRL", cui: "RO123456" },
+    });
+  });
+
+  it("reports every missing field at once, including the conditional ones", async () => {
+    // Zod skips object refinements while a field is invalid; the county and
+    // company rules must not wait for the email typo to be fixed first.
+    const state = await place(
+      form({ email: "nope", county: "", customerType: "pj", cui: "12AB" }),
+    );
+    expect(state).toMatchObject({
+      status: "invalid",
+      fieldErrors: {
+        email: "Introdu o adresa de email valida",
+        county: "Alege judetul",
+        company: "Introdu numele firmei",
+        cui: "Introdu un CUI valid, de exemplu RO12345678",
+      },
+    });
+    expect(emails).toHaveLength(0);
+  });
+
+  it("rejects a county that is not on the list, but only for Romania", async () => {
+    expect(await place(form({ county: "Cluj-Napoca" }))).toMatchObject({
+      status: "invalid",
+      fieldErrors: { county: "Alege judetul" },
+    });
+
+    await expect(
+      place(form({ country: "MD", county: "" })),
+    ).rejects.toMatchObject({ digest: expect.stringContaining("/comenzi/") });
+  });
+
+  it("still places the order when only the customer's copy fails", async () => {
+    let calls = 0;
+    server.use(
+      http.post(EMAIL, () =>
+        ++calls === 1
+          ? HttpResponse.json({ id: "shop" })
+          : new HttpResponse(null, { status: 500 }),
+      ),
+    );
+
+    await expect(place()).rejects.toMatchObject({
+      digest: expect.stringContaining("/comenzi/0F1E2D3C"),
+    });
+    expect(await readCartLines()).toEqual([]);
+    expect(await readLastOrder()).toMatchObject({ confirmationSent: false });
   });
 
   it("stops on a price change, before anything is sent", async () => {

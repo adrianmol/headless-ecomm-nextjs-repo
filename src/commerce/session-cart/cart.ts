@@ -163,26 +163,27 @@ export async function priceCart(
 }
 
 /**
- * Thumbnails for the basket, sku → image URL.
+ * Catalogue details for basket and order lines, sku → name and image.
  *
  * Not from the cookie (no room under its size cap) and not from the live
- * endpoint (which returns no image). `getHubProduct` is the cached, sessionless
+ * endpoint (which returns neither). `getHubProduct` is the cached, sessionless
  * catalog read, already warm from the add-to-cart that put the line here, so
- * this costs no upstream call in the usual case. An image is decoration: a
- * failed lookup yields no thumbnail, never a broken basket.
+ * this costs no upstream call in the usual case. Display only: a failed lookup
+ * yields no thumbnail and the caller's fallback name, never a broken page.
  */
-export async function lineImages(
+export async function lineCatalog(
   skus: readonly string[],
-): Promise<Map<string, string | null>> {
+): Promise<Map<string, { name: string | null; imageUrl: string | null }>> {
   const results = await Promise.allSettled(
     skus.map((sku) => getHubProduct({ by: "sku", value: sku })),
   );
   return new Map(
     skus.map((sku, i) => {
       const result = results[i];
+      const product = result.status === "fulfilled" ? result.value : null;
       return [
         sku,
-        result.status === "fulfilled" ? (result.value?.imageUrl ?? null) : null,
+        { name: product?.name ?? null, imageUrl: product?.imageUrl ?? null },
       ];
     }),
   );
@@ -195,10 +196,28 @@ const orderSchema = z.object({
   name: z.string(),
   phone: z.string(),
   address: z.string(),
+  /**
+   * Present only for an invoice to a company. Optional in the schema so an
+   * order cookie written before this field existed still reads.
+   */
+  billing: z
+    .object({
+      company: z.string(),
+      cui: z.string(),
+      regCom: z.string(),
+    })
+    .optional(),
+  /** Whether the customer's own confirmation email went out. */
+  confirmationSent: z.boolean().optional(),
   lines: z.array(
     z.object({
       sku: z.string(),
-      name: z.string(),
+      /**
+       * Optional: the cookie copy drops it to fit the size cap, and the page
+       * looks it up from the catalogue. Cookies written before that still
+       * carry it, and it is present on the in-memory order the email uses.
+       */
+      name: z.string().optional(),
       quantity: z.number().int(),
       lineTotal: moneySchema,
     }),
@@ -217,9 +236,36 @@ export async function readLastOrder(): Promise<SessionOrder | null> {
   return decode(orderSchema, store.get(ORDER_COOKIE)?.value);
 }
 
+/**
+ * Stores a display copy, trimmed to fit the cookie's 4 KB ceiling.
+ *
+ * The full order went to the shop by email before this runs; the cookie only
+ * feeds the confirmation page. So it may lose detail, but it must not lose the
+ * cookie: over 4 KB a browser drops it silently, and a customer who just
+ * ordered is told the order does not exist. Product names are the bulk of
+ * it, so they go, and the page reads them from the catalogue instead. The
+ * size is covered by a worst-case test in cart.test.ts.
+ */
 export async function writeLastOrder(order: SessionOrder): Promise<void> {
+  const clip = (value: string, max: number) => value.slice(0, max);
+  const display: SessionOrder = {
+    ...order,
+    name: clip(order.name, 60),
+    address: clip(order.address, 150),
+    billing: order.billing && {
+      company: clip(order.billing.company, 60),
+      cui: clip(order.billing.cui, 20),
+      regCom: clip(order.billing.regCom, 30),
+    },
+    lines: order.lines.map(({ sku, quantity, lineTotal }) => ({
+      sku,
+      quantity,
+      lineTotal,
+    })),
+  };
+
   const store = await cookies();
-  store.set(ORDER_COOKIE, encode(order), {
+  store.set(ORDER_COOKIE, encode(display), {
     ...COOKIE_OPTIONS,
     maxAge: 60 * 60 * 24 * 7,
   });

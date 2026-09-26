@@ -202,7 +202,7 @@ function ProductGrid({
               <Suspense
                 fallback={
                   <div
-                    className="bg-muted h-9 w-full animate-pulse rounded-md"
+                    className="bg-muted h-8 w-full animate-pulse rounded-lg"
                     aria-hidden
                   />
                 }

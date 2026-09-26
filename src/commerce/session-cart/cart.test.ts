@@ -10,6 +10,8 @@ import {
   readCartLines,
   readLastOrder,
   writeCartLines,
+  writeLastOrder,
+  MAX_LINES,
 } from "./cart";
 
 const ron = (amountMinor: number) => ({ amountMinor, currency: "RON" });
@@ -128,5 +130,32 @@ describe("session cookies", () => {
     await writeCartLines([{ sku: "A", name: "x", quantity: 1 }]);
     await writeCartLines([]);
     expect((await cookies()).get("hub_cart")).toBeUndefined();
+  });
+
+  it("keeps a worst-case order cookie under the 4 KB browser limit", async () => {
+    // Every field at the schema's cap, in a 3-byte UTF-8 character: a cookie
+    // over the limit is dropped silently, and the confirmation page with it.
+    const text = (length: number) => "漢".repeat(length);
+    await writeLastOrder({
+      id: "0F1E2D3C",
+      createdAt: new Date(0).toISOString(),
+      email: `${"a".repeat(64)}@${"b".repeat(185)}.test`,
+      name: text(100),
+      phone: text(32),
+      address: `${text(200)}, ${text(20)} ${text(100)}, jud. ${text(60)}, RO`,
+      billing: { company: text(100), cui: "RO1234567890", regCom: text(30) },
+      confirmationSent: true,
+      lines: Array.from({ length: MAX_LINES }, (_, i) => ({
+        sku: `${i}`.padEnd(64, "S"),
+        name: text(80),
+        quantity: 99,
+        lineTotal: ron(99_999_999),
+      })),
+      total: ron(999_999_999),
+    });
+
+    const value = (await cookies()).get("hub_order")?.value ?? "";
+    expect(value).not.toBe("");
+    expect(`hub_order=${value}`.length).toBeLessThan(4096);
   });
 });

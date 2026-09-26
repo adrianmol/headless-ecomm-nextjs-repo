@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { HubProductSummary } from "@/commerce/hub/schemas";
+import { addHubToCartAction } from "@/commerce/session-cart/actions";
+import { AddToCart } from "@/components/commerce/add-to-cart";
 import {
   ProductCard,
   ProductCardSkeleton,
@@ -21,8 +23,9 @@ import { discountPercent } from "@/lib/money";
  *    returns price and stock inside the product payload, so there is nothing to
  *    stream and no Suspense boundary to put it behind. Pretending otherwise would
  *    mean a skeleton that resolves instantly.
- *  - **No add-to-cart.** HUB has no cart, checkout or order endpoints at all, so
- *    there is no action to wire. A button here would be decoration.
+ *  - **A different cart.** HUB has no cart endpoints, so its cards add to the
+ *    session cart (src/commerce/session-cart), keyed by sku, rather than to the
+ *    provisional API's cart by variant id.
  *  - **No ex-VAT figure.** HUB sends a VAT-inclusive price and no rate, so the
  *    second price line is absent rather than computed. See price.tsx.
  *
@@ -31,7 +34,8 @@ import { discountPercent } from "@/lib/money";
  */
 
 /**
- * HUB has no cart, so the whole card is a link to the product.
+ * The whole card links to the product; only the add-to-cart button sits above
+ * the stretched link.
  *
  * `/produse-hub/`, not `/produse/`. The first version pointed here at `/produse/`,
  * which is backed by the *provisional* API — so every card was a dead link that
@@ -103,10 +107,35 @@ export function HubProductGrid({
               )
             }
             discountSlot={<HubDiscountBadge product={product} />}
+            actionSlot={<HubCardAction product={product} />}
           />
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * Add-to-cart from the card, the same action the HUB product page uses.
+ *
+ * Stock and price here come from the cached listing, so they only decide what
+ * the button *shows*. The action re-prices and re-checks stock through HUB's
+ * uncached live endpoint before anything lands in the cart.
+ *
+ * None for "Preț la cerere": a price that may not be shown cannot be charged
+ * either, and "Stoc epuizat" would misstate why the button is off. The grid
+ * rows are `h-full`, so the shorter card does not break the alignment.
+ */
+function HubCardAction({ product }: { product: HubProductSummary }) {
+  if (!product.offer.displayable || !product.offer.price) return null;
+
+  return (
+    <AddToCart
+      variantId={product.sku}
+      inStock={product.stock.orderable}
+      action={addHubToCartAction}
+      wrapperClassName=""
+    />
   );
 }
 
@@ -132,13 +161,13 @@ function HubDiscountBadge({ product }: { product: HubProductSummary }) {
   );
 }
 
-/** Matches the loaded grid, minus the action row HUB cards do not have. */
+/** Matches the loaded grid, add-to-cart row included. */
 export function HubProductGridSkeleton({ count = 4 }: { count?: number }) {
   return (
     <ul className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
       {Array.from({ length: count }, (_, i) => (
         <li key={i}>
-          <ProductCardSkeleton />
+          <ProductCardSkeleton withAction />
         </li>
       ))}
     </ul>

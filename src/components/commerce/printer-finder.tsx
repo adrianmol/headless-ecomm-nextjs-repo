@@ -65,7 +65,7 @@ export function PrinterFinder({
           defaultValue={selectedBrand ?? ""}
           className="border-input bg-background focus-visible:ring-ring h-10 w-full rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:outline-none"
         >
-          <option value="">Alege marca</option>
+          <option value="">Selecteaza Brand</option>
           {brands.map((brand) => (
             <option key={brand.slug} value={brand.slug}>
               {brand.name}
@@ -91,9 +91,8 @@ export function PrinterFinder({
           aria-describedby={hasModels ? undefined : "finder-model-hint"}
           className="border-input bg-background focus-visible:ring-ring h-10 w-full rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <option value="">
-            {hasModels ? "Toate modelele" : "Alege intai marca"}
-          </option>
+          {/* Wording matches reprint.ro's finder, which shoppers already know. */}
+          <option value="">Selecteaza Echipament</option>
           {(models ?? []).map((model) => (
             <option key={model.slug} value={model.slug}>
               {model.name}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
+import Link from "next/link";
 import { defaultButtonClasses } from "@/lib/button-variants";
 import type { CartAction, CartFeedback } from "@/lib/cart-feedback";
 import { formatMoney } from "@/lib/money";
@@ -78,7 +79,18 @@ export function AddToCart({
               : "text-destructive mt-2 text-sm"
           }
         >
-          {feedback.status === "ok" && "Adaugat in cos."}
+          {feedback.status === "ok" && (
+            <>
+              Adaugat in cos.{" "}
+              {/* The next step, one tap away, from a card or the PDP alike. */}
+              <Link
+                href="/cos"
+                className="text-primary focus-visible:ring-ring rounded font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:outline-none"
+              >
+                Vezi cosul
+              </Link>
+            </>
+          )}
           {feedback.status === "out_of_stock" &&
             (feedback.available > 0
               ? `Au mai ramas doar ${feedback.available} bucati.`

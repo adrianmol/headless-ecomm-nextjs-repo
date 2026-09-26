@@ -231,8 +231,9 @@ export function ProductCardSkeleton({
         <div className="mt-auto pt-3">
           <div className="bg-muted h-6 w-28 animate-pulse rounded" />
           <div className="bg-muted mt-1 h-3 w-36 animate-pulse rounded" />
+          {/* h-8 rounded-lg: the default Button that AddToCart renders. */}
           {withAction && (
-            <div className="bg-muted mt-3 h-9 w-full animate-pulse rounded-md" />
+            <div className="bg-muted mt-3 h-8 w-full animate-pulse rounded-lg" />
           )}
         </div>
       </div>

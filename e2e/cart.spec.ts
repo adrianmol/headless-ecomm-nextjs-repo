@@ -26,6 +26,37 @@ test.describe("cart", () => {
     await expect(firstCard.getByText("Adaugat in cos.")).toBeVisible();
   });
 
+  test("adds from a HUB product card, past the stretched card link", async ({
+    page,
+  }) => {
+    // The sold-out product's page lists the in-stock one as a sibling card.
+    await page.goto(HUB_PRODUCT_GONE);
+    const card = page
+      .getByRole("article")
+      .filter({ hasText: "Toner HUB test negru" });
+    await card.getByRole("button", { name: "Adauga in cos" }).click();
+
+    // Still on the same page: the button, not the card link, took the press.
+    await expect(page).toHaveURL(new RegExp(`${HUB_PRODUCT_GONE}$`));
+    await expect(card.getByText("Adaugat in cos.")).toBeVisible();
+
+    await card.getByRole("link", { name: "Vezi cosul" }).click();
+    await expect(page).toHaveURL(/\/cos$/);
+    await expect(
+      page.getByRole("link", { name: "Toner HUB test negru" }),
+    ).toBeVisible();
+  });
+
+  test("a sold-out HUB card shows why it cannot be added", async ({ page }) => {
+    await page.goto(HUB_PRODUCT);
+    const card = page
+      .getByRole("article")
+      .filter({ hasText: "Toner HUB test epuizat" });
+    await expect(
+      card.getByRole("button", { name: "Stoc epuizat" }),
+    ).toBeDisabled();
+  });
+
   test("adds a HUB product and shows it in the basket", async ({ page }) => {
     await addHubProduct(page);
 

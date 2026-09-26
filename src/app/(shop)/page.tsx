@@ -234,9 +234,12 @@ export default function Home() {
 
       <div className="max-w-page mx-auto -mt-16 px-4">
         <div className="border-border bg-card rounded-lg border p-4 shadow-sm sm:p-6">
-          <h2 className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
-            Cauta consumabile dupa modelul echipamentului
+          <h2 className="text-lg font-bold tracking-tight">
+            Cauta consumabile
           </h2>
+          <p className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
+            Dupa modelul echipamentului
+          </p>
           <div className="mt-4">
             <Suspense fallback={<FinderSkeleton />}>
               <Finder />

@@ -34,10 +34,12 @@ async function checkoutFormFields(page: import("@playwright/test").Page) {
   return page.evaluate(() => {
     const form = document.querySelector("form");
     if (!form) throw new Error("no checkout form found");
+    // FormData, not a walk over `form.elements`: it applies the browser's own
+    // submission rules, so of the two customerType radios only the checked
+    // one is sent. The walk sent whichever came last, i.e. a company order.
     const fields: Record<string, string> = {};
-    for (const element of Array.from(form.elements)) {
-      const input = element as HTMLInputElement;
-      if (input.name) fields[input.name] = input.value ?? "";
+    for (const [name, value] of new FormData(form)) {
+      if (typeof value === "string") fields[name] = value;
     }
     return fields;
   });
@@ -58,10 +60,11 @@ test.describe("cross-origin mutation attempts", () => {
       failOnStatusCode: false,
     });
 
-    // 303 to the confirmation: the action ran and the shop was emailed.
+    // 303 to the confirmation: the action ran, and the shop and the customer
+    // were both emailed.
     expect(response.status()).toBe(303);
     expect(response.headers()["location"]).toContain("/comenzi/");
-    expect(await sentEmails(request)).toHaveLength(1);
+    expect(await sentEmails(request)).toHaveLength(2);
   });
 
   for (const [label, headers] of [

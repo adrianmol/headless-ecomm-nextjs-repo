@@ -3,7 +3,8 @@
  * for the order email. Served by scripts/mock-api.mjs; same caveat — delete
  * once CI can reach the real services.
  *
- * Only what the cart and checkout touch: product by sku or slug, and `live`.
+ * Only what the cart and checkout touch: product by sku or slug (with the
+ * other mock product as its sibling), and `live`.
  * Signatures are not verified; that is covered by src/commerce/hub/client.test.ts.
  */
 
@@ -87,8 +88,11 @@ export function handleHub(req, url, body, json) {
     const product = hubProducts.find((p) =>
       key !== null ? p.sku === key : p.url === slug,
     );
+    // Each product lists the other as a sibling, so a product page renders a
+    // HUB card grid — the only way the e2e suite reaches a card's add-to-cart.
+    const related = hubProducts.filter((p) => p !== product);
     if (!product) json(404, notFoundBody);
-    else json(200, ok({ shop: null, product, related: [], components: [] }));
+    else json(200, ok({ shop: null, product, related, components: [] }));
     return true;
   }
 
