@@ -1,6 +1,7 @@
 "use client";
 
 import { useOptimistic, useRef, useState, useTransition } from "react";
+import { Minus, Plus } from "lucide-react";
 import type { CartFeedback, QuantityAction } from "@/lib/cart-feedback";
 
 const DEBOUNCE_MS = 300;
@@ -51,8 +52,10 @@ export function QuantityStepper({
     // max was supplied, which JSON-serialises to null, which the backend read
     // as quantity 0 — so pressing "+" deleted the line.
     const stepped = target.current + delta;
+    // Floored at 1, not 0: "−" silently deleting a line is the classic
+    // accidental removal. Removing is the explicit "Sterge" button's job.
     const next = Math.max(
-      0,
+      1,
       max === undefined ? stepped : Math.min(max, stepped),
     );
     if (next === target.current) return;
@@ -81,40 +84,45 @@ export function QuantityStepper({
 
   const atMax = max !== undefined && optimistic >= max;
 
+  const buttonClasses =
+    "hover:bg-muted focus-visible:ring-ring flex size-9 items-center justify-center rounded-md disabled:opacity-40 focus-visible:ring-2 focus-visible:outline-none";
+
   return (
     <div>
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          onClick={() => step(-1)}
-          disabled={optimistic <= 0}
-          aria-label="Scade cantitatea"
-          className="border-input hover:bg-accent focus-visible:ring-ring size-8 rounded-md border disabled:opacity-40 focus-visible:ring-2 focus-visible:outline-none"
-        >
-          −
-        </button>
+      <div className="flex items-center gap-2">
+        <div className="border-input inline-flex items-center rounded-lg border p-0.5">
+          <button
+            type="button"
+            onClick={() => step(-1)}
+            disabled={optimistic <= 1}
+            aria-label="Scade cantitatea"
+            className={buttonClasses}
+          >
+            <Minus aria-hidden className="size-4" />
+          </button>
 
-        {/* Announced politely: the value changes without the user moving focus. */}
-        <output
-          aria-live="polite"
-          aria-label="Cantitate"
-          className="w-10 text-center text-sm tabular-nums"
-        >
-          {optimistic}
-        </output>
+          {/* Announced politely: the value changes without the user moving focus. */}
+          <output
+            aria-live="polite"
+            aria-label="Cantitate"
+            className="w-9 text-center text-sm font-medium tabular-nums"
+          >
+            {optimistic}
+          </output>
 
-        <button
-          type="button"
-          onClick={() => step(1)}
-          disabled={atMax}
-          aria-label="Creste cantitatea"
-          className="border-input hover:bg-accent focus-visible:ring-ring size-8 rounded-md border disabled:opacity-40 focus-visible:ring-2 focus-visible:outline-none"
-        >
-          +
-        </button>
+          <button
+            type="button"
+            onClick={() => step(1)}
+            disabled={atMax}
+            aria-label="Creste cantitatea"
+            className={buttonClasses}
+          >
+            <Plus aria-hidden className="size-4" />
+          </button>
+        </div>
 
         <span
-          className="text-muted-foreground ml-1 text-xs"
+          className="text-muted-foreground text-xs"
           aria-hidden={!pending}
         >
           {pending ? "Se salveaza…" : ""}

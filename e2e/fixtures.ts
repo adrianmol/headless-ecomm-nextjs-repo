@@ -39,7 +39,7 @@ export async function fillCheckout(
   await page.getByLabel("Adresa").fill("Str. Test 1");
   await page.getByLabel("Oras").fill("Cluj");
   await page.getByLabel("Cod postal").fill("400000");
-  await page.getByLabel("Cod tara").fill("RO");
+  await page.getByLabel("Tara").selectOption("RO");
 }
 
 /** Order emails the mock received since the last reset. */

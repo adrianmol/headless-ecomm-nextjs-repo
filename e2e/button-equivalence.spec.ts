@@ -82,27 +82,27 @@ async function settledRing(locator: Locator) {
   throw new Error("focus ring never settled");
 }
 
-/** A real `<Button variant="default">`, for comparison. */
+/**
+ * A real `<Button variant="default">`, for comparison: the empty basket's CTA.
+ * The checkout CTAs are `size="xl"`, so the basket must still be empty here.
+ */
 async function defaultButton(page: Page) {
   await page.goto("/cos");
-  const checkout = page.getByRole("link", { name: "Finalizeaza comanda" });
-  await expect(checkout).toBeVisible();
-  return checkout;
+  const browse = page.getByRole("link", { name: "Cauta dupa model" });
+  await expect(browse).toBeVisible();
+  return browse;
 }
 
 test.describe("AddToCart matches a default Button", () => {
   test("resolved size, colour and layout tokens are identical", async ({
     page,
   }) => {
-    // The HUB page, because /cos now shows the session cart it feeds.
     await page.goto(HUB_PRODUCT);
     const add = page.getByRole("button", { name: "Adauga in cos" });
     await expect(add).toBeVisible();
     const addSnap = await snapshot(add);
 
-    await add.click();
-    await expect(page.getByText("Adaugat in cos.")).toBeVisible();
-
+    // Not clicked: the reference button only renders while the basket is empty.
     const buttonSnap = await snapshot(await defaultButton(page));
 
     for (const token of REQUIRED_TOKENS) {
@@ -155,7 +155,6 @@ test.describe("AddToCart matches a default Button", () => {
   test("keyboard focus draws the same ring as a default Button", async ({
     page,
   }) => {
-    // The HUB page, because /cos now shows the session cart it feeds.
     await page.goto(HUB_PRODUCT);
     const add = page.getByRole("button", { name: "Adauga in cos" });
     await expect(add).toBeVisible();
@@ -177,12 +176,8 @@ test.describe("AddToCart matches a default Button", () => {
     // A ring is the whole point; "none" would mean the token is inert.
     expect(addRing).not.toBe("none");
 
-    // Activate from the keyboard too, both to stay in keyboard modality and
-    // because the basket must be non-empty for /cos to render a checkout
-    // button to compare against.
-    await page.keyboard.press("Enter");
-    await expect(page.getByText("Adaugat in cos.")).toBeVisible();
-
+    // Not activated: the reference button only renders while the basket is
+    // empty. Tabbing to it below keeps the comparison in keyboard modality.
     const checkout = await defaultButton(page);
     await page.keyboard.press("Tab");
     for (
