@@ -99,10 +99,14 @@ export function AddToCart({
           // `tailwind-merge` and `clsx`, and this is a client leaf on the PDP —
           // importing it here would put tailwind-merge back into the PDP bundle
           // and undo part of the 10.4 kB this component was rewritten to save.
-          // Safe as concatenation because `w-full` conflicts with nothing in
-          // `defaultButtonClasses`; if a `w-*` is ever added there, fix it there
-          // rather than reaching for a merger.
-          className={`${defaultButtonClasses} w-full`}
+          // Safe as concatenation because `grow` conflicts with nothing in
+          // `defaultButtonClasses`; if a `grow-*` is ever added there, fix it
+          // there rather than reaching for a merger.
+          //
+          // `grow`, not `w-full`: the base classes carry `shrink-0`, so a full
+          // width button beside the quantity field overflowed the row by the
+          // field's width.
+          className={`${defaultButtonClasses} grow`}
           // Keeps the label from changing width mid-interaction, which would
           // shift the layout underneath the cursor.
           aria-busy={pending}
