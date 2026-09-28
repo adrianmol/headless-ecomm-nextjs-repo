@@ -1,6 +1,5 @@
 import Image from "next/image";
 import { Package } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 /**
  * Square product image for basket and order lines.
@@ -20,10 +19,12 @@ export function LineThumbnail({
   const px = size === "md" ? 80 : 56;
   return (
     <div
-      className={cn(
-        "bg-muted border-border flex shrink-0 items-center justify-center overflow-hidden rounded-md border",
-        size === "md" ? "size-20" : "size-14",
-      )}
+      // Concatenated, not `cn`: the cart toast is a client leaf on every shop
+      // page and renders this, so `cn` here ships tailwind-merge (8.6 kB) to
+      // all of them. Safe because the two sizes are alternatives, never both.
+      className={`bg-muted border-border flex shrink-0 items-center justify-center overflow-hidden rounded-md border ${
+        size === "md" ? "size-20" : "size-14"
+      }`}
     >
       {imageUrl ? (
         <Image
