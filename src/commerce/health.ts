@@ -1,3 +1,5 @@
+import { isHubStorefront } from "@/lib/env";
+import { hubPing } from "./hub/queries";
 import "server-only";
 import { publicCommerceClient } from "./client";
 
@@ -41,6 +43,10 @@ export async function probeCommerceApi(
   const startedAt = Date.now();
 
   try {
+    if (isHubStorefront()) {
+      await hubPing();
+      return { reachable: true, latencyMs: Date.now() - startedAt };
+    }
     const { response } = await publicCommerceClient().GET("/products", {
       params: { query: { limit: 1 } },
       signal: AbortSignal.timeout(timeoutMs),

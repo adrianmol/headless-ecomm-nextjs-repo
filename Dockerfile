@@ -43,15 +43,18 @@ COPY . .
 # COMMERCE_API_URL is a hostname, not a credential, but it does persist in this
 # stage's image history, which is why it stays out of the runtime stage. The
 # runtime value always comes from --env-file at `docker run`.
+ARG STOREFRONT_BACKEND=commerce
+ENV STOREFRONT_BACKEND=${STOREFRONT_BACKEND}
 ARG BUILD_SCRIPT=build
 ARG COMMERCE_API_URL
 ENV COMMERCE_API_URL=${COMMERCE_API_URL}
-RUN if [ "$BUILD_SCRIPT" = "build" ] && [ -z "$COMMERCE_API_URL" ]; then \
+RUN if [ "$STOREFRONT_BACKEND" != "hub" ] && [ "$BUILD_SCRIPT" = "build" ] && [ -z "$COMMERCE_API_URL" ]; then \
       echo "FATAL: --build-arg COMMERCE_API_URL is required for a production build" >&2; \
       exit 1; \
     fi
 
-RUN pnpm "$BUILD_SCRIPT"
+RUN --mount=type=secret,id=app_env \
+    if [ -f /run/secrets/app_env ]; then set -a; . /run/secrets/app_env; set +a; fi; pnpm "$BUILD_SCRIPT"
 
 
 # ---- runtime ----------------------------------------------------------------

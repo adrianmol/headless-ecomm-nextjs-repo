@@ -23,6 +23,18 @@ export const metadata: Metadata = {
 };
 
 async function CheckoutSummary() {
+  if (
+    !process.env.RESEND_API_KEY ||
+    !process.env.ORDER_EMAIL_FROM ||
+    !process.env.ORDER_EMAIL_TO
+  ) {
+    return (
+      <p className="py-12 text-center">
+        Comenzile online nu sunt disponibile momentan. Poti continua sa consulti
+        catalogul.
+      </p>
+    );
+  }
   const stored = await readCartLines();
   const [cart, catalog] = await Promise.all([
     priceCart(stored),

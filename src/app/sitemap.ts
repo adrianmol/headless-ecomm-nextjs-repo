@@ -7,7 +7,7 @@ import {
 } from "@/commerce/catalog/queries";
 import { getHubCategories } from "@/commerce/hub/queries";
 import { CATEGORIES } from "@/lib/catalog-taxonomy";
-import { serverEnv } from "@/lib/env";
+import { isHubStorefront, serverEnv } from "@/lib/env";
 import { hubCategorySlug } from "@/lib/hub-slug";
 
 /**
@@ -137,6 +137,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const url = (path: string) => new URL(path, origin).toString();
 
+  // HUB alone: the provisional routes all redirect (next.config.ts), so
+  // listing them would publish a sitemap of redirects.
+  if (isHubStorefront()) {
+    return [
+      { url: url("/"), changeFrequency: "daily", priority: 1 },
+      { url: url("/modele"), changeFrequency: "daily", priority: 0.9 },
+      ...(await hubCollectionPaths()).slice(0, MAX_URLS - 2).map((path) => ({
+        url: url(path),
+        changeFrequency: "daily" as const,
+        priority: 0.8,
+      })),
+    ];
+  }
   const staticEntries: MetadataRoute.Sitemap = [
     { url: url("/"), changeFrequency: "daily", priority: 1 },
     { url: url("/produse"), changeFrequency: "daily", priority: 0.9 },

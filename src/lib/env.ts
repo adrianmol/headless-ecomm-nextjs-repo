@@ -12,7 +12,7 @@ import { z } from "zod";
  * crash a build in an environment where the variable is legitimately absent.
  */
 const envSchema = z.object({
-  COMMERCE_API_URL: z.url(),
+  COMMERCE_API_URL: z.url().optional(),
   STOREFRONT_URL: z.preprocess(
     (val) => (val === "" ? undefined : val),
     z.url().optional(),
@@ -181,4 +181,8 @@ export function revalidateSecret(): RevalidateSecret {
     return { state: "too_short", length: raw.length };
   }
   return { state: "ok", secret: raw };
+}
+
+export function isHubStorefront(): boolean {
+  return process.env.STOREFRONT_BACKEND === "hub";
 }

@@ -1,3 +1,4 @@
+import { isHubStorefront } from "@/lib/env";
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import { publicCommerceClient } from "../client";
@@ -52,6 +53,7 @@ export async function getProduct(slug: string): Promise<Product | null> {
   cacheLife("days");
   cacheTag(productTag(slug));
 
+  if (isHubStorefront()) return null;
   const { data, error, response } = await publicCommerceClient().GET(
     "/products/{slug}",
     { params: { path: { slug } } },
@@ -83,6 +85,7 @@ export async function listProducts(params?: CatalogFilter) {
   cacheLife("hours");
   cacheTag(productListTag);
 
+  if (isHubStorefront()) return { items: [], nextCursor: null, facets: [] };
   const query: Record<string, string | number | boolean> = {};
   if (params?.category) query.category = params.category;
   if (params?.cursor) query.cursor = params.cursor;
@@ -119,6 +122,7 @@ export async function listPrinterBrands(): Promise<PrinterBrand[]> {
   cacheLife("days");
   cacheTag(compatTag);
 
+  if (isHubStorefront()) return [];
   const { data, error, response } =
     await publicCommerceClient().GET("/compat/brands");
 
@@ -142,6 +146,7 @@ export async function listPrinterModels(
   cacheLife("days");
   cacheTag(compatTag);
 
+  if (isHubStorefront()) return [];
   const { data, error, response } = await publicCommerceClient().GET(
     "/compat/brands/{brand}/models",
     { params: { path: { brand } } },

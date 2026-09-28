@@ -73,6 +73,29 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    if (process.env.STOREFRONT_BACKEND !== "hub") return [];
+    return [
+      {
+        source: "/produse/:slug",
+        destination: "/produse-hub/:slug",
+        permanent: false,
+      },
+      ...["/produse", "/categorii/:slug", "/compatibil/:path*"].map(
+        (source) => ({ source, destination: "/modele", permanent: false }),
+      ),
+      {
+        source: "/finalizare-comanda/confirming",
+        destination: "/cos",
+        permanent: false,
+      },
+      {
+        source: "/finalizare-comanda/return",
+        destination: "/cos",
+        permanent: false,
+      },
+    ];
+  },
   // Applied to every response, including static assets and Route Handlers.
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

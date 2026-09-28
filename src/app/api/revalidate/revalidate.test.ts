@@ -185,6 +185,6 @@ describe("POST /api/revalidate", () => {
     const response = await post({ slugs: [] }, GOOD_SECRET);
 
     expect(response.status).toBe(200);
-    expect(revalidatedTags).toEqual(["product-list"]);
+    expect(revalidatedTags).toEqual(["product-list", "hub-catalog"]);
   });
 });

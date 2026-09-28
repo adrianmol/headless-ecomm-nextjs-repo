@@ -5,7 +5,7 @@ import { listPrinterBrands } from "@/commerce/catalog/queries";
 import { CodeSearch } from "@/components/commerce/code-search";
 import { PrinterFinder } from "@/components/commerce/printer-finder";
 import { JsonLd } from "@/components/json-ld";
-import { storefrontOrigin } from "@/lib/env";
+import { isHubStorefront, storefrontOrigin } from "@/lib/env";
 import { HubFeaturedBand } from "./(catalog)/_hub/hub-featured";
 import { HubProductGridSkeleton } from "./(catalog)/_hub/hub-product-grid";
 import { Reveal } from "@/components/reveal";
@@ -75,6 +75,12 @@ async function safeBrands(): Promise<ReadonlyArray<{
 }
 
 async function Finder() {
+  if (isHubStorefront())
+    return (
+      <Link href="/modele" className="underline">
+        Alege echipamentul si vezi consumabilele compatibile
+      </Link>
+    );
   const brands = await safeBrands();
 
   /*
@@ -118,6 +124,7 @@ function FinderSkeleton() {
  * section, and this band is entirely optional.
  */
 async function BrandLinks() {
+  if (isHubStorefront()) return null;
   const brands = await safeBrands();
   if (brands === null) return null;
 

@@ -126,6 +126,9 @@ export async function POST(request: Request) {
     revalidateTag(productTag(slug), "max");
   }
   revalidateTag(productListTag, "max");
+  // What production has done since the HUB-only build: a call without a `hub`
+  // object is how the HUB catalogue was flushed before that object existed.
+  revalidateTag(hubCatalogTag, "max");
 
   return Response.json({
     revalidated: slugs.length,

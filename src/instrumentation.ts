@@ -1,3 +1,4 @@
+import { isHubStorefront, hubConfig } from "@/lib/env";
 import { registerOTel } from "@vercel/otel";
 
 /**
@@ -91,13 +92,17 @@ function warnIfCommerceUrlPointsAtHub() {
 }
 
 function assertProductionConfig() {
-  warnIfCommerceUrlPointsAtHub();
+  if (!isHubStorefront()) warnIfCommerceUrlPointsAtHub();
 
   if (process.env.NODE_ENV !== "production") return;
 
-  const missing = ["COMMERCE_API_URL", "STOREFRONT_URL"].filter(
-    (name) => !process.env[name],
-  );
+  if (isHubStorefront() && hubConfig().state !== "configured") {
+    throw new Error("HUB configuration is missing or invalid");
+  }
+  const required = isHubStorefront()
+    ? ["STOREFRONT_URL"]
+    : ["COMMERCE_API_URL", "STOREFRONT_URL"];
+  const missing = required.filter((name) => !process.env[name]);
 
   if (missing.length > 0) {
     // Names only. These are configuration keys, not their values.
