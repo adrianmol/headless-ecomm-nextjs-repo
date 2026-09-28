@@ -157,13 +157,15 @@ export function toOffer(raw: z.infer<typeof hubPriceSchema>): HubOffer {
 
 /**
  * Observed live: `stoc`, `limitat`, `furnizor`, `nostoc`. The contract also
- * documents `soon`. Anything unrecognised degrades to `unknown` rather than
+ * documents `soon` and `sfurnizor` — goods held by the supplier, the plan's
+ * 24–96h delivery group. Anything unrecognised degrades to `unknown` rather than
  * failing the parse — a new state added upstream is explicitly allowed by the
  * contract, and must not take a product page down.
  */
 export const HUB_STOCK_STATES = [
   "stoc",
   "limitat",
+  "sfurnizor",
   "furnizor",
   "nostoc",
   "soon",

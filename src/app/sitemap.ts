@@ -5,8 +5,10 @@ import {
   listPrinterModels,
   listProducts,
 } from "@/commerce/catalog/queries";
+import { getHubCategories } from "@/commerce/hub/queries";
 import { CATEGORIES } from "@/lib/catalog-taxonomy";
 import { serverEnv } from "@/lib/env";
+import { hubCategorySlug } from "@/lib/hub-slug";
 
 /**
  * sitemap.xml.
@@ -63,6 +65,36 @@ async function allProductSlugs(): Promise<string[]> {
   return slugs;
 }
 
+/**
+ * The HUB collections: every printer and cartridge family that holds products.
+ * The plan names exactly these as indexable (stage 3.2).
+ *
+ * **HUB products are not listed**, and cannot be: they are reachable only
+ * through a category, so there is nothing to enumerate them with
+ * (docs/hub-api-gaps.md §2). They are still found by crawling these pages.
+ *
+ * Empty rather than failing when HUB cannot be read — a sitemap missing a
+ * section is a smaller fault than no sitemap.
+ */
+async function hubCollectionPaths(): Promise<string[]> {
+  try {
+    const categories = await getHubCategories({ withCounts: true });
+    return (
+      categories
+        // A real count, not a truthy one: absent means "not counted".
+        .filter(
+          (c) =>
+            c.kind !== "brand" &&
+            typeof c.productCount === "number" &&
+            c.productCount > 0,
+        )
+        .map((c) => `/categorii-hub/${hubCategorySlug(c)}`)
+    );
+  } catch {
+    return [];
+  }
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   /*
     Rendered at request time, and this is not a preference.
@@ -109,6 +141,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: url("/"), changeFrequency: "daily", priority: 1 },
     { url: url("/produse"), changeFrequency: "daily", priority: 0.9 },
     { url: url("/compatibil"), changeFrequency: "weekly", priority: 0.8 },
+    { url: url("/modele"), changeFrequency: "weekly", priority: 0.8 },
     { url: url("/info/seap"), changeFrequency: "yearly", priority: 0.3 },
   ];
 
@@ -145,6 +178,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }),
   );
 
+  const hubEntries: MetadataRoute.Sitemap = (await hubCollectionPaths()).map(
+    (path) => ({ url: url(path), changeFrequency: "weekly", priority: 0.6 }),
+  );
+
   /*
     No `lastModified` anywhere. The catalog contract exposes no per-resource
     modification timestamp, and the alternatives are worse than omitting it: a
@@ -159,5 +196,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...brandEntries,
     ...modelEntries,
     ...productEntries,
+    // Last, so that if the cap ever binds it is the longest tail that is cut.
+    ...hubEntries,
   ].slice(0, MAX_URLS);
 }

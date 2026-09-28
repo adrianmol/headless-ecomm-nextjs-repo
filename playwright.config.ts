@@ -66,6 +66,8 @@ export default defineConfig({
       // Short enough to keep tests quick, long enough that returning
       // immediately still lands on the pending path.
       MOCK_PENDING_MS: "2500",
+      // Written the way an owner would type it; the app reduces it to digits.
+      WHATSAPP_NUMBER: "+40 700 000 000",
     },
   },
 });

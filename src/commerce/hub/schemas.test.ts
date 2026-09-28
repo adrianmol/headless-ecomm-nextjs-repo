@@ -129,7 +129,7 @@ describe("money conversion", () => {
 });
 
 describe("stock mapping", () => {
-  it.each(["stoc", "limitat", "furnizor", "nostoc", "soon"])(
+  it.each(["stoc", "limitat", "sfurnizor", "furnizor", "nostoc", "soon"])(
     "passes through the known state %s",
     (state) => {
       const stock = toStock(

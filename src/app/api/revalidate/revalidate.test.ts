@@ -158,6 +158,28 @@ describe("POST /api/revalidate", () => {
     );
   });
 
+  it("revalidates HUB products by sku, and leaves the other catalogue alone", async () => {
+    const response = await post({
+      hub: { products: ["CN-PGI29C", 42, ""], categories: [25968, -1, "x"] },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      hub: { products: 1, categories: 1, all: false },
+    });
+    // The real tag strings, for the reason given above: a mismatch with the
+    // read path means a price change that never reaches the page.
+    expect(revalidatedTags).toEqual([
+      "hub-product:CN-PGI29C",
+      "hub-category:25968",
+    ]);
+  });
+
+  it("flushes everything from HUB only when asked to", async () => {
+    await post({ hub: { all: true } });
+    expect(revalidatedTags).toEqual(["hub-catalog"]);
+  });
+
   it("still revalidates the listing when no slugs are supplied", async () => {
     // A publish that only reorders the catalog has no slug to name.
     const response = await post({ slugs: [] }, GOOD_SECRET);

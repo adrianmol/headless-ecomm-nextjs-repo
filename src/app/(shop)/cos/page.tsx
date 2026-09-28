@@ -23,6 +23,9 @@ import { CheckoutSteps } from "@/components/commerce/checkout-steps";
 import { LineThumbnail } from "@/components/commerce/line-thumbnail";
 import { QuantityStepper } from "@/components/commerce/quantity-stepper";
 import { RemoveLineButton } from "@/components/commerce/remove-line-button";
+import { WhatsAppLink } from "@/components/commerce/whatsapp-link";
+import { whatsappNumber } from "@/lib/env";
+import { cartQuestion, whatsappHref } from "@/lib/whatsapp";
 import { LOW_STOCK_THRESHOLD } from "@/components/commerce/stock-badge";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/money";
@@ -97,6 +100,7 @@ async function CartContents() {
     lineCatalog(stored.map((line) => line.sku)),
   ]);
   const itemCount = cart.lines.reduce((sum, line) => sum + line.quantity, 0);
+  const whatsapp = whatsappNumber();
 
   return (
     // Bottom padding clears the fixed mobile checkout bar. `group/cart` lets
@@ -289,6 +293,19 @@ async function CartContents() {
           <p className="text-muted-foreground mt-4 text-sm">
             Niciun produs din cos nu poate fi comandat acum.
           </p>
+        )}
+
+        {/*
+          Once in the cart, as the plan specifies, and outside the branch above:
+          a cart nothing can be ordered from is when a question is likeliest.
+          Every line is named, orderable or not, so whoever answers sees the
+          same cart.
+        */}
+        {whatsapp && (
+          <WhatsAppLink
+            className="mt-4"
+            href={whatsappHref(whatsapp, cartQuestion(stored))}
+          />
         )}
       </aside>
 

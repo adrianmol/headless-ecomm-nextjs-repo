@@ -1,0 +1,1205 @@
+openapi: 3.1.0
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Contractul API-urilor HUB. Se vede la /admin/settings/api-docs (Swagger UI).
+#
+# ⚠️ Fisierul asta e DOCUMENTATIE, nu sursa de adevar: nu genereaza cod si nu e
+# verificat automat. Cand se schimba un handler, se schimba si aici — altfel o
+# documentatie invechita te face sa cauti vina in codul tau.
+#
+# Doua API-uri, cu rosturi diferite:
+#   hub-api/v1  — catalogul, pentru vitrine proprii. Cheie + semnatura HMAC.
+#   /api/...    — integrarea cu PrestaShop si plati. Secret per magazin.
+# ─────────────────────────────────────────────────────────────────────────────
+
+info:
+  title: HUB Orders — API
+  version: "1.0.0"
+  description: |
+    API-urile expuse de HUB Orders.
+
+    **Catalog (`hub-api/v1`)** — pentru vitrine proprii (site-uri, aplicatii). Fiecare cerere
+    e semnata cu o cheie si un secret, iar cheia hotaraste ce magazin vede clientul si ce are
+    voie sa faca.
+
+    **Integrare (`/api/...`)** — rutele prin care PrestaShop trimite comenzile in HUB si cere
+    inapoi facturi, AWB-uri si linkuri de plata.
+
+    Cheile se fac in **Chei API** (`/admin/settings/api-keys`). Secretul se arata o singura
+    data: nu se poate recupera, doar rotit.
+
+servers:
+  - url: https://hub.reprint.ro
+    description: Productie
+
+tags:
+  - name: Catalog
+    description: |
+      `hub-api/v1` — catalogul vazut de o vitrina proprie.
+
+      Doua adrese duc la acelasi router, intentionat:
+      `/hub-api/v1/{cale}` (prin rescriere) si `/hub-api/http/index.php/v1/{cale}` (fisier real,
+      pentru cand rescrierea nu merge pe server).
+
+      ⚠️ **Semnatura acopera calea exact asa cum a fost scrisa**, deci o semnatura facuta pentru
+      o forma NU e valabila pentru cealalta.
+  - name: Integrare PrestaShop
+    description: |
+      Rutele prin care magazinul trimite comenzile in HUB si cere inapoi facturi, AWB-uri si
+      linkuri de plata. Autentificare cu `X-Api-Secret`.
+
+      ⚠️ **Codurile HTTP nu deosebesc succesul de eroare.** Handlerele cer 401, 404, 422 sau
+      201, dar `Response::json()` scrie codul implicit peste ele, iar clientul primeste **200**
+      aproape intotdeauna. Deci **reusita se citeste din corp**, nu din codul HTTP: `ok: false`
+      inseamna eroare, `ok: true` inseamna reusita, iar la linkul de plata se citeste `status`.
+
+      Sub fiecare ruta e trecut codul pe care il cere handlerul, ca sa se vada ce s-a vrut; ce
+      ajunge la client azi e 200.
+  - name: Public
+    description: |
+      Rute fara autentificare, pentru clientul final: pagina de urmarire a expedierii, PDF-urile
+      si imaginile. Niciuna nu intoarce JSON.
+
+security:
+  - ApiKey: []
+    Timestamp: []
+    Signature: []
+
+paths:
+
+  # ── Catalog ────────────────────────────────────────────────────────────────
+
+  /hub-api/v1/ping:
+    get:
+      tags: [Catalog]
+      summary: Proba lantului
+      description: |
+        Verifica, dintr-o singura cerere, tot lantul: cheie, semnatura, limita de rata si baza
+        de date. Face intentionat o interogare in baza — un „pong" care nu atinge baza ar spune
+        doar ca serverul web traieste.
+      responses:
+        "200":
+          description: Lantul e intreg
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Plic"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          pong:    { type: boolean, const: true }
+                          time:    { type: string, format: date-time, description: "Ora UTC, ISO-8601" }
+                          shop_id: { type: integer, description: "Magazinul cheii. 0 = tot catalogul" }
+                          scope:   { type: string, enum: [read, order, local] }
+                          mode:    { type: string, enum: [http, local] }
+              example:
+                ok: true
+                data: { pong: true, time: "2026-09-26T08:14:02+00:00", shop_id: 3, scope: read, mode: http }
+        "401": { $ref: "#/components/responses/Neautorizat" }
+        "403": { $ref: "#/components/responses/Interzis" }
+        "429": { $ref: "#/components/responses/PreaMulte" }
+        "500":
+          description: Baza de date nu raspunde
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Eroare" }
+
+  /hub-api/v1/live:
+    get:
+      tags: [Catalog]
+      summary: Pret si stoc proaspete
+      description: |
+        Raspuns minim, pentru pagini tinute in cache de vitrina: pagina se serveste din cache,
+        iar cifrele se improspateaza de aici.
+
+        Se cere cel putin unul dintre `ids` si `skus`, iar impreuna nu pot depasi **200** de
+        produse intr-o cerere.
+      parameters:
+        - name: ids
+          in: query
+          description: "Id-uri HUB, despartite prin virgula. Se accepta si forma `ids[]=`."
+          schema: { type: string }
+          example: "18296,18294"
+        - name: skus
+          in: query
+          description: "SKU-uri, despartite prin virgula. Comparate fara diferenta de litera mare/mica."
+          schema: { type: string }
+          example: "CN-PGI29C,REP-LMS312"
+      responses:
+        "200":
+          description: Cifrele cerute
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Plic"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          shop: { $ref: "#/components/schemas/CodMagazin" }
+                          products:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id:    { type: integer }
+                                sku:   { type: string }
+                                price: { $ref: "#/components/schemas/Pret" }
+                                stock: { $ref: "#/components/schemas/Stoc" }
+                          missing:
+                            type: array
+                            description: |
+                              Ce s-a cerut si nu s-a gasit, exact cum a fost trimis. Un produs
+                              lipseste si cand exista, dar nu e publicat pentru magazinul cheii,
+                              e EOL, inactiv sau ciorna.
+                            items: { type: string }
+        "400":
+          description: "Lipsesc `ids` si `skus`, sau s-au cerut peste 200 de produse"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Eroare" }
+        "401": { $ref: "#/components/responses/Neautorizat" }
+        "403": { $ref: "#/components/responses/Interzis" }
+        "429": { $ref: "#/components/responses/PreaMulte" }
+        "500": { $ref: "#/components/responses/EroareServer" }
+
+  /hub-api/v1/category:
+    get:
+      tags: [Catalog]
+      summary: Arborele de categorii
+      description: |
+        Toate categoriile, **plat** — arborele il compune clientul din campul `parent`.
+
+        Fara produse, deliberat: primul apel ar cara tot catalogul.
+      parameters:
+        - name: count
+          in: query
+          description: |
+            `1` adauga pe fiecare categorie numarul de produse vizibile. Se compara STRICT cu
+            sirul `1`: `true` sau `1.0` nu activeaza nimic.
+          schema: { type: string, enum: ["1"] }
+      responses:
+        "200":
+          description: Categoriile
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Plic"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          shop: { $ref: "#/components/schemas/CodMagazin" }
+                          categories:
+                            type: array
+                            items: { $ref: "#/components/schemas/Categorie" }
+        "401": { $ref: "#/components/responses/Neautorizat" }
+        "429": { $ref: "#/components/responses/PreaMulte" }
+        "500": { $ref: "#/components/responses/EroareServer" }
+
+  /hub-api/v1/category/{id}:
+    get:
+      tags: [Catalog]
+      summary: O categorie, cu produsele ei
+      description: |
+        `id` e id-ul de categorie din PrestaShop. Un `id` lipsa sau `0` intoarce arborele intreg,
+        ca la `/v1/category`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 13
+        - name: page
+          in: query
+          schema: { type: integer, default: 1, minimum: 1 }
+        - name: per_page
+          in: query
+          description: "Se aseaza singur intre 1 si 100."
+          schema: { type: integer, default: 24, minimum: 1, maximum: 100 }
+        - name: sort
+          in: query
+          description: |
+            Lista inchisa; orice alta valoare cade pe `name`, deci nimic din afara nu ajunge in
+            interogare. `price` pune produsele fara pret la coada.
+          schema: { type: string, enum: [name, price, price_desc, new], default: name }
+        - name: deep
+          in: query
+          description: "`1` include si produsele din subcategorii, pana la 8 niveluri."
+          schema: { type: string, enum: ["1"] }
+      responses:
+        "200":
+          description: Categoria, copiii directi si o pagina de produse
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Plic"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          shop:     { $ref: "#/components/schemas/CodMagazin" }
+                          category: { $ref: "#/components/schemas/Categorie" }
+                          children:
+                            type: array
+                            description: "Copiii DIRECTI, fara numar de produse."
+                            items: { $ref: "#/components/schemas/Categorie" }
+                          products:
+                            type: array
+                            items: { $ref: "#/components/schemas/ProdusScurt" }
+                          pagination: { $ref: "#/components/schemas/Paginare" }
+        "401": { $ref: "#/components/responses/Neautorizat" }
+        "404":
+          description: Categoria nu exista
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Eroare" }
+        "429": { $ref: "#/components/responses/PreaMulte" }
+        "500": { $ref: "#/components/responses/EroareServer" }
+
+  /hub-api/v1/product/{id}:
+    get:
+      tags: [Catalog]
+      summary: Fisa produsului
+      description: |
+        Produsul se poate cere in trei feluri, toate prin aceeasi ruta:
+
+        - `id` **numeric** in cale → dupa id-ul HUB;
+        - `id` **nenumeric** in cale → dupa SKU;
+        - parametrul `url` → dupa slug, si **are intaietate** fata de calea din adresa.
+
+        Un produs care exista, dar nu e publicat pentru magazinul cheii, raspunde tot `404` —
+        acelasi raspuns ca pentru unul inexistent, deliberat: altfel raspunsul ar spune ce are
+        concurenta in catalog.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: "Id HUB (numeric) sau SKU (orice altceva)."
+          schema: { type: string }
+          example: "CN-PGI29C"
+        - name: url
+          in: query
+          description: "Slugul produsului. Cand e trimis, calea din adresa se ignora."
+          schema: { type: string }
+        - name: components
+          in: query
+          description: |
+            Componentele unui pachet vin **implicit**. `0` le opreste; orice alta valoare le lasa.
+            Se intorc doar pentru produsele de tip pachet.
+          schema: { type: string, enum: ["0"] }
+        - name: related
+          in: query
+          description: |
+            `1` adauga celelalte variante ale aceluiasi cod de oferta — adica acelasi consumabil
+            de la alti producatori. Maxim 20, ordonate dupa pret.
+          schema: { type: string, enum: ["1"] }
+      responses:
+        "200":
+          description: Produsul
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Plic"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          shop:    { $ref: "#/components/schemas/CodMagazin" }
+                          product: { $ref: "#/components/schemas/ProdusComplet" }
+                          components:
+                            type: array
+                            description: "Doar la pachete. Fiecare component are in plus `qty`."
+                            items:
+                              allOf:
+                                - $ref: "#/components/schemas/ProdusScurt"
+                                - type: object
+                                  properties:
+                                    qty: { type: integer, minimum: 1 }
+                          related:
+                            type: array
+                            description: "Doar cand s-a cerut `related=1`."
+                            items: { $ref: "#/components/schemas/ProdusScurt" }
+        "400":
+          description: "Nu s-a trimis niciun identificator"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Eroare" }
+        "401": { $ref: "#/components/responses/Neautorizat" }
+        "404":
+          description: "Produsul nu exista sau nu e publicat pentru magazinul cheii"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Eroare" }
+        "429": { $ref: "#/components/responses/PreaMulte" }
+        "500": { $ref: "#/components/responses/EroareServer" }
+
+  # ── Integrare PrestaShop ───────────────────────────────────────────────────
+
+  /api/prestashop/order:
+    get:
+      tags: [Integrare PrestaShop]
+      summary: Ajutor de proba (nu importa nimic)
+      description: |
+        Deschisa in browser, spune doar cum se cheama corect ruta. Comenzile se trimit prin POST.
+        **Fara autentificare.**
+
+        Alias: `GET /api/prestashop/orders/process`.
+      security: []
+      responses:
+        "200":
+          description: Lamurire
+          content:
+            application/json:
+              example:
+                ok: true
+                note: "Endpoint expects POST. This is a GET helper for testing in browser."
+                push_only: true
+    post:
+      tags: [Integrare PrestaShop]
+      summary: Trimite (sau actualizeaza) o comanda in HUB
+      description: |
+        Magazinul impinge comanda; HUB nu o cere niciodata singur.
+
+        Alias vechi: `POST /api/prestashop/orders/process`.
+
+        **Nu suprascrie o comanda deja lucrata.** Daca in HUB comanda are alt status decat `new`
+        sau a fost modificata local, se intoarce doar `hub_order_id` si nu se schimba nimic —
+        altfel un push de la magazin ar sterge corecturile facute aici (metoda de plata,
+        produsele, clientul).
+
+        Cand `order_payload` lipseste, intreg corpul e citit ca payload de comanda.
+      security:
+        - SecretMagazin: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [shop_code, prestashop_order_id]
+              properties:
+                shop_code:
+                  type: string
+                  description: "Codul magazinului din HUB. Se accepta si `shop.code`."
+                prestashop_order_id: { type: integer }
+                company_id:
+                  type: integer
+                  description: |
+                    Optional. Cand e trimis, comanda primeste societatea, e marcata lucrata si
+                    i se prelucreaza produsele (furnizor, pret de achizitie, profit).
+                order_payload: { $ref: "#/components/schemas/PayloadComanda" }
+            example:
+              shop_code: "REP"
+              prestashop_order_id: 14872
+              order_payload:
+                prestashop_reference: "ABCDEFGHI"
+                payment_method: "Ramburs la curier"
+                is_cod: true
+                total_order: 249.99
+                currency: "RON"
+                delivery_address: { firstname: "Ion", lastname: "Popescu", phone: "07xxxxxxxx", city: "Cluj-Napoca", county: "Cluj", address1: "Str. Exemplu 1", country_iso: "RO" }
+                products: [{ name: "Toner HQ Premium", sku: "KMIUP19-HQ", qty: 1, price: 249.99 }]
+      responses:
+        "200":
+          description: |
+            Comanda a intrat sau a fost actualizata. **Si erorile vin tot cu 200** — vezi nota
+            despre coduri din descrierea etichetei.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      ok:           { type: boolean, const: true }
+                      created:      { type: boolean, description: "`true` la import nou, `false` la actualizare." }
+                      message:      { type: string }
+                      hub_order_id: { type: integer }
+                  - $ref: "#/components/schemas/EroareIntegrare"
+
+  /api/prestashop/order/info:
+    get:
+      tags: [Integrare PrestaShop]
+      summary: Starea comenzii in HUB (AWB si factura)
+      description: "Alimenteaza cardul HUB din administrarea PrestaShop."
+      security:
+        - SecretMagazin: []
+      parameters:
+        - name: shop_code
+          in: query
+          required: true
+          schema: { type: string }
+        - name: prestashop_order_id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: |
+            Cand comanda nu exista inca in HUB, raspunsul are aceeasi forma, dar cu
+            `hub_order_id: null` si fara `hub_order_url`.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:            { type: boolean }
+                  hub_order_id:  { type: [integer, "null"] }
+                  hub_order_url: { type: string }
+                  awb:
+                    type: [object, "null"]
+                    properties:
+                      number:       { type: string }
+                      courier:      { type: string, example: "fan" }
+                      label_url:    { type: string }
+                      tracking_url: { type: string }
+                  invoice:
+                    type: [object, "null"]
+                    properties:
+                      id:        { type: integer }
+                      series:    { type: string }
+                      number:    { type: integer }
+                      label:     { type: string, example: "REP 1234" }
+                      status:    { type: string }
+                      print_url: { type: string }
+
+  /api/prestashop/order/options:
+    get:
+      tags: [Integrare PrestaShop]
+      summary: Societatile si curierii disponibili pentru comanda
+      description: |
+        Umple listele din cardul HUB al magazinului. `prestashop_order_id` e optional: fara el se
+        intorc doar valorile implicite ale magazinului.
+      security:
+        - SecretMagazin: []
+      parameters:
+        - name: shop_code
+          in: query
+          required: true
+          schema: { type: string }
+        - name: prestashop_order_id
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        "200":
+          description: Optiunile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  shop:
+                    type: object
+                    properties:
+                      id:   { type: integer }
+                      code: { type: string }
+                      name: { type: string }
+                  hub_order_exists: { type: boolean }
+                  hub_order_id:     { type: [integer, "null"] }
+                  companies:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:            { type: integer }
+                        code:          { type: string }
+                        name:          { type: string }
+                        cui:           { type: string }
+                        is_vat_payer:  { type: integer }
+                        is_default:    { type: integer }
+                        active:        { type: integer }
+                  couriers_by_company:
+                    type: object
+                    description: "Cheia e id-ul societatii, ca sir."
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          company_id:         { type: integer }
+                          profile_id:         { type: integer }
+                          pickup_point_id:    { type: integer }
+                          courier_code:       { type: string }
+                          type_code:          { type: string }
+                          label:              { type: string }
+                          name:               { type: string }
+                          pickup_name:        { type: string }
+                          pickup_external_id: { type: string }
+                  defaults:
+                    type: object
+                    properties:
+                      company_id:         { type: integer }
+                      courier_profile_id: { type: integer }
+                      parcels:            { type: integer }
+                  existing_awb:
+                    type: [object, "null"]
+                    properties:
+                      shipment_id:  { type: integer }
+                      awb:          { type: string }
+                      courier:      { type: string }
+                      label_url:    { type: string }
+                      tracking_url: { type: string }
+
+  /api/prestashop/order/generate-awb:
+    post:
+      tags: [Integrare PrestaShop]
+      summary: Emite AWB pentru comanda
+      description: |
+        Importa intai comanda (acelasi corp ca la trimiterea comenzii), apoi cere AWB la curier.
+
+        **Are efect in afara:** se emite un AWB real la FAN sau Cargus. Daca in HUB exista deja
+        un AWB activ, nu se emite altul — se intorc datele celui existent, fara `cost`.
+
+        Greutatea: din `total_weight`, altfel suma greutatilor produselor; pe colet, cel putin
+        0,1 kg. Ramburs: valoarea curenta a comenzii din HUB, nu cea trimisa in corp.
+      security:
+        - SecretMagazin: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [shop_code, company_id, courier_profile_id, prestashop_order_id]
+              properties:
+                shop_code:           { type: string }
+                prestashop_order_id: { type: integer }
+                company_id:
+                  type: integer
+                  description: "Trebuie sa fie o societate activa a magazinului."
+                courier_profile_id:
+                  type: integer
+                  description: "Trebuie sa aiba regula activa pentru perechea magazin-societate."
+                parcels:      { type: integer, default: 1, minimum: 1 }
+                order_payload: { $ref: "#/components/schemas/PayloadComanda" }
+      responses:
+        "200":
+          description: AWB emis sau deja existent
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      ok:           { type: boolean, const: true }
+                      message:      { type: string }
+                      hub_order_id: { type: integer }
+                      tracking_id:  { type: integer }
+                      awb:          { type: string }
+                      courier:      { type: string, enum: [fan, cargus] }
+                      tracking_url: { type: string }
+                      label_url:    { type: string }
+                      cost:
+                        type: number
+                        description: "Lipseste cand AWB-ul exista deja."
+                  - $ref: "#/components/schemas/EroareIntegrare"
+
+  /api/prestashop/order/delete-awb:
+    post:
+      tags: [Integrare PrestaShop]
+      summary: Sterge AWB-ul
+      description: |
+        Sterge expedierea din HUB **si** incearca stergerea la curier.
+
+        ⚠️ Stergerea din HUB se face intotdeauna, chiar daca la curier esueaza — atunci raspunsul
+        vine cu `courier_error` completat, iar AWB-ul trebuie anulat de mana in aplicatia
+        curierului. Alegerea e deliberata: altfel HUB ar ramane cu o expediere pe care omul o
+        crede stearsa.
+      security:
+        - SecretMagazin: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: "Se trimite fie un id de expediere, fie numarul AWB."
+              properties:
+                shipment_id: { type: integer, description: "Sinonime acceptate: `tracking_id`, `id`." }
+                awb:         { type: string, description: "Folosit cand nu s-a gasit nimic dupa id." }
+      responses:
+        "200":
+          description: Rezultatul stergerii
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      ok:      { type: boolean, const: true }
+                      message: { type: string }
+                      courier_error:
+                        type: [string, "null"]
+                        description: "Ce a raspuns curierul cand stergerea la el a esuat."
+                  - $ref: "#/components/schemas/EroareIntegrare"
+
+  /api/prestashop/order/generate-invoice:
+    post:
+      tags: [Integrare PrestaShop]
+      summary: Emite factura interna HUB
+      description: |
+        Factura cu seria si numerotarea HUB, cu document PDF — **nu** factura Oblio.
+
+        Idempotenta: daca exista deja factura pentru comanda, se intoarce documentul existent, cu
+        mesajul potrivit, fara sa se consume alt numar.
+      security:
+        - SecretMagazin: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hub_order_id]
+              properties:
+                hub_order_id: { type: integer }
+                company_id:
+                  type: integer
+                  description: "Optional. Se scrie pe comanda inainte de emitere."
+      responses:
+        "200":
+          description: Factura
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      ok:          { type: boolean, const: true }
+                      message:     { type: string }
+                      document_id: { type: integer }
+                      print_url:   { type: string }
+                  - $ref: "#/components/schemas/EroareIntegrare"
+
+  /api/prestashop/order/reset:
+    post:
+      tags: [Integrare PrestaShop]
+      summary: Sterge AWB-ul si documentele comenzii din HUB
+      description: |
+        ⚠️ **Distructiv.** Sterge din HUB expedierile, documentele, facturile si liniile lor, si
+        duce comanda inapoi la starea `new`.
+
+        Ce **nu** face: nu anuleaza factura la Oblio si nu sterge AWB-ul din sistemul curierului.
+        Amandoua raman de facut de mana, altfel raman documente valabile in afara.
+      security:
+        - SecretMagazin: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [shop_code, prestashop_order_id]
+              properties:
+                shop_code:           { type: string }
+                prestashop_order_id: { type: integer }
+      responses:
+        "200":
+          description: Ce s-a sters
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      ok:           { type: boolean, const: true }
+                      message:      { type: string }
+                      hub_order_id: { type: [integer, "null"] }
+                      deleted:
+                        type: object
+                        properties:
+                          shipments:         { type: integer }
+                          documents:         { type: integer }
+                          invoices:          { type: integer }
+                          invoice_lines:     { type: integer }
+                          invoice_relations: { type: integer }
+                          efactura_jobs:
+                            type: integer
+                            description: "Mereu 0 — pastrat pentru mai tarziu."
+                  - $ref: "#/components/schemas/EroareIntegrare"
+
+  /api/orders/generate-payment-link:
+    post:
+      tags: [Integrare PrestaShop]
+      summary: Emite factura Oblio si linkul de plata cu cardul
+      description: |
+        Chemata de magazin la confirmarea comenzii, pentru comenzile cu plata prin link.
+
+        Face, in ordine: alege societatea daca lipseste, emite factura in Oblio, cere linkul de
+        plata la Netopia, trece comanda in `link_card_sent` si trimite emailul cu linkul.
+
+        Cu `mode=invoice_only` se opreste dupa factura: fara Netopia, fara schimbare de stare,
+        fara email.
+
+        Raspunsul **nu** are cheia `ok` la succes: el spune `status`. Cand ceva nu se potriveste,
+        `status` e `needs_review` si vine cu un motiv — comanda ramane in HUB, de privit de om.
+
+        Fiecare hotarare se scrie in jurnal, canalul `payment_link_auto`.
+      security:
+        - SecretMagazin: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [shop_code, prestashop_order_id]
+              properties:
+                shop_code:           { type: string, description: "Doar magazine proprii, nu marketplace." }
+                prestashop_order_id: { type: integer, description: "Comanda trebuie sa existe deja in HUB." }
+                mode:
+                  type: string
+                  enum: [full, invoice_only]
+                  default: full
+      responses:
+        "200":
+          description: Rezultatul
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    title: Gata de plata
+                    properties:
+                      status:      { type: string, const: ready }
+                      payment_url: { type: string }
+                      amount:      { type: number }
+                      currency:    { type: string }
+                      ntpID:       { type: string }
+                  - type: object
+                    title: Doar factura
+                    properties:
+                      status:           { type: string, const: ready }
+                      mode:             { type: string, const: invoice_only }
+                      invoice_existed:  { type: boolean }
+                      invoice_id:       { type: [integer, "null"] }
+                      invoice_series:   { type: [string, "null"] }
+                      invoice_number:   { type: [integer, "null"] }
+                      invoice_link:     { type: [string, "null"] }
+                      invoice_total:    { type: [number, "null"] }
+                      invoice_currency: { type: [string, "null"] }
+                  - type: object
+                    title: De privit de om
+                    properties:
+                      status: { type: string, const: needs_review }
+                      reason:
+                        type: string
+                        description: |
+                          Motivul, ca sa se poata trata in cod:
+                          `not_supported_for_shop_type` (magazin marketplace),
+                          `wrong_payment_method`, `invalid_status`, `international` (livrare in
+                          afara Romaniei), `no_company`, `other`, `invoice_failed`,
+                          `netopia_failed`.
+                        enum: [not_supported_for_shop_type, wrong_payment_method, invalid_status, international, no_company, other, invoice_failed, netopia_failed]
+                  - $ref: "#/components/schemas/EroareIntegrare"
+
+  # ── Public ─────────────────────────────────────────────────────────────────
+
+  /tracking:
+    get:
+      tags: [Public]
+      summary: Pagina de urmarire a expedierii
+      description: |
+        Pagina HTML, nu JSON. Linkul se trimite clientului final, deci **nu cere autentificare**.
+        Fara `awb` se afiseaza formularul gol.
+
+        Cand API-ul curierului nu raspunde, pagina se compune din ce are HUB si arata asta, in loc
+        sa se strice.
+      security: []
+      parameters:
+        - name: awb
+          in: query
+          schema: { type: string }
+        - name: t
+          in: query
+          description: "`1` intreaba curierul direct, chiar daca AWB-ul n-a fost emis din HUB."
+          schema: { type: string }
+        - name: c
+          in: query
+          description: "Curierul pentru intrebarea directa. Fara `t` nu are efect."
+          schema: { type: string, enum: [fan, cargus] }
+      responses:
+        "200":
+          description: Pagina
+          content:
+            text/html: {}
+
+  /documents/pdf:
+    get:
+      tags: [Public]
+      summary: PDF-ul unui document
+      description: |
+        ⚠️ **Fara autentificare si fara jeton.** Cine ghiceste un `id` vede documentul. Stiut si
+        notat in auditul de securitate; ramane asa pana la o hotarare despre linkurile trimise
+        clientilor.
+      security: []
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: PDF
+          content:
+            application/pdf: {}
+        "400": { description: "Lipseste `id`", content: { text/plain: {} } }
+        "404": { description: "Document inexistent", content: { text/plain: {} } }
+
+  /media/imagine/{tip}/{nume}:
+    get:
+      tags: [Public]
+      summary: Imagine de produs sau de categorie
+      description: |
+        Jetonul `t` e **optional**: fara el imaginea se serveste oricum. Numele fisierelor sunt
+        SKU-uri, deci adresele sunt oricum ghicibile, iar fisierele de import pierdeau jetonul
+        prin Excel. Un jeton trimis, dar gresit, opreste raspunsul.
+      security: []
+      parameters:
+        - name: tip
+          in: path
+          required: true
+          schema: { type: string, enum: [produs, categorie] }
+        - name: nume
+          in: path
+          required: true
+          description: "Numele fisierului. Se trece prin `basename()`, deci nu poate iesi din folder."
+          schema: { type: string }
+        - name: t
+          in: query
+          description: "Jeton HMAC, primele 32 de caractere."
+          schema: { type: string }
+      responses:
+        "200":
+          description: Imaginea
+          content:
+            image/jpeg: {}
+            image/png: {}
+            image/webp: {}
+        "403": { description: "Jeton gresit", content: { text/plain: {} } }
+        "404": { description: "Tip nevalid sau fisier inexistent", content: { text/plain: {} } }
+
+components:
+
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+      description: |
+        Cheia publica, de forma `hk_` + 32 de caractere hexazecimale.
+
+        Ea hotaraste **ce magazin** vede clientul (catalogul e filtrat) si **ce are voie**:
+        `read` pentru citire, `order` pentru citire plus trimis comenzi. O cheie oprita se
+        comporta ca una inexistenta.
+    Timestamp:
+      type: apiKey
+      in: header
+      name: X-Timestamp
+      description: |
+        Timpul Unix in secunde, numai cifre. Se accepta o diferenta de cel mult **300 de
+        secunde** fata de ceasul serverului; peste atat, cererea e considerata expirata.
+        Verificarea se face INAINTE de calculul semnaturii.
+    SecretMagazin:
+      type: apiKey
+      in: header
+      name: X-Api-Secret
+      description: |
+        Secretul magazinului (`hub_shops.api_secret`), pentru integrarea cu PrestaShop.
+
+        ⚠️ Secretul **nu e legat de `shop_code`-ul trimis in cerere**: orice secret al unui
+        magazin activ deschide orice `shop_code`. Exista si o rezerva veche in `.env`
+        (`HUB_PRESTASHOP_API_SECRET`), folosita cand secretul nu se potriveste niciunui magazin.
+    Signature:
+      type: apiKey
+      in: header
+      name: X-Signature
+      description: |
+        `HMAC-SHA256` peste un sir alcatuit din patru bucati despartite prin `\n` (LF):
+
+        ```
+        METODA \n CALE_CU_QUERY \n CORP_BRUT \n TIMESTAMP
+        ```
+
+        - **METODA** — cu majuscule: `GET`, `POST`
+        - **CALE_CU_QUERY** — adresa exact cum a fost trimisa, cu tot cu `/hub-api/...` si cu
+          query string-ul in ordinea originala. Reconstruita din bucati, ar putea iesi altfel
+          si semnatura n-ar mai corespunde, desi cererea e cinstita.
+        - **CORP_BRUT** — octetii corpului; sir gol la GET
+        - **TIMESTAMP** — acelasi sir trimis in `X-Timestamp`
+
+        Cheia de semnare e **secretul**, nu cheia publica. Rezultatul se trimite hexazecimal,
+        cu litere mici.
+
+        ⚠️ Semnatura nu se poate calcula in browser: secretul n-are ce cauta acolo. De aceea
+        `Try it out` din pagina asta nu poate fi folosit pentru rutele semnate.
+
+  responses:
+    Neautorizat:
+      description: |
+        Cheie lipsa, necunoscuta sau oprita; ori semnatura lipsa, expirata sau nepotrivita.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Eroare" }
+          example:
+            ok: false
+            error: { code: unauthorized, message: "Semnatura nu se potriveste." }
+    Interzis:
+      description: "IP nepermis pentru cheie, sau cheia n-are dreptul cerut de ruta."
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Eroare" }
+    PreaMulte:
+      description: |
+        Depasirea limitei pe minut: 600 de cereri de citire, 30 pentru comenzi.
+        Limita se socoteste pe minutul calendaristic, per cheie.
+      headers:
+        X-RateLimit-Limit:
+          schema: { type: integer }
+          description: "Pragul aplicat."
+        X-RateLimit-Used:
+          schema: { type: integer }
+          description: "Cate cereri s-au inregistrat in minutul curent."
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Eroare" }
+    EroareServer:
+      description: |
+        Ceva a cedat pe server. Mesajul intern nu pleaca niciodata catre client — ar dezvalui
+        nume de tabele — deci raspunsul spune doar atat.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Eroare" }
+
+  schemas:
+
+    Plic:
+      type: object
+      description: |
+        Forma oricarui raspuns. `ok` e mereu prezent, iar din `data` si `error` apare exact unul.
+      required: [ok]
+      properties:
+        ok: { type: boolean }
+
+    Eroare:
+      type: object
+      required: [ok, error]
+      properties:
+        ok: { type: boolean, const: false }
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: |
+                Contract permanent — se poate verifica in cod. `conflict` si `unprocessable`
+                sunt pastrate pentru trimiterea comenzilor si nu apar inca.
+              enum: [bad_request, unauthorized, forbidden, not_found, conflict, unprocessable, rate_limited, server_error]
+            message:
+              type: string
+              description: "Text pentru om, in romana. Nu se verifica in cod — se poate schimba."
+
+    CodMagazin:
+      type: [string, "null"]
+      description: "Codul magazinului cheii, cu majuscule. `null` cand cheia vede tot catalogul."
+      example: "REP"
+
+    Pret:
+      type: object
+      properties:
+        value:
+          type: [number, "null"]
+          description: "Pretul cu TVA, rotunjit la doua zecimale. `null` cand produsul n-are pret."
+        special:
+          type: [number, "null"]
+          description: |
+            Pretul redus, **doar cand e o reducere adevarata** (mai mic decat pretul si mai mare
+            ca zero). Altfel `null` — o „promotie" care nu coboara pretul nu e promotie.
+        currency:      { type: string, const: "RON" }
+        tax_included:  { type: boolean, const: true, description: "Preturile sunt mereu cu TVA." }
+        show:          { type: boolean, description: "Daca pretul trebuie afisat." }
+
+    Stoc:
+      type: object
+      properties:
+        state:
+          type: string
+          description: "Starea bruta din HUB."
+          enum: [stoc, limitat, sfurnizor, furnizor, soon, nostoc]
+        label:
+          type: string
+          description: "Textul de afisat, gata tradus."
+          example: "In stoc"
+        orderable:
+          type: boolean
+          description: "Se poate comanda. `soon` si `nostoc` sunt singurele care nu se pot."
+        quantity:
+          type: integer
+          description: |
+            **Prag, nu stoc real**: 50, 30, 20 sau 0, dupa stare. Cantitatea adevarata nu pleaca
+            spre vitrina — ea e informatie de aprovizionare, nu de vanzare.
+
+    Categorie:
+      type: object
+      properties:
+        id:     { type: integer, description: "Id-ul categoriei in PrestaShop." }
+        parent: { type: integer }
+        name:   { type: string }
+        url:    { type: string, description: "Slugul." }
+        kind:   { type: string }
+        title:  { type: string }
+        image:  { type: [string, "null"] }
+        meta:   { $ref: "#/components/schemas/Meta" }
+        products:
+          type: integer
+          description: |
+            **Optional.** Apare doar cand s-a numarat: la arbore cu `count=1`, si pe categoria
+            ceruta la `/category/{id}`. Lipsa lui inseamna „nu s-a numarat", nu „zero".
+
+    Meta:
+      type: object
+      properties:
+        title:       { type: string }
+        description: { type: string }
+
+    ProdusScurt:
+      type: object
+      description: "Forma din liste: categorie, componente de pachet, variante inrudite."
+      properties:
+        id:           { type: integer }
+        sku:          { type: string }
+        url:          { type: string, description: "Slugul." }
+        name:         { type: string }
+        brand:        { type: string }
+        manufacturer: { type: string }
+        type:         { type: string }
+        is_pack:      { type: boolean }
+        price:        { $ref: "#/components/schemas/Pret" }
+        stock:        { $ref: "#/components/schemas/Stoc" }
+        image:        { type: [string, "null"] }
+        meta:         { $ref: "#/components/schemas/Meta" }
+
+    ProdusComplet:
+      allOf:
+        - $ref: "#/components/schemas/ProdusScurt"
+        - type: object
+          description: "Fisa intreaga, doar la `/v1/product`."
+          properties:
+            offer_code:
+              type: string
+              description: "Codul de oferta care leaga variantele aceluiasi consumabil."
+            family:      { type: string }
+            capacity:    { type: string, description: "Randamentul in pagini sau, in lipsa, volumul." }
+            color:       { type: string }
+            ean:         { type: string }
+            oem:         { type: string, description: "Codurile OEM compatibile, ca text." }
+            description: { type: string }
+            summary:     { type: string }
+            features:
+              type: array
+              description: |
+                **Lista de perechi, nu obiect** — aceeasi caracteristica se repeta (de pilda
+                „Compatibil OEM" apare de mai multe ori), iar un obiect ar pastra doar ultima.
+              items:
+                type: object
+                properties:
+                  name:  { type: string }
+                  value: { type: string }
+            categories:
+              type: array
+              items: { type: integer }
+
+    EroareIntegrare:
+      type: object
+      description: |
+        Eroarea de la rutele de integrare. Vine cu **HTTP 200**, deci se recunoaste dupa
+        `ok: false`, nu dupa codul raspunsului.
+      properties:
+        ok:      { type: boolean, const: false }
+        message: { type: string, description: "Text pentru om, in romana." }
+      example:
+        ok: false
+        message: "Shop code inexistent sau inactiv in HUB: REP2"
+
+    PayloadComanda:
+      type: object
+      description: |
+        Comanda asa cum o trimite magazinul. Cand lipseste, se citeste chiar corpul cererii.
+
+        Multe campuri au sinonime, fiindca payload-urile difera intre versiunile de modul: la
+        produse se accepta `name` sau `product_name`, `qty` sau `quantity`, `price` sau
+        `unit_price_tax_incl`.
+      properties:
+        prestashop_order_id:   { type: integer }
+        prestashop_reference:  { type: string, description: "Implicit `PS-{id}`." }
+        prestashop_order_date: { type: string }
+        payment_method:        { type: string, description: "Diacriticele se scot la import." }
+        is_cod:                { type: boolean, description: "Ramburs la curier." }
+        total_order:           { type: number }
+        currency:              { type: string, default: "RON" }
+        total_weight:          { type: number, description: "Kilograme. Fara el, greutatea se aduna din produse." }
+        cash_reimbursement:    { type: number }
+        pudo_id:               { type: string, description: "Punct de ridicare FAN (locker)." }
+        client_company:        { type: string }
+        totals:
+          type: object
+          properties:
+            total_paid:     { type: number }
+            shipping_total: { type: number, description: "Sinonime: `total_shipping`, `shipping`." }
+            shipping_qty:   { type: integer }
+            shipping_unit:  { type: number }
+        delivery_address:
+          type: object
+          properties:
+            firstname:   { type: string }
+            lastname:    { type: string }
+            company:     { type: string }
+            phone:       { type: string }
+            email:       { type: string }
+            county:      { type: string }
+            city:        { type: string }
+            address1:    { type: string }
+            address2:    { type: string }
+            postcode:    { type: string }
+            country_iso: { type: string, default: "RO", description: "Doua litere." }
+            vat_number:  { type: string }
+        customer:
+          type: object
+          properties:
+            firstname:  { type: string }
+            lastname:   { type: string }
+            company:    { type: string }
+            phone:      { type: string }
+            email:      { type: string }
+            vat_number: { type: string }
+        products:
+          type: array
+          items:
+            type: object
+            properties:
+              name:   { type: string, description: "Sinonim: `product_name`." }
+              sku:    { type: string, description: "Sinonim: `reference`." }
+              qty:    { type: integer, description: "Sinonim: `quantity`." }
+              price:  { type: number, description: "Cu TVA. Sinonime: `unit_price_tax_incl`, `price_tax_incl`, `unit_price`." }
+              weight: { type: number }
+
+    Paginare:
+      type: object
+      properties:
+        page:     { type: integer }
+        per_page: { type: integer, description: "Dimensiunea aplicata efectiv, dupa asezarea in limite." }
+        total:    { type: integer, description: "Total produse in categorie, cu `deep` inclus daca s-a cerut." }
+        pages:    { type: integer }

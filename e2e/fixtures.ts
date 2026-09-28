@@ -23,6 +23,11 @@ export const HUB_PRODUCT = "/produse-hub/toner-hub-test-negru";
 /** Same mock, not orderable. */
 export const HUB_PRODUCT_GONE = "/produse-hub/toner-hub-test-epuizat";
 
+/** The mock's printer, which holds both products. */
+export const HUB_COLLECTION = "/categorii-hub/laserjet-pro-m127fn-9102";
+/** Search results are the one place HUB products render as cards. */
+export const HUB_SEARCH = "/cauta?q=hub+toner+gone";
+
 export async function addHubProduct(page: import("@playwright/test").Page) {
   await page.goto(HUB_PRODUCT);
   await page.getByRole("button", { name: "Adauga in cos" }).click();

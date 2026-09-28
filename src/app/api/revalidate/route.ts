@@ -1,6 +1,11 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { revalidateTag } from "next/cache";
 import { productListTag, productTag } from "@/commerce/catalog/queries";
+import {
+  hubCatalogTag,
+  hubCategoryTag,
+  hubProductTag,
+} from "@/commerce/hub/queries";
 import { revalidateSecret } from "@/lib/env";
 
 /**
@@ -30,6 +35,40 @@ function secretMatches(provided: string, expected: string): boolean {
     createHash("sha256").update(provided).digest(),
     createHash("sha256").update(expected).digest(),
   );
+}
+
+/** One request names a price change or an import batch, not the catalogue. */
+const MAX_HUB_KEYS = 1000;
+
+/**
+ * HUB's half of the body: `{ hub: { products, categories, all } }`.
+ *
+ * `products` are skus, the name for a product both sides agree on — the read
+ * path tags every cached product with the sku HUB returned. `all` flushes
+ * everything read from HUB, for a bulk import rather than one price.
+ *
+ * Documented for HUB in docs/hub-api-gaps.md §2.1.
+ */
+function revalidateHub(hub: unknown) {
+  const body = (hub ?? {}) as {
+    products?: unknown;
+    categories?: unknown;
+    all?: unknown;
+  };
+
+  const products = (Array.isArray(body.products) ? body.products : [])
+    .filter((sku): sku is string => typeof sku === "string" && sku !== "")
+    .slice(0, MAX_HUB_KEYS);
+  const categories = (Array.isArray(body.categories) ? body.categories : [])
+    .filter((id): id is number => Number.isSafeInteger(id) && id > 0)
+    .slice(0, MAX_HUB_KEYS);
+  const all = body.all === true;
+
+  for (const sku of products) revalidateTag(hubProductTag(sku), "max");
+  for (const id of categories) revalidateTag(hubCategoryTag(id), "max");
+  if (all) revalidateTag(hubCatalogTag, "max");
+
+  return { products: products.length, categories: categories.length, all };
 }
 
 export async function POST(request: Request) {
@@ -65,6 +104,16 @@ export async function POST(request: Request) {
     return Response.json({ error: "invalid_json" }, { status: 400 });
   }
 
+  /*
+    A call about HUB alone leaves the provisional catalogue's cache untouched:
+    flushing its listing on every HUB price change would send that load to an
+    API the change has nothing to do with.
+  */
+  const hub = (body as { hub?: unknown } | null)?.hub;
+  const hubOnly =
+    hub !== undefined && (body as { slugs?: unknown }).slugs === undefined;
+  if (hubOnly) return Response.json({ hub: revalidateHub(hub) });
+
   const slugs = Array.isArray((body as { slugs?: unknown })?.slugs)
     ? ((body as { slugs: unknown[] }).slugs.filter(
         (s): s is string => typeof s === "string",
@@ -78,5 +127,9 @@ export async function POST(request: Request) {
   }
   revalidateTag(productListTag, "max");
 
-  return Response.json({ revalidated: slugs.length, listRevalidated: true });
+  return Response.json({
+    revalidated: slugs.length,
+    listRevalidated: true,
+    ...(hub === undefined ? {} : { hub: revalidateHub(hub) }),
+  });
 }

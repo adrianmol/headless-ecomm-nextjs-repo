@@ -28,6 +28,8 @@ export function AddToCart({
   wrapperClassName = "mt-6",
   productName,
   imageUrl,
+  label = "Adauga in cos",
+  withQuantity = false,
 }: {
   variantId: string;
   inStock: boolean;
@@ -36,6 +38,14 @@ export function AddToCart({
   /** For the confirmation toast only; never sent to the action. */
   productName?: string;
   imageUrl?: string | null;
+  /** The plan's table rows say „Adaugă"; everywhere else keeps the default. */
+  label?: string;
+  /**
+   * Shows a quantity field beside the button, for the product page. A native
+   * number input rather than the cart's stepper: that one saves on every
+   * press, and here nothing is saved until the button is.
+   */
+  withQuantity?: boolean;
 }) {
   /**
    * Stable for the lifetime of this button, which is exactly the property the
@@ -46,11 +56,12 @@ export function AddToCart({
   const seed = useId();
   const [pending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<CartFeedback | null>(null);
+  const [quantity, setQuantity] = useState(1);
 
   function add() {
     startTransition(async () => {
       setFeedback(null);
-      const result = await action({ variantId, quantity: 1, seed });
+      const result = await action({ variantId, quantity, seed });
       // Success is announced by the site-wide toast (cart-toast.tsx), which
       // also offers the next step; only problems stay beside the button.
       if (result.status === "ok")
@@ -61,24 +72,44 @@ export function AddToCart({
 
   return (
     <div className={wrapperClassName}>
-      <button
-        type="button"
-        onClick={add}
-        disabled={!inStock || pending}
-        // Plain template string, NOT `cn()`, deliberately. `cn` pulls
-        // `tailwind-merge` and `clsx`, and this is a client leaf on the PDP —
-        // importing it here would put tailwind-merge back into the PDP bundle
-        // and undo part of the 10.4 kB this component was rewritten to save.
-        // Safe as concatenation because `w-full` conflicts with nothing in
-        // `defaultButtonClasses`; if a `w-*` is ever added there, fix it there
-        // rather than reaching for a merger.
-        className={`${defaultButtonClasses} w-full`}
-        // Keeps the label from changing width mid-interaction, which would
-        // shift the layout underneath the cursor.
-        aria-busy={pending}
-      >
-        {!inStock ? "Stoc epuizat" : pending ? "Se adauga…" : "Adauga in cos"}
-      </button>
+      <div className="flex gap-2">
+        {withQuantity && (
+          <input
+            type="number"
+            aria-label="Cantitate"
+            min={1}
+            max={99}
+            value={quantity}
+            disabled={!inStock || pending}
+            // The server clamps and re-checks stock; this only keeps the
+            // field from holding something that is not a quantity.
+            onChange={(event) =>
+              setQuantity(
+                Math.min(99, Math.max(1, Math.trunc(+event.target.value) || 1)),
+              )
+            }
+            className="border-input bg-background focus-visible:ring-ring h-8 w-16 shrink-0 rounded-lg border px-2 text-center text-sm tabular-nums focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+          />
+        )}
+        <button
+          type="button"
+          onClick={add}
+          disabled={!inStock || pending}
+          // Plain template string, NOT `cn()`, deliberately. `cn` pulls
+          // `tailwind-merge` and `clsx`, and this is a client leaf on the PDP —
+          // importing it here would put tailwind-merge back into the PDP bundle
+          // and undo part of the 10.4 kB this component was rewritten to save.
+          // Safe as concatenation because `w-full` conflicts with nothing in
+          // `defaultButtonClasses`; if a `w-*` is ever added there, fix it there
+          // rather than reaching for a merger.
+          className={`${defaultButtonClasses} w-full`}
+          // Keeps the label from changing width mid-interaction, which would
+          // shift the layout underneath the cursor.
+          aria-busy={pending}
+        >
+          {!inStock ? "Stoc epuizat" : pending ? "Se adauga…" : label}
+        </button>
+      </div>
 
       {feedback && feedback.status !== "ok" && (
         <p role="status" className="text-destructive mt-2 text-sm">
