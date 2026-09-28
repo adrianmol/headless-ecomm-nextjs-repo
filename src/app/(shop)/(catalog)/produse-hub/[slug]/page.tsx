@@ -449,7 +449,9 @@ async function ProductView({
       <Breadcrumbs crumbs={crumbs} origin={origin} />
 
       <div className="grid gap-8 lg:grid-cols-2">
-        <div className="bg-muted relative aspect-square overflow-hidden rounded-lg">
+        {/* White, not muted: HUB's photos are on white and rarely square, so
+            a tinted box shows as bands above and below the letterboxed image. */}
+        <div className="border-border relative aspect-square overflow-hidden rounded-lg border bg-white">
           {product.imageUrl && (
             <Image
               src={product.imageUrl}
