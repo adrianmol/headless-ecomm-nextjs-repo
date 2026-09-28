@@ -21,6 +21,19 @@ delegated to a skill:
 - The session cart cookie (`src/commerce/session-cart`) never holds a price: every read
   re-prices through HUB's uncached `live` endpoint. An order is placed only once the
   shop email has been sent.
+- The HUB product page reads price and stock from `live` on every request, and its
+  structured data states the same figures it renders. Never feed either from the
+  cached product record except as the fallback when `live` is unreachable.
+- Build only what HUB can answer. A feature the contract has no data for is absent,
+  and goes in [docs/hub-api-gaps.md](docs/hub-api-gaps.md) — never estimated in the storefront.
+
+## The plan
+
+The owner's specification is [docs/nodejs-reprint.en.md](docs/nodejs-reprint.en.md) and the
+HUB contract is [openapi/hub.yaml](openapi/hub.yaml), both saved as downloaded from
+`hub.reprint.ro/docs`. [docs/storefront-plan.md](docs/storefront-plan.md) records what is
+built against each stage and which decisions are still the owner's. Read it before starting
+a stage; update it when one lands.
 
 ## Use these skills
 
@@ -82,6 +95,7 @@ Required Actions configuration (names must match):
 | Secret   | `HUB_API_KEY`, `HUB_API_SECRET`                                      |
 | Secret   | `RESEND_API_KEY`                                                     |
 | Variable | `ORDER_EMAIL_FROM`, `ORDER_EMAIL_TO`                                 |
+| Variable | `WHATSAPP_NUMBER` (optional; absent means no WhatsApp buttons)       |
 | Secret   | `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS` |
 
 `STOREFRONT_URL` is a **variable, not a secret** — it is a public URL, and making it a secret

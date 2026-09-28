@@ -2,13 +2,19 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { getHubCategoryPage } from "@/commerce/hub/queries";
+import { getHubCategories, getHubCategoryPage } from "@/commerce/hub/queries";
+import type { HubCategory } from "@/commerce/hub/schemas";
+import { printerName, resolveTaxonomy } from "@/commerce/hub/taxonomy";
+import { Breadcrumbs } from "@/components/breadcrumbs";
+import { JsonLd } from "@/components/json-ld";
+import { storefrontOrigin } from "@/lib/env";
+import { groupByType } from "@/lib/hub-product-types";
 import { hubCategoryIdFromSlug, hubCategorySlug } from "@/lib/hub-slug";
 import {
-  HubEmptyCategory,
-  HubProductGrid,
-  HubProductGridSkeleton,
-} from "../../_hub/hub-product-grid";
+  HubCollectionTable,
+  HubCollectionTableSkeleton,
+} from "../../_hub/hub-collection-table";
+import { HubEmptyCategory } from "../../_hub/hub-product-grid";
 import { Reveal } from "@/components/reveal";
 
 /**
@@ -37,15 +43,32 @@ import { Reveal } from "@/components/reveal";
  * measured in queries.ts — so asking for it would turn a fast page into a timeout
  * for no gain.
  *
- * ## Pagination
+ * ## The whole collection, not a page of it
  *
- * Not here yet, and deliberately: `per_page` caps at 100 and the best-populated
- * model observed holds 131, so one request covers all but a handful of categories.
- * The total is shown so a truncated page says so rather than pretending to be
- * complete. `page`/`per_page` are both verified working when it is worth adding.
+ * The products are grouped by type, and a group built from the first hundred of
+ * 131 would be missing rows with nothing to say so. `per_page` caps at 100, so
+ * the remaining pages are fetched as well, up to {@link MAX_PAGES}. The
+ * best-populated model observed holds 131. Past the cap the total is shown, so
+ * a truncated collection says so rather than pretending to be complete.
  */
 
 const PER_PAGE = 100;
+const MAX_PAGES = 3;
+
+/**
+ * "Lexmark CX510de" where the brand can be resolved, the bare model otherwise.
+ * Three printers in four have no route to their brand; see taxonomy.ts.
+ */
+async function collectionName(category: HubCategory): Promise<string> {
+  if (category.kind !== "prn") return category.name;
+  try {
+    const tree = await getHubCategories({ withCounts: true });
+    const [printer] = resolveTaxonomy([category.id], tree).printers;
+    return printer ? printerName(printer) : category.name;
+  } catch {
+    return category.name;
+  }
+}
 
 /**
  * Canonical URL, and the reason it is a `<link>` rather than a redirect.
@@ -135,26 +158,71 @@ async function CategoryView({
   });
   if (!page) notFound();
 
-  const { total } = page.pagination;
-  const shown = page.products.length;
+  const { total, pages } = page.pagination;
+
+  const [name, ...rest] = await Promise.all([
+    collectionName(page.category),
+    ...Array.from({ length: Math.min(pages, MAX_PAGES) - 1 }, (_, i) =>
+      getHubCategoryPage(id, { perPage: PER_PAGE, sort: "price", page: i + 2 }),
+    ),
+  ]);
+  const products = [page, ...rest].flatMap((p) => p?.products ?? []);
+  const shown = products.length;
+
+  const path = `/categorii-hub/${hubCategorySlug(page.category)}`;
+  const origin = storefrontOrigin();
+  // A printer's collection is "for" it; a family's is the family itself.
+  const isPrinter = page.category.kind === "prn";
 
   return (
     <>
+      <Breadcrumbs
+        origin={origin}
+        crumbs={[
+          { name: "Acasă", href: "/" },
+          { name: "Echipamente", href: "/modele" },
+          { name, href: path },
+        ]}
+      />
+
       <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
-        {page.category.name}
+        {isPrinter ? `Consumabile pentru ${name}` : name}
       </h1>
 
       {shown === 0 ? (
         <div className="mt-5">
-          <HubEmptyCategory href="/produse" />
+          <HubEmptyCategory href="/modele" />
         </div>
       ) : (
         <>
           <p className="text-muted-foreground mt-2 mb-6 text-sm">
-            {total} {total === 1 ? "consumabil" : "consumabile"}
+            {total} {total === 1 ? "produs" : "produse"}
             {total > shown && ` · se afiseaza primele ${shown}`}
           </p>
-          <HubProductGrid products={page.products} />
+          <HubCollectionTable
+            groups={groupByType(products)}
+            collection={name}
+          />
+
+          {origin && (
+            <JsonLd
+              data={{
+                "@context": "https://schema.org",
+                "@type": "ItemList",
+                name: isPrinter ? `Consumabile pentru ${name}` : name,
+                numberOfItems: shown,
+                itemListElement: products.map((product, index) => ({
+                  "@type": "ListItem",
+                  position: index + 1,
+                  name: product.name,
+                  url: new URL(
+                    `/produse-hub/${encodeURIComponent(product.slug || product.sku)}`,
+                    origin,
+                  ).toString(),
+                })),
+              }}
+            />
+          )}
         </>
       )}
     </>
@@ -169,9 +237,10 @@ export default function HubCategoryPage({
       <Reveal
         fallback={
           <>
-            <div className="bg-muted h-9 w-72 animate-pulse rounded" />
+            <div className="bg-muted mb-6 h-5 w-64 animate-pulse rounded" />
+            <div className="bg-muted h-9 w-96 max-w-full animate-pulse rounded" />
             <div className="bg-muted mt-2 mb-6 h-4 w-40 animate-pulse rounded" />
-            <HubProductGridSkeleton count={8} />
+            <HubCollectionTableSkeleton />
           </>
         }
       >
@@ -180,10 +249,10 @@ export default function HubCategoryPage({
 
       <p className="mt-10 text-sm">
         <Link
-          href="/produse"
+          href="/modele"
           className="text-primary focus-visible:ring-ring rounded hover:underline focus-visible:ring-2 focus-visible:outline-none"
         >
-          ← Vezi tot catalogul
+          ← Alege alt echipament
         </Link>
       </p>
     </main>

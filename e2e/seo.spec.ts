@@ -101,6 +101,7 @@ test.describe("robots.txt", () => {
     for (const path of [
       "/api/",
       "/health",
+      "/cauta",
       "/cos",
       "/finalizare-comanda",
       "/comenzi/",

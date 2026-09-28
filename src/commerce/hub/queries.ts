@@ -323,6 +323,14 @@ export async function getHubProduct(
     data,
   );
 
+  /*
+    Tagged a second time, by the sku HUB returned. The tag above is the key the
+    caller used — a slug, a sku in any case — and HUB cannot know which of those
+    a visitor happened to arrive by. The sku is the one name for this product
+    both sides agree on, so it is what the revalidation webhook is sent.
+  */
+  cacheTag(hubProductTag(parsed.product.sku));
+
   return toProductDetail(parsed.product, {
     variants: options?.withVariants
       ? parsed.related.map(toProductSummary)

@@ -1,6 +1,7 @@
 import {
   HUB_PRODUCT,
   HUB_PRODUCT_GONE,
+  HUB_SEARCH,
   addHubProduct,
   expect,
   test,
@@ -30,15 +31,15 @@ test.describe("cart", () => {
   test("adds from a HUB product card, past the stretched card link", async ({
     page,
   }) => {
-    // The sold-out product's page lists the in-stock one as a sibling card.
-    await page.goto(HUB_PRODUCT_GONE);
+    // Searching the sold-out product's code lists the in-stock one beside it.
+    await page.goto(HUB_SEARCH);
     const card = page
       .getByRole("article")
       .filter({ hasText: "Toner HUB test negru" });
     await card.getByRole("button", { name: "Adauga in cos" }).click();
 
     // Still on the same page: the button, not the card link, took the press.
-    await expect(page).toHaveURL(new RegExp(`${HUB_PRODUCT_GONE}$`));
+    await expect(page).toHaveURL(/\/cauta\?q=/);
     const toast = page
       .getByRole("status")
       .filter({ hasText: "Adaugat in cos." });
@@ -92,7 +93,7 @@ test.describe("cart", () => {
   });
 
   test("a sold-out HUB card shows why it cannot be added", async ({ page }) => {
-    await page.goto(HUB_PRODUCT);
+    await page.goto(HUB_SEARCH);
     const card = page
       .getByRole("article")
       .filter({ hasText: "Toner HUB test epuizat" });

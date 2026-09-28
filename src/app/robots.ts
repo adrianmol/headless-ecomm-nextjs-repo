@@ -12,6 +12,8 @@ import { serverEnv } from "@/lib/env";
  *    an order reference in the path, and a crawled order URL is an order
  *    reference sitting in someone else's index.
  *  - `/api` and `/health` are machine endpoints.
+ *  - `/cauta` is search results: not content, and every crawled query is a
+ *    request to the catalogue API on a crawler's behalf.
  *
  * This is **not** an access control. Anything genuinely private must be
  * protected server-side; robots.txt is a request to well-behaved crawlers and is
@@ -38,6 +40,7 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
       disallow: [
         "/api/",
         "/health",
+        "/cauta",
         "/cos",
         "/finalizare-comanda",
         "/comenzi/",

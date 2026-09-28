@@ -8,9 +8,11 @@ import {
   Printer,
   Recycle,
   ScrollText,
+  Search,
   ShoppingBag,
   Wrench,
 } from "lucide-react";
+import { CodeSearch } from "@/components/commerce/code-search";
 import { CATEGORIES } from "@/lib/catalog-taxonomy";
 
 /** Keyed by slug; a category added without an icon falls back to a grid. */
@@ -46,8 +48,8 @@ const focusRing =
  * rsc-boundaries skill warns about.
  *
  * The search field is a plain GET form, so it works without JavaScript and is a
- * real form rather than a decorative box. It targets /produse, which validates
- * its own query parameters.
+ * real form rather than a decorative box. It targets /cauta and finds a product
+ * by its code, which is what the catalogue can answer; see code-search.tsx.
  */
 
 export function SiteHeader() {
@@ -84,23 +86,21 @@ export function SiteHeader() {
         </Link>
 
         {/*
-          The design puts a search field here. It is **deliberately absent**, and
-          this is the third time search has been declined in this project for the
-          same reason: nothing can answer it. `parseCatalogQuery` accepts no text
-          parameter, and the HUB catalog contract exposes category, product-by-key
-          and live-pricing endpoints with no search among them.
+          Search by product code, which `GET /product/{sku}` can answer. Search
+          over names, OEM codes and printer models was declined here three
+          times because nothing could answer it, and still is: it needs a
+          search route in HUB (docs/hub-api-gaps.md §2).
 
-          A `role="search"` box that discards what a buyer types is worse than no
-          box: someone pastes a part code, presses enter, and lands on the
-          unfiltered catalogue with no explanation.
-
-          There is a contract-supported path to most of it, which the design's own
-          placeholder points at — "sau cod produs". `GET /product/{sku}` resolves
-          an exact code, so a lookup that redirects to the product and otherwise
-          says so is buildable today. Full-text search over names is not, and
-          needs a backend endpoint. Left as an open decision rather than faked.
+          From `md` up. A phone has no room for a field between the wordmark
+          and the basket, so it gets a link to the search page instead.
         */}
-        <div className="min-w-0 flex-1" />
+        <div className="min-w-0 flex-1">
+          <CodeSearch
+            id="header-cod"
+            label="Căutare rapidă după cod"
+            className="mx-auto hidden max-w-md md:flex"
+          />
+        </div>
 
         <nav
           aria-label="Principal"
@@ -118,6 +118,13 @@ export function SiteHeader() {
             "list all products" endpoint — products are reachable only through a
             category — so an "all products" page cannot exist on that data.
           */}
+          <Link
+            href="/cauta"
+            className={`text-foreground hover:bg-muted flex h-11 min-w-11 items-center justify-center rounded-full px-3 transition-colors md:hidden ${focusRing}`}
+          >
+            <Search aria-hidden className="size-5" />
+            <span className="sr-only">Caută după cod</span>
+          </Link>
           <Link
             href="/modele"
             className={`text-foreground hover:bg-muted flex h-11 min-w-11 items-center justify-center gap-2 rounded-full px-3 font-medium transition-colors ${focusRing}`}

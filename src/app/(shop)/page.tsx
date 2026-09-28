@@ -1,6 +1,11 @@
+import { Suspense } from "react";
 import Link from "next/link";
+import { connection } from "next/server";
 import { listPrinterBrands } from "@/commerce/catalog/queries";
+import { CodeSearch } from "@/components/commerce/code-search";
 import { PrinterFinder } from "@/components/commerce/printer-finder";
+import { JsonLd } from "@/components/json-ld";
+import { storefrontOrigin } from "@/lib/env";
 import { HubFeaturedBand } from "./(catalog)/_hub/hub-featured";
 import { HubProductGridSkeleton } from "./(catalog)/_hub/hub-product-grid";
 import { Reveal } from "@/components/reveal";
@@ -159,16 +164,59 @@ function BrandLinksSkeleton() {
 }
 
 /**
- * Guarantees, quoted from the design. Each is a fact about the business that the
- * storefront has no other source for, so it is reproduced rather than reworded —
+ * Guarantees, quoted from the owner's plan (stage 4), which replaces the four
+ * from the design file. Each is a fact about the business that the storefront
+ * has no other source for, so it is reproduced rather than reworded —
  * paraphrasing an owner's claim is how a claim quietly changes meaning.
  */
 const GUARANTEES = [
-  { title: "Promotii zilnice", detail: "preturi imbatabile" },
-  { title: "Achizitii SEAP", detail: "suntem prezenti pe SEAP" },
-  { title: "+40 762 095 550", detail: "orice intrebare are raspuns" },
-  { title: "Livrare rapida", detail: "in toata tara" },
+  { title: "Garanție 1:1", detail: "schimb imediat până la 50% consum" },
+  { title: "Retur 14 zile", detail: "fără să dai explicații" },
+  { title: "Transport gratuit", detail: "la comenzi peste 500 lei" },
+  { title: "Vorbești cu un om", detail: "+40 762 095 550" },
 ] as const;
+
+/**
+ * `Organization` and `WebSite`, the home page's structured data (stage 4).
+ *
+ * At request time, behind its own boundary, because both need the public
+ * origin: prerendered with the rest of this page they would carry whatever
+ * `STOREFRONT_URL` held at build, which `build:ci` defaults to localhost.
+ * Renders nothing visible, so the boundary reserves no height.
+ */
+async function SiteJsonLd() {
+  await connection();
+  const origin = storefrontOrigin();
+  if (!origin) return null;
+
+  return (
+    <JsonLd
+      data={{
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            name: "REPrint",
+            url: origin,
+            // The number the footer already publishes.
+            telephone: "+40762095550",
+          },
+          {
+            "@type": "WebSite",
+            name: "REPrint",
+            url: origin,
+            inLanguage: "ro",
+            potentialAction: {
+              "@type": "SearchAction",
+              target: `${origin}/cauta?q={search_term_string}`,
+              "query-input": "required name=search_term_string",
+            },
+          },
+        ],
+      }}
+    />
+  );
+}
 
 function CheckIcon() {
   return (
@@ -245,6 +293,15 @@ export default function Home() {
               <Finder />
             </Reveal>
           </div>
+
+          <p className="text-muted-foreground mt-5 mb-2 text-xs font-bold tracking-wide uppercase">
+            Sau după codul produsului
+          </p>
+          <CodeSearch
+            id="home-cod"
+            label="Caută după codul produsului"
+            className="max-w-xl"
+          />
         </div>
       </div>
 
@@ -295,6 +352,10 @@ export default function Home() {
           <BrandLinks />
         </Reveal>
       </section>
+
+      <Suspense fallback={null}>
+        <SiteJsonLd />
+      </Suspense>
     </main>
   );
 }

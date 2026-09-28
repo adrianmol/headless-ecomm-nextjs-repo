@@ -106,6 +106,7 @@ const HUB_PILL: Record<string, string> = {
   // Orderable but not held: amber rather than green, because promising immediate
   // availability for a supplier-backed item is the expensive kind of wrong.
   furnizor: "bg-stock-low-surface text-stock-low",
+  sfurnizor: "bg-stock-low-surface text-stock-low",
   soon: "bg-stock-low-surface text-stock-low",
   nostoc: "bg-stock-out-surface text-stock-out",
 };

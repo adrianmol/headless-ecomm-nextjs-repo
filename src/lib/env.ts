@@ -115,6 +115,42 @@ export function resetServerEnvCache(): void {
 }
 
 /**
+ * The storefront's public origin, or `undefined` when it is not configured.
+ *
+ * For the places where a missing origin should cost a page its absolute URLs —
+ * structured data, Open Graph — rather than its render. `serverEnv()` throws
+ * on any invalid variable, which is right for the commerce client and too much
+ * for a `<script type="application/ld+json">`.
+ *
+ * Read it at request time only. In a prerendered scope it captures the build's
+ * value, which `build:ci` defaults to localhost — the fault robots.txt and the
+ * sitemap already had once.
+ */
+export function storefrontOrigin(): string | undefined {
+  const parsed = z.url().safeParse(process.env.STOREFRONT_URL);
+  return parsed.success ? new URL(parsed.data).origin : undefined;
+}
+
+/**
+ * The shop's WhatsApp number as `wa.me` wants it — digits, country code, no
+ * plus — or `null` when there is none.
+ *
+ * Optional, and outside `envSchema` for the same reason as the HUB credentials:
+ * a missing number must cost the page its WhatsApp button, not take the
+ * storefront down. It is configuration rather than a constant because which
+ * number is on WhatsApp is the owner's fact, and the plan moves the well-known
+ * number to the WhatsApp API at a date not yet set.
+ *
+ * Public by nature (it ends up in a link), but still not `NEXT_PUBLIC_`: it is
+ * only ever read on the server and passed down as a finished href.
+ */
+export function whatsappNumber(): string | null {
+  const digits = (process.env.WHATSAPP_NUMBER ?? "").replace(/\D/g, "");
+  // E.164 allows at most 15 digits; under 8 is not a phone number.
+  return digits.length >= 8 && digits.length <= 15 ? digits : null;
+}
+
+/**
  * Minimum accepted length for the catalog invalidation secret.
  * `.env.example` suggests `openssl rand -hex 32`, which is 64 characters.
  */

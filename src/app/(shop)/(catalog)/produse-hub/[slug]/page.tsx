@@ -3,52 +3,93 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { getHubProduct } from "@/commerce/hub/queries";
+import { RotateCcw, ShieldCheck, Truck } from "lucide-react";
+import {
+  getHubCategories,
+  getHubLiveOffers,
+  getHubProduct,
+} from "@/commerce/hub/queries";
 import { addHubToCartAction } from "@/commerce/session-cart/actions";
-import type { HubProductDetail } from "@/commerce/hub/schemas";
+import type {
+  HubOffer,
+  HubProductDetail,
+  HubProductSummary,
+  HubStock,
+} from "@/commerce/hub/schemas";
+import {
+  printerName,
+  resolveTaxonomy,
+  type HubPrinter,
+} from "@/commerce/hub/taxonomy";
 import { AddToCart } from "@/components/commerce/add-to-cart";
+import { Breadcrumbs, type Crumb } from "@/components/breadcrumbs";
+import { JsonLd } from "@/components/json-ld";
 import { Price } from "@/components/commerce/price";
 import { HubStockBadge } from "@/components/commerce/stock-badge";
-import { HubProductGrid } from "../../_hub/hub-product-grid";
-import { discountPercent } from "@/lib/money";
+import { WhatsAppLink } from "@/components/commerce/whatsapp-link";
 import { Reveal } from "@/components/reveal";
+import { formatCostPerPage, pagesFromCapacity } from "@/lib/cost-per-page";
+import { storefrontOrigin, whatsappNumber } from "@/lib/env";
+import { hubProductType } from "@/lib/hub-product-types";
+import { hubCategorySlug } from "@/lib/hub-slug";
+import { formatYield } from "@/lib/locale";
+import { discountPercent, formatMoney } from "@/lib/money";
+import { firstOemCode, productJsonLd } from "@/lib/product-json-ld";
+import { productQuestion, whatsappHref } from "@/lib/whatsapp";
+import { cn } from "@/lib/utils";
 
 /**
- * A HUB catalogue product.
+ * A HUB catalogue product — the plan's stage 3.3.
  *
  * Sits beside `/produse/[slug]` rather than replacing it: that route is backed by
  * the provisional contract and this one by HUB, and the two catalogues have
- * different identifiers. Merging them means one of the two backends winning, which
- * is a decision for when the migration finishes, not a side effect of this page.
+ * different identifiers. Which one wins is recorded in docs/storefront-plan.md.
  *
- * This page exists because the previous commit linked HUB cards at `/produse/{slug}`
- * — a route that queries the *other* API. Every card was a dead link that surfaced
- * as `CommerceErrorException: Unavailable` from `getProduct`. Worth recording: the
- * cards rendered perfectly and the failure only appeared on click, which is why it
- * survived a screenshot review.
+ * ## What is fresh and what is cached
  *
- * ## Add-to-cart
+ * Name, image, description and specifications come from the cached product
+ * record. **Price and stock do not**: they are read from HUB's `live` endpoint
+ * on every request, for this product and its siblings in one call. The plan's
+ * rule is that the price in the HTML must be the real one — Merchant Center
+ * compares it with the feed — and a record cached for hours cannot promise
+ * that. If `live` cannot be reached the cached figures are shown instead, and
+ * add-to-cart re-prices live before anything lands in the cart either way.
  *
- * HUB exposes no cart, checkout or order endpoints, so the button writes to the
- * session cart (src/commerce/session-cart) until a cart backend is chosen. The
- * phone number from the owner's design file stays as the second purchase route.
+ * All of it renders on the server, in one boundary, so the price, the button
+ * and the structured data arrive in the delivered HTML and never disagree.
+ *
+ * ## What the plan has here and this page does not
+ *
+ * Quantity tiers, the 30-day lowest price, the delivery day, the exact stock
+ * figure, the "Recomandat REPrint" badge, the bundle offer, the other quality
+ * levels, reviews and questions. None of them is in the contract; each is
+ * listed in docs/hub-api-gaps.md §1.2. They are absent rather than estimated.
  */
 
 /** From the owner's design file, the same number the footer and homepage use. */
 const ORDER_PHONE = "+40 762 095 550";
 
 /**
+ * Entries in HUB's `features` that are not about the product: which marketplace
+ * feeds it is exported to, and a grouping flag. Found on the live catalogue —
+ * "Feed: skroutz.ro", "Feed: cel.ro", "Cover grup: Nu" — and of no use to a
+ * buyer. Reported to HUB in docs/hub-api-gaps.md §5; hidden here meanwhile.
+ */
+const INTERNAL_SPECS = new Set(["Feed", "Cover grup"]);
+
+/** How many printers are listed before the rest go behind "Afișați mai mult". */
+const PRINTERS_SHOWN = 12;
+
+const productPath = (product: { slug: string; sku: string }) =>
+  `/produse-hub/${encodeURIComponent(product.slug || product.sku)}`;
+
+/**
  * Canonical URL, because a product has two working URLs.
  *
- * `hubProductHref` uses the slug when there is one and the sku otherwise, and the
- * page resolves either — so `/produse-hub/chip-lcx310k` and
- * `/produse-hub/CHIP-LCX310K` are the same product. Without a canonical they are two
- * indexable URLs for one page. The slug form wins where it exists, since it is the
- * one a person can read.
- *
- * A missing product calls `notFound()` here rather than returning empty metadata:
- * returning metadata suppresses the not-found page's `robots: noindex`, which turns
- * a soft 404 into an indexable one.
+ * The page resolves a slug or a sku, so `/produse-hub/chip-lcx310k` and
+ * `/produse-hub/CHIP-LCX310K` are the same product. Without a canonical they are
+ * two indexable URLs for one page. The slug form wins where it exists, since it
+ * is the one a person can read.
  */
 export async function generateMetadata({
   params,
@@ -66,20 +107,35 @@ export async function generateMetadata({
   /*
     Returns empty metadata for a missing product; the body's `notFound()` is what
     renders the 404 surface. Measured against production this yields exactly one
-    `<meta name="robots" content="noindex">`.
-
-    Calling `notFound()` here as well — which is what the provisional PDP does —
-    produced additional identical tags on these routes. The two routes differ in
-    how they discover absence (this one resolves a slug then a sku, and returns
-    null rather than throwing), so the PDP's arrangement does not transfer, and one
-    directive is the thing that matters rather than which call site produces it.
+    `<meta name="robots" content="noindex">`. Calling `notFound()` here as well
+    produced additional identical tags on these routes.
   */
   if (!product) return {};
 
+  const origin = storefrontOrigin();
+  const title = product.metaTitle || product.name;
+  const description =
+    product.metaDescription || product.summary || product.name;
+  const path = productPath(product);
+
   return {
-    title: product.name,
-    alternates: {
-      canonical: `/produse-hub/${encodeURIComponent(product.slug || product.sku)}`,
+    title,
+    description,
+    ...(origin ? { metadataBase: new URL(origin) } : {}),
+    alternates: { canonical: path },
+    openGraph: {
+      title,
+      description,
+      url: path,
+      siteName: "REPrint",
+      locale: "ro_RO",
+      images: product.imageUrl ? [{ url: product.imageUrl, alt: title }] : [],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: product.imageUrl ? [product.imageUrl] : [],
     },
   };
 }
@@ -87,9 +143,9 @@ export async function generateMetadata({
 async function resolveProduct(key: string): Promise<HubProductDetail | null> {
   /*
     A slug first, then the sku. HUB resolves a product by id, sku or `?url=slug`
-    interchangeably, but `hubProductHref` falls back to the sku for the products
-    whose `url` is empty — so a segment here can legitimately be either, and only
-    trying both makes every card's link work.
+    interchangeably, but links fall back to the sku for the products whose `url`
+    is empty — so a segment here can legitimately be either, and only trying
+    both makes every link work.
   */
   const bySlug = await getHubProduct(
     { by: "slug", value: key },
@@ -98,6 +154,232 @@ async function resolveProduct(key: string): Promise<HubProductDetail | null> {
   if (bySlug) return bySlug;
 
   return getHubProduct({ by: "sku", value: key }, { withVariants: true });
+}
+
+type Figures = {
+  offer: HubOffer;
+  stock: HubStock;
+  /** HUB no longer sells it: asked for, and not returned. */
+  withdrawn: boolean;
+};
+
+/**
+ * Fresh price and stock for the product and its siblings, in one request.
+ *
+ * Returns a lookup rather than a list so a caller cannot forget the fallback:
+ * every product gets figures, fresh where HUB supplied them.
+ */
+async function freshFigures(
+  products: readonly HubProductSummary[],
+): Promise<(product: HubProductSummary) => Figures> {
+  const cached = (product: HubProductSummary): Figures => ({
+    offer: product.offer,
+    stock: product.stock,
+    withdrawn: false,
+  });
+
+  let live;
+  try {
+    live = await getHubLiveOffers({ skus: products.map((p) => p.sku) });
+  } catch {
+    // The page is worth more than the freshness: show what the record holds.
+    return cached;
+  }
+
+  // HUB compares skus without regard to case, so this does too.
+  const key = (sku: string) => sku.toLowerCase();
+  const entries = new Map(live.entries.map((e) => [key(e.sku), e]));
+  const missing = new Set(live.missing.map(key));
+
+  return (product) => {
+    const entry = entries.get(key(product.sku));
+    if (entry) {
+      return { offer: entry.offer, stock: entry.stock, withdrawn: false };
+    }
+    // Ignoring `missing` would keep a withdrawn product's old price on screen —
+    // the bug the field exists to prevent.
+    return missing.has(key(product.sku))
+      ? { ...cached(product), withdrawn: true }
+      : cached(product);
+  };
+}
+
+/** Printers and family, or nothing when the tree cannot be read. */
+async function taxonomyOf(product: HubProductDetail) {
+  try {
+    // Same arguments as /modele and the homepage, so one cache entry serves all.
+    const categories = await getHubCategories({ withCounts: true });
+    return resolveTaxonomy(product.categoryIds, categories);
+  } catch {
+    return { printers: [], families: [] };
+  }
+}
+
+const payableOf = (offer: HubOffer) =>
+  offer.displayable ? (offer.promoPrice ?? offer.price) : null;
+
+/**
+ * The line under the title: the codes a buyer matches against the old cartridge.
+ * Monospaced because `0`/`O` and `1`/`l` are compared character by character.
+ */
+function Codes({ product }: { product: HubProductDetail }) {
+  const oem = firstOemCode(product.oem);
+  const parts = [
+    { label: "Cod", value: product.sku, mono: true },
+    { label: "OEM", value: oem ?? "", mono: true },
+    { label: "Marcă", value: product.manufacturer, mono: false },
+  ].filter((part) => part.value);
+
+  return (
+    <p className="text-muted-foreground mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm">
+      {parts.map((part) => (
+        <span key={part.label}>
+          {part.label}:{" "}
+          <span
+            className={cn("text-foreground", part.mono && "font-mono text-xs")}
+          >
+            {part.value}
+          </span>
+        </span>
+      ))}
+    </p>
+  );
+}
+
+/** Quoted from the plan. Facts about the business, supplied by its owner. */
+function Guarantees() {
+  const items = [
+    {
+      Icon: ShieldCheck,
+      text: "Garanție 1:1, schimb imediat până la 50% consum",
+    },
+    { Icon: RotateCcw, text: "Retur 14 zile" },
+    { Icon: Truck, text: "Transport gratuit peste 500 lei" },
+  ];
+  return (
+    <ul className="text-muted-foreground border-border mt-5 space-y-2 border-t pt-5 text-sm">
+      {items.map(({ Icon, text }) => (
+        <li key={text} className="flex items-start gap-2">
+          <Icon aria-hidden className="text-primary mt-0.5 size-4 shrink-0" />
+          {text}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * The other manufacturers of the same consumable — HUB's `related`, which
+ * shares an offer code. An out-of-stock one is set back and stays visible, as
+ * the plan asks: knowing it exists is information.
+ */
+function Variants({
+  variants,
+  figures,
+}: {
+  variants: readonly HubProductSummary[];
+  figures: (product: HubProductSummary) => Figures;
+}) {
+  const shown = variants
+    .map((variant) => ({ variant, ...figures(variant) }))
+    .filter(({ withdrawn }) => !withdrawn);
+  if (shown.length === 0) return null;
+
+  return (
+    <section className="mt-12" aria-labelledby="variants-heading">
+      <h2 id="variants-heading" className="text-lg font-bold">
+        Același consumabil, alți producători
+      </h2>
+      <ul className="mt-4 flex flex-wrap gap-2">
+        {shown.map(({ variant, offer, stock }) => {
+          const price = payableOf(offer);
+          return (
+            <li key={variant.id}>
+              <Link
+                href={productPath(variant)}
+                className={cn(
+                  "border-border bg-card hover:border-foreground/30 focus-visible:ring-ring flex flex-col rounded-lg border px-4 py-3 text-sm focus-visible:ring-2 focus-visible:outline-none",
+                  // Set back by a dashed edge and a quieter name, not by
+                  // opacity: fading the chip took its text to 2.49:1, under
+                  // the 4.5:1 minimum.
+                  !stock.orderable && "text-muted-foreground border-dashed",
+                )}
+              >
+                <span className="font-semibold">
+                  {variant.manufacturer || variant.name}
+                </span>
+                <span className="tabular-nums">
+                  {price ? formatMoney(price) : "Preț la cerere"}
+                </span>
+                {/* Upstream's wording, so it matches the badge on that page. */}
+                <span className="text-muted-foreground text-xs">
+                  {stock.label}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+function PrinterLinks({
+  printers,
+  what,
+}: {
+  printers: readonly HubPrinter[];
+  what: string;
+}) {
+  return (
+    <ul className="mt-3 grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2 lg:grid-cols-3">
+      {printers.map((printer) => (
+        <li key={printer.id}>
+          {/* Says what the product is for that printer, as the plan asks. */}
+          {what} pentru{" "}
+          <Link
+            href={`/categorii-hub/${hubCategorySlug(printer)}`}
+            className="text-primary focus-visible:ring-ring rounded font-semibold hover:underline focus-visible:ring-2 focus-visible:outline-none"
+          >
+            {printerName(printer)}
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Every row links to that printer's collection. A long list keeps its tail
+ * behind a native disclosure: still in the delivered HTML, for search engines,
+ * and no JavaScript to open it.
+ */
+function Compatibility({
+  printers,
+  what,
+}: {
+  printers: readonly HubPrinter[];
+  what: string;
+}) {
+  if (printers.length === 0) return null;
+  const rest = printers.slice(PRINTERS_SHOWN);
+
+  return (
+    <section className="mt-12" aria-labelledby="compat-heading">
+      <h2 id="compat-heading" className="text-lg font-bold">
+        Compatibilitate
+      </h2>
+      <PrinterLinks printers={printers.slice(0, PRINTERS_SHOWN)} what={what} />
+      {rest.length > 0 && (
+        <details className="mt-3">
+          <summary className="text-primary focus-visible:ring-ring cursor-pointer rounded text-sm font-medium focus-visible:ring-2 focus-visible:outline-none">
+            Afișați mai mult ({rest.length})
+          </summary>
+          <PrinterLinks printers={rest} what={what} />
+        </details>
+      )}
+    </section>
+  );
 }
 
 function Spec({ label, value }: { label: string; value: string }) {
@@ -123,15 +405,49 @@ async function ProductView({
   const product = await resolveProduct(slug);
   if (!product) notFound();
 
-  const { offer, stock } = product;
-  const payable = offer.promoPrice ?? offer.price;
+  const variants = product.variants ?? [];
+  const [figures, taxonomy] = await Promise.all([
+    freshFigures([product, ...variants]),
+    taxonomyOf(product),
+  ]);
+
+  const { offer, stock, withdrawn } = figures(product);
+  const payable = withdrawn ? null : payableOf(offer);
   const percent =
-    offer.price && offer.promoPrice
+    payable && offer.price && offer.promoPrice
       ? discountPercent(offer.promoPrice, offer.price)
       : null;
 
+  const pages = pagesFromCapacity(product.capacity);
+  const costPerPage =
+    payable && pages ? formatCostPerPage(payable, pages) : null;
+
+  const type = hubProductType(product.type);
+  const family = taxonomy.families[0];
+  const origin = storefrontOrigin();
+  const whatsapp = whatsappNumber();
+
+  const crumbs: Crumb[] = [
+    { name: "Acasă", href: "/" },
+    // No page of their own yet: HUB publishes neither the main categories nor a
+    // usable brand listing (docs/hub-api-gaps.md §1.3).
+    ...(type.type ? [{ name: type.plural }] : []),
+    ...(product.brand ? [{ name: product.brand }] : []),
+    ...(family
+      ? [
+          {
+            name: family.name,
+            href: `/categorii-hub/${hubCategorySlug(family)}`,
+          },
+        ]
+      : []),
+    { name: product.name, href: productPath(product) },
+  ];
+
   return (
     <>
+      <Breadcrumbs crumbs={crumbs} origin={origin} />
+
       <div className="grid gap-8 lg:grid-cols-2">
         <div className="bg-muted relative aspect-square overflow-hidden rounded-lg">
           {product.imageUrl && (
@@ -150,14 +466,10 @@ async function ProductView({
         </div>
 
         <div>
-          {product.brand && (
-            <p className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
-              {product.brand}
-            </p>
-          )}
-          <h1 className="mt-1 text-2xl font-extrabold tracking-tight sm:text-3xl">
+          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
             {product.name}
           </h1>
+          <Codes product={product} />
 
           {product.summary && (
             <p className="text-muted-foreground mt-3 text-sm">
@@ -166,19 +478,30 @@ async function ProductView({
           )}
 
           <div className="border-border bg-card mt-6 rounded-lg border p-5">
-            {offer.displayable && payable ? (
-              <div className="flex flex-wrap items-baseline gap-3">
-                <Price
-                  price={payable}
-                  compareAtPrice={
-                    offer.promoPrice ? (offer.price ?? undefined) : undefined
-                  }
-                  showDiscountBadge={false}
-                />
-                {percent !== null && (
-                  <span className="bg-promo text-promo-foreground rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums">
-                    −{percent}%
-                  </span>
+            {withdrawn ? (
+              <p className="text-muted-foreground">
+                Produsul nu mai este disponibil.
+              </p>
+            ) : payable ? (
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                <div className="flex flex-wrap items-baseline gap-3">
+                  <Price
+                    price={payable}
+                    compareAtPrice={
+                      offer.promoPrice ? (offer.price ?? undefined) : undefined
+                    }
+                    showDiscountBadge={false}
+                  />
+                  {percent !== null && (
+                    <span className="bg-promo text-promo-foreground rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums">
+                      −{percent}%
+                    </span>
+                  )}
+                </div>
+                {costPerPage && (
+                  <p className="text-muted-foreground text-sm tabular-nums">
+                    {costPerPage}
+                  </p>
                 )}
               </div>
             ) : (
@@ -187,24 +510,41 @@ async function ProductView({
               <p className="text-muted-foreground">Preț la cerere</p>
             )}
 
-            <div className="mt-3">
-              <HubStockBadge state={stock.state} label={stock.label} />
-            </div>
+            {!withdrawn && (
+              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <HubStockBadge state={stock.state} label={stock.label} />
+                {pages && (
+                  <span className="text-muted-foreground text-sm">
+                    {formatYield(pages)}
+                  </span>
+                )}
+              </div>
+            )}
 
-            {/*
-              Stock and price shown here come from the cached product record; the
-              action re-checks both live before anything lands in the cart.
-            */}
+            {/* The action re-checks price and stock live before anything lands
+                in the cart, whatever this page was able to read. */}
             <AddToCart
               variantId={product.sku}
-              inStock={stock.orderable && offer.displayable && payable !== null}
+              inStock={!withdrawn && stock.orderable && payable !== null}
               action={addHubToCartAction}
               wrapperClassName="mt-5"
               productName={product.name}
               imageUrl={product.imageUrl}
+              withQuantity
             />
 
-            <p className="mt-5 text-sm">
+            {/* Once per page, beside add-to-cart — never on the sibling chips. */}
+            {whatsapp && (
+              <WhatsAppLink
+                className="mt-2"
+                href={whatsappHref(
+                  whatsapp,
+                  productQuestion(product.sku, product.name),
+                )}
+              />
+            )}
+
+            <p className="mt-4 text-sm">
               Sau telefonic:{" "}
               <a
                 href={`tel:${ORDER_PHONE.replace(/\s/g, "")}`}
@@ -213,20 +553,15 @@ async function ProductView({
                 {ORDER_PHONE}
               </a>
             </p>
-          </div>
 
-          <dl className="mt-6">
-            <Spec label="Cod produs" value={product.sku} />
-            <Spec label="Cod oferta" value={product.offerCode} />
-            <Spec label="Producator" value={product.manufacturer} />
-            <Spec label="Tip" value={product.type} />
-            <Spec label="Capacitate" value={product.capacity} />
-            <Spec label="Culoare" value={product.colour} />
-            <Spec label="EAN" value={product.ean} />
-            <Spec label="Coduri OEM" value={product.oem} />
-          </dl>
+            <Guarantees />
+          </div>
         </div>
       </div>
+
+      <Variants variants={variants} figures={figures} />
+
+      <Compatibility printers={taxonomy.printers} what={type.singular} />
 
       {product.descriptionHtml && (
         <section className="mt-12 max-w-3xl">
@@ -244,34 +579,48 @@ async function ProductView({
         </section>
       )}
 
-      {product.specs.length > 0 && (
-        <section className="mt-12 max-w-3xl">
-          <h2 className="text-lg font-bold">Caracteristici</h2>
+      <section className="mt-12 max-w-3xl">
+        <h2 className="text-lg font-bold">Fișă tehnică</h2>
+        <dl className="mt-3">
+          <Spec label="Tip" value={type.type ? type.singular : product.type} />
+          {/* Colour and yield are in `features` below, in HUB's own words. */}
+          <Spec label="EAN" value={product.ean} />
+          <Spec label="Cod ofertă" value={product.offerCode} />
           {/*
             A list, not a map: the same name legitimately repeats — "Compatibil OEM"
             has dozens of values — so keying by it would keep only the last.
           */}
-          <dl className="mt-3">
-            {product.specs.map((spec, i) => (
+          {product.specs
+            .filter((spec) => !INTERNAL_SPECS.has(spec.name))
+            .map((spec, i) => (
               <Spec
                 key={`${spec.name}-${i}`}
                 label={spec.name}
                 value={spec.value}
               />
             ))}
-          </dl>
-        </section>
-      )}
+        </dl>
+      </section>
 
-      {product.variants && product.variants.length > 0 && (
-        <section className="mt-12">
-          <h2 className="mb-5 text-lg font-bold">
-            Alti producatori pentru acelasi cod
-          </h2>
-          {/* HUB's own framing: siblings share an offer code. */}
-          <HubProductGrid products={product.variants} />
-        </section>
-      )}
+      <JsonLd
+        data={productJsonLd({
+          name: product.name,
+          sku: product.sku,
+          url: origin
+            ? new URL(productPath(product), origin).toString()
+            : undefined,
+          imageUrl: product.imageUrl,
+          description: product.metaDescription || product.summary,
+          brand: product.brand,
+          manufacturer: product.manufacturer,
+          ean: product.ean,
+          oem: product.oem,
+          // The figures rendered above, not a second reading of them.
+          price: payable,
+          stockState: stock.state,
+          printers: taxonomy.printers.map(printerName),
+        })}
+      />
     </>
   );
 }
@@ -283,19 +632,28 @@ export default function HubProductPage({
     <main className="max-w-page mx-auto px-4 py-10">
       <Reveal
         fallback={
-          // ProductView's shape, band for band: image, brand, a two-line
-          // title, and the offer card with price, stock pill, button, phone.
-          <div className="grid gap-8 lg:grid-cols-2" aria-hidden>
-            <div className="bg-muted aspect-square animate-pulse rounded-lg" />
-            <div>
-              <div className="bg-muted h-4 w-20 animate-pulse rounded" />
-              <div className="bg-muted mt-2 h-8 w-4/5 animate-pulse rounded" />
-              <div className="bg-muted mt-2 h-8 w-3/5 animate-pulse rounded" />
-              <div className="border-border mt-6 rounded-lg border p-5">
-                <div className="bg-muted h-8 w-36 animate-pulse rounded" />
-                <div className="bg-muted mt-3 h-6 w-28 animate-pulse rounded-full" />
-                <div className="bg-muted mt-5 h-8 w-full animate-pulse rounded-lg" />
-                <div className="bg-muted mt-5 h-5 w-52 animate-pulse rounded" />
+          // ProductView's shape, band for band: breadcrumbs, image, a two-line
+          // title, the codes, and the offer card with price, stock pill,
+          // button and guarantees.
+          <div aria-hidden>
+            <div className="bg-muted mb-6 h-5 w-80 max-w-full animate-pulse rounded" />
+            <div className="grid gap-8 lg:grid-cols-2">
+              <div className="bg-muted aspect-square animate-pulse rounded-lg" />
+              <div>
+                <div className="bg-muted h-8 w-4/5 animate-pulse rounded" />
+                <div className="bg-muted mt-2 h-8 w-3/5 animate-pulse rounded" />
+                <div className="bg-muted mt-2 h-5 w-64 animate-pulse rounded" />
+                <div className="border-border mt-6 rounded-lg border p-5">
+                  <div className="bg-muted h-8 w-36 animate-pulse rounded" />
+                  <div className="bg-muted mt-3 h-6 w-28 animate-pulse rounded-full" />
+                  <div className="bg-muted mt-5 h-8 w-full animate-pulse rounded-lg" />
+                  <div className="bg-muted mt-4 h-5 w-52 animate-pulse rounded" />
+                  <div className="border-border mt-5 space-y-2 border-t pt-5">
+                    <div className="bg-muted h-5 w-72 max-w-full animate-pulse rounded" />
+                    <div className="bg-muted h-5 w-32 animate-pulse rounded" />
+                    <div className="bg-muted h-5 w-56 animate-pulse rounded" />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -306,10 +664,10 @@ export default function HubProductPage({
 
       <p className="mt-12 text-sm">
         <Link
-          href="/produse"
+          href="/modele"
           className="text-primary focus-visible:ring-ring rounded hover:underline focus-visible:ring-2 focus-visible:outline-none"
         >
-          ← Vezi tot catalogul
+          ← Alege alt echipament
         </Link>
       </p>
     </main>

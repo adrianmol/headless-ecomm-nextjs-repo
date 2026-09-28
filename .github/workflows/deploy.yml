@@ -157,6 +157,7 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           ORDER_EMAIL_FROM: ${{ vars.ORDER_EMAIL_FROM }}
           ORDER_EMAIL_TO: ${{ vars.ORDER_EMAIL_TO }}
+          WHATSAPP_NUMBER: ${{ vars.WHATSAPP_NUMBER }}
         run: |
           set -euo pipefail
           # STOREFRONT_URL is required, and its absence used to be silent: the
@@ -187,6 +188,7 @@ jobs:
           RESEND_API_KEY=${RESEND_API_KEY}
           ORDER_EMAIL_FROM=${ORDER_EMAIL_FROM}
           ORDER_EMAIL_TO=${ORDER_EMAIL_TO}
+          WHATSAPP_NUMBER=${WHATSAPP_NUMBER}
           EOF
           ssh deploy-target "chmod 600 '${ENV_FILE}'"
 
